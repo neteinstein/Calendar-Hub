@@ -13,10 +13,16 @@ final class EventAlertController: ObservableObject {
     /// Occurrence keys already alerted, with when, so each event alerts once. Pruned daily.
     private var shown: [String: Date] = [:]
     private var window: NSWindow?
+    /// The event the alert on screen is for.
+    private var current: SourceEvent?
     /// Keeps App Nap away while alerts are on. A menu bar app with no window open naps, and
     /// then its timers fire minutes late or not at all, so alerts came late or never.
     private var activity: NSObjectProtocol?
     private var enabledObserver: AnyCancellable?
+    private var screenObserver: NSObjectProtocol?
+    /// The last reason `check` couldn't read the main calendar, so it's logged once, not
+    /// every 20 seconds.
+    private var lastReadFailure: String?
 
     init(settings: SettingsStore, eventKit: EventKitBridge) {
         self.settings = settings
@@ -32,6 +38,12 @@ final class EventAlertController: ObservableObject {
         enabledObserver = settings.$alerts.map(\.enabled).removeDuplicates().sink { [weak self] enabled in
             MainActor.assumeIsolated { self?.preventAppNap(enabled) }
         }
+        // A display unplugged or rearranged under the alert would leave it off screen.
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.keepOnScreen() }
+        }
     }
 
     private func preventAppNap(_ prevent: Bool) {
@@ -46,12 +58,32 @@ final class EventAlertController: ObservableObject {
     }
 
     private func check() {
-        guard settings.alerts.enabled, window == nil, eventKit.hasAccess,
-              let targetID = settings.targetCalendarID else { return }
         let now = Date()
+        if let window, let current {
+            // An alert left up after its event ended would hold back every alert after it.
+            guard now >= current.end else {
+                keepOnScreen()
+                return
+            }
+            NSLog("Calendar Sync: closing the alert for “\(current.title)”, which has ended")
+            window.orderOut(nil)
+            self.window = nil
+            self.current = nil
+        }
+        guard settings.alerts.enabled, eventKit.hasAccess,
+              let targetID = settings.targetCalendarID else { return }
         // Events overlapping this window: already under way, or starting within the lead time.
         let ahead = now.addingTimeInterval(60 * Double(settings.alerts.leadMinutes) + 60)
-        guard case .success(let events) = eventKit.sourceEvents(calendarID: targetID, from: now, to: ahead) else { return }
+        let events: [SourceEvent]
+        switch eventKit.sourceEvents(calendarID: targetID, from: now, to: ahead) {
+        case .success(let read):
+            events = read
+            lastReadFailure = nil
+        case .failure(let reason):
+            if reason != lastReadFailure { NSLog("Calendar Sync: can't check for alerts: \(reason)") }
+            lastReadFailure = reason
+            return
+        }
 
         shown = shown.filter { now.timeIntervalSince($0.value) < 24 * 3600 }
         let due = EventAlertPlanner.dueAlerts(
@@ -61,8 +93,15 @@ final class EventAlertController: ObservableObject {
         shown[event.key] = now
     }
 
+    /// The screen the user is looking at, as best we can tell: the one with the pointer.
+    private static func activeScreen() -> NSScreen? {
+        let pointer = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+            ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
     private func show(_ event: SourceEvent) -> Bool {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else { return false }
+        guard let screen = Self.activeScreen() else { return false }
         let panel = AlertPanel(contentRect: screen.frame, styleMask: [.borderless],
                                backing: .buffered, defer: false)
         panel.isOpaque = false
@@ -71,19 +110,42 @@ final class EventAlertController: ObservableObject {
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isReleasedWhenClosed = false
+        // Panels hide while their app isn't active by default, and this one must show over
+        // whatever app is.
+        panel.hidesOnDeactivate = false
         panel.ignoresKeysUntil = Date().addingTimeInterval(1.5)
         panel.contentView = NSHostingView(rootView: EventAlertView(event: event) { [weak self] in
             self?.dismiss()
         })
         window = panel
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        current = event
+        bringForward(panel)
+        NSLog("Calendar Sync: showing the alert for “\(event.title)” at \(event.start)")
         return true
+    }
+
+    private func bringForward(_ panel: NSWindow) {
+        // A hidden app (⌘H in the Outlook window, or another app's Hide Others) shows none of
+        // its windows, and macOS can turn down the activation below, so unhide it first.
+        if NSApp.isHidden { NSApp.unhideWithoutActivation() }
+        panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Puts the alert back in front of the user if it was hidden or its screen went away.
+    private func keepOnScreen() {
+        guard let window else { return }
+        if !NSScreen.screens.contains(where: { $0.frame == window.frame }), let screen = Self.activeScreen() {
+            window.setFrame(screen.frame, display: true)
+        }
+        if NSApp.isHidden || !window.isVisible { bringForward(window) }
     }
 
     private func dismiss() {
         window?.orderOut(nil)
         window = nil
+        current = nil
         // If another event is due at the same time, show it next.
         check()
     }
