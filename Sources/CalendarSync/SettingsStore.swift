@@ -18,8 +18,14 @@ final class SettingsStore: ObservableObject {
     /// The main calendar is also shown as Busy in the secondary calendars, in each one whose
     /// `showBusyInSecondary` is on.
     @Published var twoWaySync: Bool { didSet { defaults.set(twoWaySync, forKey: "twoWaySync") } }
+    /// While syncing both ways, Outlook on the web calendars get Busy events too, written
+    /// through Outlook's own web service. Experimental, so off until turned on.
+    @Published var twoWaySyncOutlookWeb: Bool {
+        didSet { defaults.set(twoWaySyncOutlookWeb, forKey: "twoWaySyncOutlookWeb") }
+    }
     /// Not a setting: the secondary calendars Busy events were added to. Only in these are
-    /// events that look like Busy events taken back when they're no longer wanted.
+    /// events that look like Busy events taken back when they're no longer wanted. Outlook on
+    /// the web calendars are in it as `outlookBusyKey(_:)`.
     var busyCalendarIDs: Set<String> {
         didSet { if busyCalendarIDs != oldValue { defaults.set(busyCalendarIDs.sorted(), forKey: "busyCalendarIDs") } }
     }
@@ -40,7 +46,13 @@ final class SettingsStore: ObservableObject {
         intervalMinutes = interval > 0 ? interval : 15
         // Older versions had only the per-calendar choice; keep the calendars that made it.
         twoWaySync = defaults.object(forKey: "twoWaySync") as? Bool ?? sources.contains(where: \.showBusyInSecondary)
+        twoWaySyncOutlookWeb = defaults.bool(forKey: "twoWaySyncOutlookWeb")
         busyCalendarIDs = Set(defaults.stringArray(forKey: "busyCalendarIDs") ?? [])
+    }
+
+    /// How an Outlook on the web calendar is kept in `busyCalendarIDs`.
+    static func outlookBusyKey(_ sourceID: UUID) -> String {
+        "outlookWeb:" + sourceID.uuidString
     }
 
     private func save<T: Encodable>(_ value: T, _ key: String) {

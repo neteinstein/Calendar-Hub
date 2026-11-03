@@ -8,7 +8,7 @@
 
 A tiny macOS menu bar app that copies meetings from your secondary calendars into your main calendar, so colleagues stop booking you over meetings they can't see.
 
-[![Version 1.1.20](https://img.shields.io/badge/version-1.1.20-2563EB)](Support/Info.plist)
+[![Version 1.1.21](https://img.shields.io/badge/version-1.1.21-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
@@ -104,7 +104,7 @@ It never copies attendees, so no invites go out. It never copies its own copies 
 <td colspan="2" valign="top">
 
 ### ↩️ Sync both ways
-Optional, in the **Two way sync** tab. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location or attendees. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It needs secondary calendars you can edit in Calendar.app; Outlook on the web and `.ics` link calendars are read-only.
+Optional, in the **Two way sync** tab. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location or attendees. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It works with secondary calendars you can edit in Calendar.app and, if you also turn on **Also sync Outlook on the web calendars** (experimental), with Outlook on the web calendars. `.ics` link calendars are read-only.
 
 </td>
 </tr>
@@ -129,11 +129,12 @@ flowchart LR
     C["Outlook on the web<br/>(sign in once)"] --> S
     S{{"Calendar Sync<br/>plan: add · update · remove"}} --> M["Main calendar<br/>[Calendar A] Sprint planning ▶ Join"]
     M -. "Two way sync: Busy, no details" .-> A
+    M -. "Two way sync (experimental)" .-> C
 ```
 
 Every copy ends its notes with a tag like `calsync:v1:<source id>:<occurrence id>`. The app uses it to recognise its own copies and match them to their originals, which is why a moved meeting gets updated instead of duplicated.
 
-The Busy events that two way sync adds to secondary calendars carry no tag. The app recognises them by their title (**Busy** or **Out of office**), their description (just “Busy”) and having no attendees, and matches them to your main calendar by time. So in a secondary calendar that two way sync writes to, an event you make yourself that looks exactly like that is treated as one of them.
+The Busy events that two way sync adds to secondary calendars carry no tag. The app recognises them by their title (**Busy** or **Out of office**), their description (just “Busy”), having no attendees and not repeating, and matches them to your main calendar by time. So in a secondary calendar that two way sync writes to, an event you make yourself that looks exactly like that is treated as one of them.
 
 ## Secondary calendars it can read
 
@@ -154,6 +155,7 @@ The Busy events that two way sync adds to secondary calendars carry no tag. The 
 - It depends on how Outlook's web app works internally, which Microsoft can change without notice. If a sync can't find calendar data, or you've been signed out, the existing copies are **left as they are**. The menu bar icon then shows a warning and an **Open Outlook** button.
 - Reading a calendar this way may go against its organization's IT or security policy. **Check with them first**, and consider turning on **Hide meeting names** for that calendar.
 - Each Outlook calendar keeps its own sign-in, so you can add more than one.
+- **Two way sync can write to it too**, if you turn on **Also sync Outlook on the web calendars** in the **Two way sync** tab (off by default, experimental). Right after each read, the app saves the Busy events through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set, and the ones it removes go to Deleted Items. So they're only updated as often as that calendar is read. If a read didn't get every meeting in full, its Busy events are left as they are that time, so none are added twice. Writing to a work calendar this way is more likely to go against its organization's policy than reading it, so check with them first.
 
 </details>
 
@@ -186,7 +188,7 @@ Allow calendar access on first launch. Then open **Settings…** from the menu b
 
 1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync. Turn on the **full-screen alert** here if you want one when each meeting starts.
 2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**.
-3. **Two way sync:** turn on **Sync both ways** to show your main calendar as **Busy** in your secondary calendars, so they all show the same booked time. Turning it on includes every secondary calendar you can edit; turn off **Show my main calendar here** for any that shouldn't, or pick **Out of office** instead of **Busy**.
+3. **Two way sync:** turn on **Sync both ways** to show your main calendar as **Busy** in your secondary calendars, so they all show the same booked time. Turning it on includes every secondary calendar you can edit; turn off **Show my main calendar here** for any that shouldn't, or pick **Out of office** instead of **Busy**. For Outlook on the web calendars, also turn on **Also sync Outlook on the web calendars** (experimental).
 4. **Preview:** see what a sync would change, then let it run.
 
 **No icon in the menu bar?** If the icon is hidden, in System Settings › Menu Bar or by ⌘-dragging it out of the menu bar, Calendar Sync keeps running and syncing without it. Open the app again to bring the icon back. If it disappears again, turn Calendar Sync back on under **Allow in the Menu Bar** in System Settings › Menu Bar.
@@ -200,11 +202,11 @@ Allow calendar access on first launch. Then open **Settings…** from the menu b
 swift test
 ```
 
-The tests cover the sync rules: titles, meeting links, details, moves, deletes, filters, no loops, per-calendar intervals, and the Outlook data parser. They run on Linux too. CI builds the app and runs the tests on macOS for every push.
+The tests cover the sync rules: titles, meeting links, details, moves, deletes, filters, no loops, per-calendar intervals, the Outlook data parser and the Outlook Busy-event requests. They run on Linux too. CI builds the app and runs the tests on macOS for every push.
 
 | Folder | What's in it |
 |---|---|
-| [`Sources/CalendarSyncCore`](Sources/CalendarSyncCore) | Platform-independent rules: `SyncPlanner` (what to add, update and remove), `SyncSchedule` (which calendars are due), `CopyFormatter` (titles and notes), `MeetingLink`, `CopyMarker`, `HTMLText` and `OutlookWebParser` |
+| [`Sources/CalendarSyncCore`](Sources/CalendarSyncCore) | Platform-independent rules: `SyncPlanner` (what to add, update and remove), `SyncSchedule` (which calendars are due), `CopyFormatter` (titles and notes), `MeetingLink`, `CopyMarker`, `HTMLText`, `OutlookWebParser` and `OutlookWebWriter` (the requests that write Busy events to Outlook on the web) |
 | [`Sources/CalendarSync`](Sources/CalendarSync) | The macOS app: `EventKitBridge` (Calendar.app), `OutlookWebSource` (built-in Outlook browser), `SyncController` (scheduling) and the SwiftUI views |
 | [`Tests`](Tests) | Unit tests for the core |
 | [`scripts/build-app.sh`](scripts/build-app.sh) | Builds and signs `Calendar Sync.app` |
