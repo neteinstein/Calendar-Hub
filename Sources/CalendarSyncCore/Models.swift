@@ -153,14 +153,17 @@ public struct MenuCalendarOptions: Codable, Hashable, Sendable {
     public var colorsByCalendar: Bool
     /// A day's morning and afternoon events sit in blocks of their own color.
     public var shadesTimeOfDay: Bool
+    /// The menu gets a Stats view with the hours spent in meetings.
+    public var showsMeetingStats: Bool
 
     public init(weekStart: WeekStart = .system, showsWeekends: Bool = true, shadesAllDay: Bool = true,
-                colorsByCalendar: Bool = true, shadesTimeOfDay: Bool = true) {
+                colorsByCalendar: Bool = true, shadesTimeOfDay: Bool = true, showsMeetingStats: Bool = false) {
         self.weekStart = weekStart
         self.showsWeekends = showsWeekends
         self.shadesAllDay = shadesAllDay
         self.colorsByCalendar = colorsByCalendar
         self.shadesTimeOfDay = shadesTimeOfDay
+        self.showsMeetingStats = showsMeetingStats
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -171,6 +174,7 @@ public struct MenuCalendarOptions: Codable, Hashable, Sendable {
         shadesAllDay = try c.decodeIfPresent(Bool.self, forKey: .shadesAllDay) ?? true
         colorsByCalendar = try c.decodeIfPresent(Bool.self, forKey: .colorsByCalendar) ?? true
         shadesTimeOfDay = try c.decodeIfPresent(Bool.self, forKey: .shadesTimeOfDay) ?? true
+        showsMeetingStats = try c.decodeIfPresent(Bool.self, forKey: .showsMeetingStats) ?? false
     }
 
     /// `calendar` with its first weekday set to the chosen one.
