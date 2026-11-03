@@ -34,6 +34,12 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// On a clock that setting the time doesn't move, like the waits that use it.
     private var lastCaptureAt: ContinuousClock.Instant?
     private var isFetching = false
+    /// Writing two way sync's Busy events, which needs the page as the last fetch left it.
+    private var isWriting = false
+    /// The Busy events in the calendar, as the last fetch found them. Nil when it couldn't
+    /// tell, with the reason in `busyProblem`.
+    private(set) var busyEvents: [ExistingCopy]?
+    private(set) var busyProblem: String?
     private let securityKey = SecurityKeySignIn()
 
     init(sourceID: UUID) {
@@ -116,7 +122,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
     // MARK: - Fetching
 
     func fetch(from start: Date, to end: Date) async -> SourceFetchResult {
-        guard !isFetching else { return .failure("Already reading Outlook") }
+        guard !isFetching, !isWriting else { return .failure("Already reading Outlook") }
+        busyEvents = nil
+        busyProblem = "Outlook wasn't read."
         // Loading would navigate away from whatever the user is doing in the window
         // (e.g. signing in), so wait until it's closed.
         if window?.isVisible == true {
@@ -195,9 +203,73 @@ final class OutlookWebSource: NSObject, ObservableObject {
             }
             .filter { seen.insert($0.key).inserted }
             .filter { $0.end > start && $0.start < end }
+        readBusyEvents(itemIDs: itemIDs, details: details, readFromScreen: !onScreen.isEmpty, from: start, to: end)
         let withLinks = events.filter { $0.meetingURL != nil }.count
         NSLog("Calendar Sync: Outlook \(events.count) meetings, \(details.count) detail responses, \(withLinks) with a meeting link")
         return .success(events)
+    }
+
+    /// Finds the Busy events two way sync wrote, for `applyBusy`. Only from a read that got
+    /// every week's data and every meeting in full: a Busy event missed here would get another
+    /// added next to it on every sync.
+    private func readBusyEvents(itemIDs: [String], details: [Data], readFromScreen: Bool, from start: Date, to end: Date) {
+        if readFromScreen {
+            busyProblem = "Outlook's calendar data couldn't be read in full, so Busy events weren't changed."
+        } else if !itemIDs.isEmpty && details.isEmpty {
+            busyProblem = "Outlook didn't let the app load meetings in full, so Busy events weren't changed."
+        } else if let found = OutlookWebParser.busyEvents(fromPayloads: captured, details: details) {
+            busyEvents = found.filter { $0.end > start && $0.start < end }
+            busyProblem = nil
+        } else {
+            busyProblem = "Some events titled like Busy events couldn't be loaded in full, so Busy events weren't changed."
+        }
+    }
+
+    // MARK: - Writing (two way sync)
+
+    /// Makes the Busy-event changes in `plan` through Outlook's own service, signed in the way
+    /// Outlook's own requests are. Needs the page the last fetch loaded, so call it right after
+    /// a fetch that found `busyEvents`. Returns a message per change that failed.
+    ///
+    /// EXPERIMENTAL, like reading: this depends on how Outlook on the web saves events.
+    func applyBusy(_ plan: SyncPlan) async -> [String] {
+        guard !plan.isEmpty else { return [] }
+        guard !isFetching, !isWriting else { return ["Already reading Outlook."] }
+        if window?.isVisible == true {
+            return ["Outlook window is open. Close it to update Busy events."]
+        }
+        guard busyEvents != nil, !isSignInPage(webView.url) else {
+            return [busyProblem ?? "Outlook wasn't read, so Busy events weren't changed."]
+        }
+        isWriting = true
+        defer { isWriting = false }
+
+        var errors: [String] = []
+        for action in plan.actions {
+            for request in OutlookWebWriter.requests(for: action) {
+                let answer = await call(request)
+                if let problem = OutlookWebWriter.problem(inResponse: answer) {
+                    errors.append("\(action.title), \(action.start.formatted(date: .abbreviated, time: .shortened)): \(problem)")
+                    break
+                }
+            }
+        }
+        // The Busy events are read again on the next fetch.
+        busyEvents = nil
+        busyProblem = "Outlook wasn't read since its Busy events changed."
+        NSLog("Calendar Sync: Outlook Busy events, \(plan.actions.count) changes, \(errors.count) failed")
+        return errors
+    }
+
+    private func call(_ request: OutlookWebWriter.Request) async -> String? {
+        await withCheckedContinuation { continuation in
+            webView.callAsyncJavaScript(
+                Self.callScript, arguments: ["action": request.action, "request": request.body],
+                in: nil, in: Self.bridgeWorld
+            ) { result in
+                continuation.resume(returning: (try? result.get()) as? String)
+            }
+        }
     }
 
     /// Loads the meetings in full (body, join link). Returns the raw responses, or nothing if
@@ -463,8 +535,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
     """#
 
     /// Runs in `bridgeWorld`: forwards what `captureScript` sees to the app, and gives
-    /// `detailsScript` `window.__calsync.loadItems`, which loads meetings with the remembered
-    /// sign-in headers. None of it is visible to the page.
+    /// `detailsScript` and `callScript` `window.__calsync.loadItems` and `call`, which send
+    /// requests to Outlook's service with the remembered sign-in headers. None of it is visible
+    /// to the page.
     ///
     /// The two scripts talk through a detached element, which the page can't reach. It goes to
     /// `captureScript` as the `relatedTarget` of an event on the document, both scripts running
@@ -491,21 +564,20 @@ final class OutlookWebSource: NSObject, ObservableObject {
       document.addEventListener('calsync-hello', offer);
       offer();
 
-      // Asks Outlook's service for the meetings in full, as Outlook itself does when a
-      // meeting is opened, with the sign-in headers of its last service call. Sends the
-      // request in the body and, if Outlook refuses that, in the x-owa-urlpostdata header that
-      // newer Outlook versions use. Returns the response texts, or none without a service
-      // call to take the sign-in from.
-      async function loadItems(ids) {
-        if (!service || !ids || !ids.length) return [];
+      // Sends one request to Outlook's service, with the sign-in headers of its last service
+      // call, as Outlook itself does: in the body and, if Outlook refuses that, in the
+      // x-owa-urlpostdata header that newer Outlook versions use. Returns the response text, or
+      // null without a service call to take the sign-in from or when Outlook refuses it.
+      async function call(action, request) {
+        if (!service) return null;
         const url = new URL(service.url);
-        url.searchParams.set('action', 'GetItem');
+        url.searchParams.set('action', action);
         url.searchParams.delete('n');
         const base = {};
         for (const [k, v] of Object.entries(service.headers)) {
           if (!/^(content-length|content-type|action|x-owa-urlpostdata|x-owa-actionname|x-owa-actionid)$/i.test(k)) base[k] = v;
         }
-        base['action'] = 'GetItem';
+        base['action'] = action;
         base['content-type'] = 'application/json; charset=utf-8';
         async function post(headers, body) {
           const controller = new AbortController();
@@ -521,6 +593,17 @@ final class OutlookWebSource: NSObject, ObservableObject {
             clearTimeout(timer);
           }
         }
+        const headers = withNewIDs(base);
+        const text = await post(headers, request);
+        if (text !== null) return text;
+        return await post(Object.assign({}, headers, { 'x-owa-urlpostdata': encodeURIComponent(request) }), '');
+      }
+
+      // Asks Outlook's service for the meetings in full, as Outlook itself does when a
+      // meeting is opened. Returns the response texts, or none without a service call to take
+      // the sign-in from.
+      async function loadItems(ids) {
+        if (!service || !ids || !ids.length) return [];
         const out = [];
         const size = 10;
         for (let i = 0; i < ids.length; i += size) {
@@ -533,11 +616,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
               ItemIds: ids.slice(i, i + size).map(id => ({ __type: 'ItemId:#Exchange', Id: id })),
             },
           });
-          const headers = withNewIDs(base);
-          let text = await post(headers, request);
-          if (text === null) {
-            text = await post(Object.assign({}, headers, { 'x-owa-urlpostdata': encodeURIComponent(request) }), '');
-          }
+          const text = await call('GetItem', request);
           if (text) out.push(text);
         }
         return out;
@@ -552,7 +631,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         return out;
       }
 
-      window.__calsync = { loadItems };
+      window.__calsync = { loadItems, call };
     })();
     """#
 
@@ -561,6 +640,14 @@ final class OutlookWebSource: NSObject, ObservableObject {
     static let detailsScript = #"""
     const api = window.__calsync;
     return api ? await api.loadItems(ids) : [];
+    """#
+
+    /// Runs in `bridgeWorld` (`callAsyncJavaScript`, with `action` and `request`): sends one
+    /// request to Outlook's service through `bridgeScript`'s `call`. Returns the response text,
+    /// or null.
+    static let callScript = #"""
+    const api = window.__calsync;
+    return api ? await api.call(action, request) : null;
     """#
 
     /// Gives Microsoft's sign-in pages a `navigator.credentials.get` that works: WebKit's own
