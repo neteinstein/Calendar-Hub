@@ -41,6 +41,61 @@ public enum OutlookWebParser {
         return ids
     }
 
+    /// The Busy events two way sync wrote to the calendar (see `CopyFormatter.isBusyEvent`),
+    /// with Outlook's item id as their `eventID`, so they can be changed or deleted.
+    ///
+    /// Busy events are told apart from the calendar's own events by their description, which
+    /// the week view leaves out, so this needs the meetings loaded in full (`details`). Returns
+    /// nil when an event titled like a Busy event has no description to tell by: the app can't
+    /// know whether it made it, and adding another every sync would pile them up.
+    ///
+    /// - Parameter timeZone: this Mac's time zone, whose days all-day events are placed on.
+    public static func busyEvents(fromPayloads payloads: [Data], details detailPayloads: [Data] = [],
+                                  timeZone: TimeZone = .current) -> [ExistingCopy]? {
+        let details = self.details(fromPayloads: detailPayloads)
+        var seen: Set<String> = []
+        var result: [ExistingCopy] = []
+        var unsure = false
+        forEachEvent(in: payloads) { obj in
+            guard let id = rawItemID(obj), !seen.contains(id) else { return }
+            let detail = details[id]
+            guard let event = event(from: obj, detail: detail, timeZone: timeZone), !event.isCancelled else { return }
+            let title = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Busy events never repeat or have attendees, so a meeting that only looks like one
+            // is left alone.
+            guard BusyStyle.allCases.contains(where: { $0.title == title }),
+                  !isRecurring(obj), !hasAttendees(obj), !(detail.map(hasAttendees) ?? false)
+            else { return }
+            seen.insert(id)
+            guard let notes = event.notes else {
+                unsure = true
+                return
+            }
+            guard CopyFormatter.isBusyEvent(title: title, notes: notes) else { return }
+            result.append(ExistingCopy(
+                eventID: id, marker: nil, title: title, start: event.start, end: event.end,
+                isAllDay: event.isAllDay, url: event.meetingURL, notes: notes, location: event.location))
+        }
+        return unsure ? nil : result.sorted { $0.start < $1.start }
+    }
+
+    private static func isRecurring(_ obj: Obj) -> Bool {
+        if obj.string("seriesMasterId") != nil || obj.object("seriesMasterItemId") != nil
+            || obj.value("recurrence") != nil {
+            return true
+        }
+        // OWA: CalendarItemType Single / Occurrence / Exception / RecurringMaster;
+        // Graph: type singleInstance / occurrence / exception / seriesMaster.
+        let type = (obj.string("calendarItemType") ?? obj.string("type") ?? "").lowercased()
+        return ["occurrence", "exception", "recurringmaster", "seriesmaster"].contains(type)
+    }
+
+    private static func hasAttendees(_ obj: Obj) -> Bool {
+        ["requiredAttendees", "optionalAttendees", "resources", "attendees"].contains {
+            ((obj.value($0) as? [Any])?.isEmpty == false)
+        }
+    }
+
     private static func forEachEvent(in payloads: [Data], _ found: (Obj) -> Void) {
         for data in payloads {
             guard let json = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) else { continue }

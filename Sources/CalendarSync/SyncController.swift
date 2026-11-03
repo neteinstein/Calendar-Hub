@@ -161,6 +161,8 @@ final class SyncController: ObservableObject {
         // minute) mustn't queue another read of the ones still to come.
         if apply { for source in selected { lastRead[source.id] = Date() } }
         var results: [(config: SourceConfig, result: SourceFetchResult)] = []
+        /// Outlook on the web calendars read this time, whose Busy events can be updated now.
+        var outlookRead: [SourceConfig] = []
         for source in selected {
             switch source.kind {
             case .eventKit(let calendarID):
@@ -170,7 +172,9 @@ final class SyncController: ObservableObject {
                 if let calendar = eventKit.calendar(id: calendarID) { source.calendarName = calendar.title }
                 results.append((source, eventKit.sourceEvents(calendarID: calendarID, from: start, to: end)))
             case .outlookWeb:
-                results.append((source, await outlookSource(for: source.id).fetch(from: start, to: end)))
+                let result = await outlookSource(for: source.id).fetch(from: start, to: end)
+                results.append((source, result))
+                if case .success = result { outlookRead.append(source) }
             }
         }
 
@@ -229,6 +233,15 @@ final class SyncController: ObservableObject {
             }
         }
 
+        // Outlook on the web calendars, when that's turned on too. Only the ones read just now:
+        // their Busy events are found while reading, and written through the page that read them.
+        for source in outlookRead {
+            if let busy = await syncOutlookBusy(source, targetID: targetID, from: start, to: end,
+                                                apply: apply, problems: &problems) {
+                busyPlans.append(busy)
+            }
+        }
+
         if apply {
             lastSync = Date()
             // Counts copies of every secondary calendar, including ones not read this time.
@@ -246,6 +259,44 @@ final class SyncController: ObservableObject {
         }
         self.problems = problems.sorted()
         return plan
+    }
+
+    /// Shows the main calendar as Busy in one Outlook on the web calendar, or takes the Busy
+    /// events back from one that no longer asks for them. Returns its preview, if there's
+    /// anything to show.
+    private func syncOutlookBusy(
+        _ source: SourceConfig, targetID: String, from start: Date, to end: Date,
+        apply: Bool, problems: inout [String]
+    ) async -> BusyPreview? {
+        let key = SettingsStore.outlookBusyKey(source.id)
+        let showsBusy = settings.twoWaySync && settings.twoWaySyncOutlookWeb && source.showBusyInSecondary
+        let addedHere = settings.busyCalendarIDs.contains(key)
+        guard showsBusy || addedHere else { return nil }
+        let name = source.calendarName
+        let outlook = outlookSource(for: source.id)
+        guard let existingBusy = outlook.busyEvents else {
+            problems.append("\(name) (Busy): \(outlook.busyProblem ?? "Outlook wasn't read.")")
+            return nil
+        }
+        let busy = showsBusy
+            ? SyncPlanner.planBusy(
+                for: source,
+                mainEvents: eventKit.sourceEvents(calendarID: targetID, from: start, to: end),
+                existing: existingBusy,
+                options: settings.options)
+            // Outlook's Busy events carry no marker, so only ones added to this calendar are
+            // recognised at all.
+            : SyncPlanner.planBusyRemoval(existing: existingBusy, addedHere: true)
+        problems += busy.failedSources.values.map { "\(name) (Busy): \($0)" }
+        if apply {
+            // Recorded before writing, so the Busy events are taken back later even if some
+            // of them fail to save now.
+            if showsBusy { settings.busyCalendarIDs.insert(key) }
+            let errors = await outlook.applyBusy(busy)
+            problems += errors.map { "\(name) (Busy): \($0)" }
+            if !showsBusy && errors.isEmpty { settings.busyCalendarIDs.remove(key) }
+        }
+        return showsBusy || !busy.isEmpty ? BusyPreview(id: source.id, calendarName: name, plan: busy) : nil
     }
 
     private func queue(only: Set<UUID>?) {
