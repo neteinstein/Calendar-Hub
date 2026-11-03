@@ -14,7 +14,12 @@ struct MenuCalendarView: View {
     @State private var events: [SourceEvent] = []
 
     enum Mode: String {
-        case month, list
+        case month, list, stats
+    }
+
+    /// The saved mode, or the list when Stats was picked and Meeting Stats is now off.
+    private var shownMode: Mode {
+        mode == .stats && !settings.menuCalendar.showsMeetingStats ? .list : mode
     }
 
     private var calendar: Calendar { settings.menuCalendar.applied(to: .current) }
@@ -22,14 +27,17 @@ struct MenuCalendarView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            Picker("View", selection: $mode) {
+            Picker("View", selection: Binding(get: { shownMode }, set: { mode = $0 })) {
                 Text("Month").tag(Mode.month)
                 Text("List").tag(Mode.list)
+                if settings.menuCalendar.showsMeetingStats {
+                    Text("Stats").tag(Mode.stats)
+                }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            switch mode {
+            switch shownMode {
             case .month:
                 if let day = selectedDay {
                     dayView(day)
@@ -38,6 +46,9 @@ struct MenuCalendarView: View {
                 }
             case .list:
                 listView
+            case .stats:
+                MeetingStatsView(stats: MeetingStats.summary(of: events, now: Date(), calendar: calendar),
+                                 calendar: calendar)
             }
         }
         .onAppear { reload() }
@@ -56,7 +67,7 @@ struct MenuCalendarView: View {
             return
         }
         let (from, to): (Date, Date)
-        switch mode {
+        switch shownMode {
         case .month:
             let days = MenuCalendar.gridDays(for: shownMonth, calendar: calendar, showsWeekends: showsWeekends)
             guard let first = days.first, let last = days.last,
@@ -66,6 +77,9 @@ struct MenuCalendarView: View {
             let today = calendar.startOfDay(for: Date())
             (from, to) = (calendar.date(byAdding: .day, value: -30, to: today)!,
                           calendar.date(byAdding: .day, value: 60, to: today)!)
+        case .stats:
+            let window = MeetingStats.window(now: Date(), calendar: calendar)
+            (from, to) = (window.start, window.end)
         }
         if case .success(let fetched) = controller.eventKit.sourceEvents(calendarID: targetID, from: from, to: to) {
             events = fetched.filter { !$0.isCancelled }
