@@ -142,7 +142,9 @@ private struct SourcesTab: View {
                     }
                     Section("Not in Calendar.app") {
                         Button("Outlook on the web (sign in)…") {
-                            let source = SourceConfig(kind: .outlookWeb, calendarName: "Outlook")
+                            let source = SourceConfig(
+                                kind: .outlookWeb, calendarName: "Outlook",
+                                showBusyInSecondary: settings.twoWaySync && settings.twoWaySyncOutlookWeb)
                             settings.sources.append(source)
                             controller.showOutlookWindow(for: source)
                         }
@@ -272,9 +274,9 @@ private struct TwoWaySyncTab: View {
             }
 
             if settings.twoWaySync {
-                if !settings.sources.contains(where: { if case .eventKit = $0.kind { true } else { false } }) {
+                if settings.sources.isEmpty {
                     Section {
-                        Text("Add a secondary calendar from Calendar.app in the Secondary Calendars tab first.")
+                        Text("Add a secondary calendar in the Secondary Calendars tab first.")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -285,8 +287,31 @@ private struct TwoWaySyncTab: View {
                 }
                 if settings.sources.contains(where: { $0.kind == .outlookWeb }) {
                     Section {
-                        Text("Outlook on the web calendars are read-only, so Busy events can't be added to them.")
+                        Toggle(isOn: $settings.twoWaySyncOutlookWeb) {
+                            HStack(spacing: 6) {
+                                Text("Also sync Outlook on the web calendars")
+                                ExperimentalBadge()
+                            }
+                        }
+                            .onChange(of: settings.twoWaySyncOutlookWeb) { _, on in
+                                if on { showBusyInEveryOutlookIfNoneChosen() }
+                                Task { await controller.sync() }
+                            }
+                    } header: {
+                        HStack(spacing: 6) {
+                            Text("Outlook on the web")
+                            ExperimentalBadge()
+                        }
+                    } footer: {
+                        Text("Busy events are saved through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set. They're updated each time the calendar is read, on its sync interval, and removed ones go to Deleted Items. This depends on how Outlook works inside, which Microsoft can change without notice, and writing to a work calendar this way may go against its organization's IT policy, so check with them first.")
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if settings.twoWaySyncOutlookWeb {
+                        ForEach($settings.sources) { $source in
+                            if source.kind == .outlookWeb {
+                                BusyRow(source: $source, calendarID: nil)
+                            }
+                        }
                     }
                 }
             }
@@ -295,9 +320,10 @@ private struct TwoWaySyncTab: View {
     }
 
     /// Turned on before any secondary calendar was chosen: choose every one Busy events can be
-    /// added to. Choices made earlier are kept.
+    /// added to. Choices made earlier are kept. Outlook on the web calendars have their own
+    /// toggle (`showBusyInEveryOutlookIfNoneChosen`).
     private func showBusyInEverySecondaryIfNoneChosen() {
-        guard !settings.sources.contains(where: \.showBusyInSecondary) else { return }
+        guard !settings.sources.contains(where: { $0.kind != .outlookWeb && $0.showBusyInSecondary }) else { return }
         settings.sources = settings.sources.map { source in
             var source = source
             if case .eventKit(let calendarID) = source.kind,
@@ -307,17 +333,29 @@ private struct TwoWaySyncTab: View {
             return source
         }
     }
+
+    /// Outlook on the web turned on before any Outlook calendar was chosen: choose them all.
+    private func showBusyInEveryOutlookIfNoneChosen() {
+        let outlook = settings.sources.filter { $0.kind == .outlookWeb }
+        guard !outlook.contains(where: \.showBusyInSecondary) else { return }
+        settings.sources = settings.sources.map { source in
+            var source = source
+            if source.kind == .outlookWeb { source.showBusyInSecondary = true }
+            return source
+        }
+    }
 }
 
 /// Whether, and as what, the main calendar is shown in one secondary calendar.
 private struct BusyRow: View {
     @Binding var source: SourceConfig
-    let calendarID: String
+    /// Nil for an Outlook on the web calendar.
+    let calendarID: String?
     @EnvironmentObject private var controller: SyncController
 
     var body: some View {
-        let calendar = controller.eventKit.calendar(id: calendarID)
-        let writable = calendar?.allowsContentModifications ?? false
+        let calendar = calendarID.flatMap { controller.eventKit.calendar(id: $0) }
+        let writable = calendarID == nil || (calendar?.allowsContentModifications ?? false)
         Section {
             Toggle("Show my main calendar here as “\(source.busyStyle.title)”", isOn: $source.showBusyInSecondary)
                 .disabled(!writable && !source.showBusyInSecondary)
@@ -339,12 +377,34 @@ private struct BusyRow: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         } header: {
-            if let calendar {
+            if calendarID == nil {
+                HStack(spacing: 6) {
+                    Label("\(source.calendarName) (Outlook on the web)", systemImage: "globe")
+                    ExperimentalBadge()
+                }
+            } else if let calendar {
                 CalendarLabel(calendar: calendar)
             } else {
                 Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
             }
         }
+    }
+}
+
+/// Marks a feature that depends on how another service works inside, which can change
+/// without notice.
+private struct ExperimentalBadge: View {
+    var body: some View {
+        Text("Experimental")
+            .font(.caption2.weight(.semibold))
+            .textCase(.uppercase)
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(.orange.opacity(0.15)))
+            .overlay(Capsule().strokeBorder(.orange.opacity(0.5), lineWidth: 0.5))
+            .help("Depends on how Outlook on the web works inside, which Microsoft can change without notice.")
+            .accessibilityLabel("Experimental")
     }
 }
 
