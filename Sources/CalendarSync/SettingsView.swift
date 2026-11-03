@@ -287,13 +287,21 @@ private struct TwoWaySyncTab: View {
                 }
                 if settings.sources.contains(where: { $0.kind == .outlookWeb }) {
                     Section {
-                        Toggle("Also sync Outlook on the web calendars (experimental)", isOn: $settings.twoWaySyncOutlookWeb)
+                        Toggle(isOn: $settings.twoWaySyncOutlookWeb) {
+                            HStack(spacing: 6) {
+                                Text("Also sync Outlook on the web calendars")
+                                ExperimentalBadge()
+                            }
+                        }
                             .onChange(of: settings.twoWaySyncOutlookWeb) { _, on in
                                 if on { showBusyInEveryOutlookIfNoneChosen() }
                                 Task { await controller.sync() }
                             }
                     } header: {
-                        Text("Outlook on the web")
+                        HStack(spacing: 6) {
+                            Text("Outlook on the web")
+                            ExperimentalBadge()
+                        }
                     } footer: {
                         Text("Busy events are saved through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set. They're updated each time the calendar is read, on its sync interval, and removed ones go to Deleted Items. This depends on how Outlook works inside, which Microsoft can change without notice, and writing to a work calendar this way may go against its organization's IT policy, so check with them first.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -370,13 +378,33 @@ private struct BusyRow: View {
             }
         } header: {
             if calendarID == nil {
-                Label("\(source.calendarName) (Outlook on the web)", systemImage: "globe")
+                HStack(spacing: 6) {
+                    Label("\(source.calendarName) (Outlook on the web)", systemImage: "globe")
+                    ExperimentalBadge()
+                }
             } else if let calendar {
                 CalendarLabel(calendar: calendar)
             } else {
                 Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
             }
         }
+    }
+}
+
+/// Marks a feature that depends on how another service works inside, which can change
+/// without notice.
+private struct ExperimentalBadge: View {
+    var body: some View {
+        Text("Experimental")
+            .font(.caption2.weight(.semibold))
+            .textCase(.uppercase)
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(.orange.opacity(0.15)))
+            .overlay(Capsule().strokeBorder(.orange.opacity(0.5), lineWidth: 0.5))
+            .help("Depends on how Outlook on the web works inside, which Microsoft can change without notice.")
+            .accessibilityLabel("Experimental")
     }
 }
 
