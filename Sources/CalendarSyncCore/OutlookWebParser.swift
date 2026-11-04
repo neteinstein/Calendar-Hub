@@ -155,10 +155,18 @@ public enum OutlookWebParser {
     /// days and labels in other languages are skipped. Teams links aren't in the label, so
     /// only links written out in it (e.g. Google Meet) are kept.
     public static func events(fromScreenLabels labels: [String], timeZone: TimeZone = .current) -> [SourceEvent] {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = timeZone
-        f.dateFormat = "MMMM d, yyyy h:mm a"
+        func formatter(_ format: String) -> DateFormatter {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = timeZone
+            f.dateFormat = format
+            return f
+        }
+        // Outlook shows times the way the account is set up: "9:30 AM" or "09:30".
+        let twelveHour = formatter("MMMM d, yyyy h:mm a"), twentyFourHour = formatter("MMMM d, yyyy H:mm")
+        func date(_ day: String, _ time: String) -> Date? {
+            (time.hasSuffix("M") ? twelveHour : twentyFourHour).date(from: day + " " + time)
+        }
 
         var seen: Set<String> = []
         var result: [SourceEvent] = []
@@ -171,8 +179,8 @@ public enum OutlookWebParser {
                   let startTime = Range(m.range(at: 2), in: label).map({ String(label[$0]) }),
                   let endTime = Range(m.range(at: 3), in: label).map({ String(label[$0]) }),
                   let day = Range(m.range(at: 4), in: label).map({ String(label[$0]) }),
-                  let start = f.date(from: day + " " + startTime),
-                  var end = f.date(from: day + " " + endTime)
+                  let start = date(day, startTime),
+                  var end = date(day, endTime)
             else { continue }
             if end < start { end = end.addingTimeInterval(86400) } // ends after midnight
             let rest = Range(m.range(at: 5), in: label).map { String(label[$0]) } ?? ""
@@ -192,9 +200,10 @@ public enum OutlookWebParser {
         return result.sorted { $0.start < $1.start }
     }
 
-    /// "<title>, <h:mm AM> to <h:mm PM>, <Weekday>, <Month d, yyyy><, rest>"
+    /// "<title>, <h:mm AM> to <h:mm PM>, <Weekday>, <Month d, yyyy><, rest>", or with 24-hour
+    /// times: "<title>, <HH:mm> to <HH:mm>, ...".
     private static let screenLabelRegex = try! NSRegularExpression(
-        pattern: #"^(.+?), (\d{1,2}:\d{2} [AP]M) to (\d{1,2}:\d{2} [AP]M), (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), ([A-Z][a-z]+ \d{1,2}, \d{4})(.*)$"#)
+        pattern: #"^(.+?), (\d{1,2}:\d{2}(?: [AP]M)?) to (\d{1,2}:\d{2}(?: [AP]M)?), (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), ([A-Z][a-z]+ \d{1,2}, \d{4})(.*)$"#)
 
     // MARK: - One event
 
