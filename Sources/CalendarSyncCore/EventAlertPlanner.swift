@@ -6,7 +6,7 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
     /// How many minutes before the start the alert appears.
     public var leadMinutes: Int
 
-    public init(enabled: Bool = false, leadMinutes: Int = 1) {
+    public init(enabled: Bool = true, leadMinutes: Int = 1) {
         self.enabled = enabled
         self.leadMinutes = leadMinutes
     }

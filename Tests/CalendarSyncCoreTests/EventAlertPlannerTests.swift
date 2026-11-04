@@ -45,10 +45,13 @@ final class EventAlertPlannerTests: XCTestCase {
         XCTAssertEqual(due([event("later", startsIn: 1), event("sooner", startsIn: -5)]), ["sooner", "later"])
     }
 
-    func testOldSettingsDecodeToDisabled() throws {
+    func testOldSettingsDecodeToEnabled() throws {
         let decoded = try JSONDecoder().decode(EventAlertOptions.self, from: Data("{}".utf8))
-        XCTAssertFalse(decoded.enabled)
+        XCTAssertTrue(decoded.enabled)
         XCTAssertEqual(decoded.leadMinutes, 1)
+        // Turned off is saved as off, so the new default doesn't turn it back on.
+        let off = try JSONDecoder().decode(EventAlertOptions.self, from: Data(#"{"enabled":false}"#.utf8))
+        XCTAssertFalse(off.enabled)
         let full = EventAlertOptions(enabled: true, leadMinutes: 5)
         let roundTrip = try JSONDecoder().decode(EventAlertOptions.self, from: JSONEncoder().encode(full))
         XCTAssertEqual(roundTrip, full)

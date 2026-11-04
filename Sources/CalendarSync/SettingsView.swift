@@ -294,7 +294,6 @@ private struct SourceRow: View {
                         Button { renaming = true } label: { Image(systemName: "pencil") }
                             .buttonStyle(.borderless)
                             .help("Rename")
-                        ExperimentalBadge()
                     }
                     .sheet(isPresented: $renaming) {
                         CalendarNameSheet(
@@ -307,9 +306,10 @@ private struct SourceRow: View {
                     }
                 }
                 Spacer()
+                // At its own width: the switch style puts a spacer between label and switch,
+                // which would otherwise take up the header's free space.
                 Toggle("Sync this calendar", isOn: $source.isEnabled)
-                    .labelsHidden()
-                    .help("Sync this calendar")
+                    .fixedSize()
             }
         } footer: {
             Text(footer).font(.caption).foregroundStyle(.secondary)

@@ -42,9 +42,14 @@ struct MenuView: View {
             let outlookSources = settings.sources.filter { $0.kind == .outlookWeb }
             if !outlookSources.isEmpty {
                 Divider()
-                ForEach(outlookSources) { source in
-                    Button("Open Outlook – \(source.calendarName)") {
-                        controller.showOutlookWindow(for: source)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Open web calendars")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    // In a row while they fit, one per line otherwise.
+                    ViewThatFits(in: .horizontal) {
+                        HStack { outlookButtons(outlookSources) }
+                        VStack(alignment: .leading) { outlookButtons(outlookSources) }
                     }
                 }
             }
@@ -79,6 +84,16 @@ struct MenuView: View {
         // window background, nearly opaque, keeps it readable while still hinting at the desktop.
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.92).ignoresSafeArea())
         .background(WindowTopAnchor())
+    }
+
+    /// A button per Outlook web calendar, named as in Settings, or by its prefix for copies
+    /// while it has no name.
+    private func outlookButtons(_ sources: [SourceConfig]) -> some View {
+        ForEach(sources) { source in
+            Button(source.name ?? source.calendarName) {
+                controller.showOutlookWindow(for: source)
+            }
+        }
     }
 
     /// Quits once the user confirms, so a stray click next to Settings doesn't stop syncing.
