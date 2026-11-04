@@ -20,6 +20,19 @@ struct MeetingStatsView: View {
         return (hours == hours.rounded() ? String(Int(hours)) : String(format: "%.1f", hours)) + "-hour"
     }
 
+    /// Height of everything in the scroll view, to show all of it when the screen has room.
+    @State private var contentHeight: CGFloat = 0
+    /// The most the scroll view can grow to before the menu runs off the bottom of the screen.
+    @State private var roomOnScreen: CGFloat = 0
+
+    /// Tall enough for all the stats when the screen has room; scrolls otherwise, never shorter
+    /// than it used to be.
+    private var height: CGFloat {
+        let minimum: CGFloat = 380
+        guard contentHeight > minimum else { return minimum }
+        return min(contentHeight, max(minimum, roomOnScreen))
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -37,8 +50,40 @@ struct MeetingStatsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 2)
+            .background(GeometryReader { proxy in
+                Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+            })
         }
-        .frame(height: 380)
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+        .frame(height: height)
+        .background(ScreenRoom { roomOnScreen = $0 })
+    }
+
+    private struct ContentHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    }
+
+    /// Reports how tall the view it backs could get: its height plus the screen's height the
+    /// window isn't using, less a small margin above the Dock. Growing the view grows the window
+    /// by as much, so the answer doesn't change as the view takes up the room.
+    private struct ScreenRoom: NSViewRepresentable {
+        let report: (CGFloat) -> Void
+
+        func makeNSView(context: Context) -> ReportingView { ReportingView() }
+        func updateNSView(_ view: ReportingView, context: Context) { view.report = report }
+
+        final class ReportingView: NSView {
+            var report: ((CGFloat) -> Void)?
+
+            override func layout() {
+                super.layout()
+                guard let window, let screen = window.screen else { return }
+                let spare = screen.visibleFrame.height - window.frame.height - 12
+                let room = (bounds.height + spare).rounded(.down)
+                DispatchQueue.main.async { [report] in report?(room) }
+            }
+        }
     }
 
     // MARK: - Days
