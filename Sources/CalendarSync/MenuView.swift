@@ -5,6 +5,7 @@ import SwiftUI
 struct MenuView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -57,8 +58,8 @@ struct MenuView: View {
 
                 Spacer()
 
-                SettingsLink { Text("Settings…") }
-                    .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
+                Button("Settings…", action: showSettings)
+                    .keyboardShortcut(",")
             }
 
             Button("Quit Calendar Sync") { NSApp.terminate(nil) }
@@ -68,5 +69,22 @@ struct MenuView: View {
         .padding(14)
         .frame(width: settings.menuCalendarEnabled ? 360 : 320)
         .background(WindowTopAnchor())
+    }
+
+    /// Opens Settings and brings it in front of other apps. A `SettingsLink` with a tap gesture
+    /// on top sometimes lost the click, and a menu bar app isn't always allowed to come to the
+    /// front, so the window could open behind other windows, or stay there if it was already
+    /// open: either way, nothing seemed to happen.
+    private func showSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        openSettings()
+        // The window exists only after `openSettings` returns.
+        DispatchQueue.main.async {
+            guard let window = NSApp.windows.first(where: {
+                $0.identifier?.rawValue == "com_apple_SwiftUI_Settings_window"
+            }) else { return }
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        }
     }
 }

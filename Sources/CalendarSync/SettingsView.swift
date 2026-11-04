@@ -13,6 +13,7 @@ struct SettingsView: View {
             AuthorTab().tabItem { Label("Author", systemImage: "person.crop.circle") }
         }
         .frame(width: 620, height: 460)
+        .toggleStyle(AccentSwitchStyle())
         .onAppear { NSApp.activate(ignoringOtherApps: true) }
     }
 }
@@ -753,5 +754,38 @@ private struct CalendarLabel: View {
             Text(calendar.title)
             Text(calendar.source.title).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// A switch that stays in the accent color when it's on. The system switch turns gray whenever
+/// the Settings window isn't the key window, which happens often for a menu bar app, and makes
+/// it hard to tell which options are on.
+private struct AccentSwitchStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+            Spacer()
+            Capsule()
+                .fill(configuration.isOn ? Color.accentColor : Color.secondary.opacity(0.25))
+                .overlay(Capsule().strokeBorder(.black.opacity(0.1), lineWidth: 0.5))
+                .frame(width: 26, height: 15)
+                .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                    Circle()
+                        .fill(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 0.5, y: 0.5)
+                        .frame(width: 13, height: 13)
+                        .padding(1)
+                }
+                .animation(.easeOut(duration: 0.15), value: configuration.isOn)
+                .opacity(isEnabled ? 1 : 0.5)
+                .contentShape(Capsule())
+                .onTapGesture { configuration.isOn.toggle() }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityValue(configuration.isOn ? "On" : "Off")
+        .accessibilityAction { configuration.isOn.toggle() }
     }
 }
