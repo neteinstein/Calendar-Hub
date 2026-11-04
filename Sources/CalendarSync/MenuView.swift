@@ -5,7 +5,10 @@ import SwiftUI
 struct MenuView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    #if compiler(>=6.0)
+    // Not in the SDK of Xcode 15 and older toolchains, which build with the SettingsLink below.
     @Environment(\.openSettings) private var openSettings
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -58,8 +61,13 @@ struct MenuView: View {
 
                 Spacer()
 
+                #if compiler(>=6.0)
                 Button("Settings…", action: showSettings)
                     .keyboardShortcut(",")
+                #else
+                SettingsLink { Text("Settings…") }
+                    .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
+                #endif
             }
 
             Button("Quit Calendar Sync") { NSApp.terminate(nil) }
@@ -71,6 +79,7 @@ struct MenuView: View {
         .background(WindowTopAnchor())
     }
 
+    #if compiler(>=6.0)
     /// Opens Settings and brings it in front of other apps. A `SettingsLink` with a tap gesture
     /// on top sometimes lost the click, and a menu bar app isn't always allowed to come to the
     /// front, so the window could open behind other windows, or stay there if it was already
@@ -87,4 +96,5 @@ struct MenuView: View {
             window.orderFrontRegardless()
         }
     }
+    #endif
 }
