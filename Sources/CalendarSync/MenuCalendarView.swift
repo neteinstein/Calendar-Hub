@@ -12,6 +12,8 @@ struct MenuCalendarView: View {
     /// A day picked in the month grid, shown as that day's event list until dismissed.
     @State private var selectedDay: Date?
     @State private var events: [SourceEvent] = []
+    /// Height of the selected day's events, to show them all, up to the List view's height.
+    @State private var dayEventsHeight: CGFloat = 0
     /// Which calendar Meeting Stats counts: empty for the main calendar, which holds every
     /// meeting, or a secondary calendar's id for the meetings copied from it.
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
@@ -219,17 +221,31 @@ struct MenuCalendarView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 60)
             } else {
+                // A ScrollView with only a maximum height shrinks to a few rows, so size it to
+                // its events instead, scrolling past the List view's height.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         eventRows(dayEvents)
                     }
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: DayEventsHeightKey.self, value: proxy.size.height)
+                    })
                 }
-                .frame(maxHeight: 240)
+                .onPreferenceChange(DayEventsHeightKey.self) { dayEventsHeight = $0 }
+                .frame(height: min(max(dayEventsHeight, 60), Self.listHeight))
             }
         }
     }
 
+    private struct DayEventsHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+    }
+
     // MARK: - List
+
+    /// Height of the List view's scrolling events, and the most a day's events take up.
+    private static let listHeight: CGFloat = 300
 
     /// Every event of the window, one section per day. Opens at the first event still to
     /// come; scrolling back shows past events dimmed.
@@ -254,7 +270,7 @@ struct MenuCalendarView: View {
                     }
                 }
             }
-            .frame(height: 300)
+            .frame(height: Self.listHeight)
             .onAppear {
                 if let anchor { proxy.scrollTo(anchor, anchor: .top) }
             }
