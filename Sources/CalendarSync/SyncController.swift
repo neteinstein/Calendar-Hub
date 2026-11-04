@@ -319,6 +319,9 @@ final class SyncController: ObservableObject {
     func outlookSource(for sourceID: UUID) -> OutlookWebSource {
         if let existing = outlookSources[sourceID] { return existing }
         let source = OutlookWebSource(sourceID: sourceID)
+        source.onWindowClosed = { [weak self] in
+            Task { await self?.sync(only: [sourceID]) }
+        }
         outlookSources[sourceID] = source
         return source
     }
