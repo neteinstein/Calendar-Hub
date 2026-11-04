@@ -36,6 +36,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// Whether the window went to Microsoft's sign-in since it was shown. Once it comes back
     /// to Outlook, the user is signed in and the window closes itself.
     private var signingIn = false
+    /// Closed by `closeWindow`, whose caller syncs, so `onWindowClosed` isn't called.
+    private var closingQuietly = false
     private var urlObservation: NSKeyValueObservation?
     private var captured: [Data] = []
     /// On a clock that setting the time doesn't move, like the waits that use it.
@@ -131,6 +133,14 @@ final class OutlookWebSource: NSObject, ObservableObject {
         window.delegate = self
         self.window = window
         return window
+    }
+
+    /// Closes the window, if open, without `onWindowClosed`: for a caller about to sync anyway.
+    func closeWindow() {
+        guard let window, window.isVisible else { return }
+        closingQuietly = true
+        window.close()
+        closingQuietly = false
     }
 
     /// Closes the window once a sign-in in it is done: Microsoft sends it back to Outlook. Left
@@ -809,6 +819,7 @@ extension OutlookWebSource: NSWindowDelegate {
     nonisolated func windowWillClose(_ notification: Notification) {
         MainActor.assumeIsolated {
             signingIn = false
+            if closingQuietly { return }
             // After the window is gone: until then it still counts as open, and a read waits.
             DispatchQueue.main.async { [weak self] in self?.onWindowClosed?() }
         }
