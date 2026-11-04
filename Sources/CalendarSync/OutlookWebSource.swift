@@ -150,7 +150,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         guard window?.isVisible == true, let url else { return }
         if Self.isSignInHost(url) {
             signingIn = true
-        } else if signingIn, url.host?.lowercased() == URL(string: Self.host)?.host {
+        } else if signingIn, Self.isOutlookHost(url) {
             signingIn = false
             NSLog("Calendar Sync: signed in to Outlook, closing its window")
             window?.close()
@@ -222,6 +222,12 @@ final class OutlookWebSource: NSObject, ObservableObject {
             }
             // No meeting in the week almost always means its data didn't load (Outlook can
             // answer with another week). Fail, so existing copies are left alone.
+            // Outlook can load the next week ahead of time, with the week before it, and then
+            // ask for nothing when it's shown.
+            if !loaded {
+                loaded = OutlookWebParser.events(fromPayloads: Array(captured[..<before]))
+                    .contains { $0.start >= weekFrom && $0.start < weekTo }
+            }
             if !loaded {
                 let weekName = weekFrom.formatted(.dateTime.day().month())
                 NSLog("Calendar Sync: Outlook week of \(weekName) not read: \(captured.count - before) responses, page \(webView.url?.absoluteString ?? "none")")
@@ -419,6 +425,14 @@ final class OutlookWebSource: NSObject, ObservableObject {
 
     /// Microsoft's sign-in hosts: work and personal accounts, and the security key page.
     static let signInHosts = ["login.microsoftonline.com", "login.microsoft.com", "login.live.com"]
+
+    /// Where Microsoft sends a signed-in account: the host loaded, or the one Outlook moves it to.
+    static let outlookHosts = ["outlook.office.com", "outlook.office365.com", "outlook.cloud.microsoft", "outlook.live.com"]
+
+    static func isOutlookHost(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return outlookHosts.contains(host)
+    }
 
     static func isSignInHost(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
