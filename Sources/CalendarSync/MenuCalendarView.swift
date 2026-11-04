@@ -12,8 +12,8 @@ struct MenuCalendarView: View {
     /// A day picked in the month grid, shown as that day's event list until dismissed.
     @State private var selectedDay: Date?
     @State private var events: [SourceEvent] = []
-    /// Which calendar Meeting Stats counts: empty for all of them, "main" for the main
-    /// calendar's own events, or a secondary calendar's id for the meetings copied from it.
+    /// Which calendar Meeting Stats counts: empty for the main calendar, which holds every
+    /// meeting, or a secondary calendar's id for the meetings copied from it.
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
 
     enum Mode: String {
@@ -96,28 +96,24 @@ struct MenuCalendarView: View {
 
     // MARK: - Stats
 
-    private static let mainCalendarTag = "main"
-
     /// The picked calendar, or all of them when the picked one was removed.
     private var shownStatsCalendar: String {
-        statsCalendar == Self.mainCalendarTag
-            || settings.sources.contains(where: { $0.id.uuidString == statsCalendar })
-            ? statsCalendar : ""
+        settings.sources.contains(where: { $0.id.uuidString == statsCalendar }) ? statsCalendar : ""
     }
 
     /// The events Meeting Stats counts: all of them, or those of the picked calendar.
     private var statsEvents: [SourceEvent] {
         switch shownStatsCalendar {
         case "": events
-        case Self.mainCalendarTag: events.filter { MenuCalendar.originID(of: $0) == nil }
         case let id: events.filter { MenuCalendar.originID(of: $0)?.uuidString == id }
         }
     }
 
-    /// All | main calendar | each secondary calendar. Segmented while the names fit, else a menu.
+    /// All (the main calendar, which holds every meeting) | each secondary calendar.
+    /// Segmented while the names fit, else a menu.
     private var statsCalendarPicker: some View {
-        let mainName = controller.eventKit.calendar(id: settings.targetCalendarID)?.title ?? "Main"
-        let options = [("", "All"), (Self.mainCalendarTag, mainName)]
+        let mainName = controller.eventKit.calendar(id: settings.targetCalendarID)?.title
+        let options = [("", mainName.map { "All (\($0))" } ?? "All")]
             + settings.sources.map { ($0.id.uuidString, $0.calendarName) }
         let picker = Picker("Calendar", selection: Binding(get: { shownStatsCalendar }, set: { statsCalendar = $0 })) {
             ForEach(options, id: \.0) { tag, name in
