@@ -261,6 +261,13 @@ final class SyncController: ObservableObject {
         return plan
     }
 
+    /// "Sync now": closes the Outlook windows first, since a calendar whose window is open
+    /// isn't read, then syncs every calendar.
+    func syncNow() async {
+        for source in outlookSources.values { source.closeWindow() }
+        await sync()
+    }
+
     /// Shows the main calendar as Busy in one Outlook on the web calendar, or takes the Busy
     /// events back from one that no longer asks for them. Returns its preview, if there's
     /// anything to show.
@@ -319,6 +326,9 @@ final class SyncController: ObservableObject {
     func outlookSource(for sourceID: UUID) -> OutlookWebSource {
         if let existing = outlookSources[sourceID] { return existing }
         let source = OutlookWebSource(sourceID: sourceID)
+        source.onWindowClosed = { [weak self] in
+            Task { await self?.sync(only: [sourceID]) }
+        }
         outlookSources[sourceID] = source
         return source
     }

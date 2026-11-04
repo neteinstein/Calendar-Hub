@@ -54,8 +54,10 @@ struct MenuCalendarView: View {
                     if settings.sources.isEmpty == false {
                         statsCalendarPicker
                     }
-                    MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar),
-                                     calendar: calendar)
+                    let workingHours = settings.menuCalendar.workingHours
+                    MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar,
+                                                                 workingHours: workingHours),
+                                     calendar: calendar, workingHours: workingHours)
                 }
             }
         }
