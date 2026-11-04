@@ -10,7 +10,7 @@ struct SettingsView: View {
             SourcesTab().tabItem { Label("Secondary Calendars", systemImage: "calendar") }
             TwoWaySyncTab().tabItem { Label("Two way sync", systemImage: "arrow.left.arrow.right") }
             PreviewTab().tabItem { Label("Preview", systemImage: "eye") }
-            AuthorTab().tabItem { Label("Author", systemImage: "person.crop.circle") }
+            AboutTab().tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 620, height: 460)
         .toggleStyle(AccentSwitchStyle())
@@ -37,6 +37,13 @@ private struct GeneralTab: View {
                     }
                 }
                 .onChange(of: settings.targetCalendarID) { _, _ in Task { await controller.sync() } }
+                if !controller.hasCalendarAccess {
+                    Text("Calendar Sync doesn't have calendar access. Allow it in System Settings › Privacy & Security › Calendars.")
+                        .foregroundStyle(.orange)
+                }
+            } header: {
+                Text("Main calendar")
+            } footer: {
                 Text("Meetings from your secondary calendars are copied into this calendar. It must be added to Calendar.app.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -45,20 +52,33 @@ private struct GeneralTab: View {
                 Stepper("Today plus the next \(settings.options.daysAhead) days",
                         value: $settings.options.daysAhead, in: 0...30)
                 IntervalField(label: "Sync every", minutes: $settings.intervalMinutes)
-                Toggle("Skip meetings I declined", isOn: $settings.options.skipDeclined)
-                Toggle("Skip all-day events", isOn: $settings.options.skipAllDay)
-                Toggle("Skip out-of-office events", isOn: $settings.options.skipOutOfOffice)
+            } header: {
+                Text("Syncing")
             } footer: {
                 Text("Each secondary calendar can use its own interval instead (Secondary Calendars tab). Calendar.app calendars also sync about 10 seconds after a change.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("What's copied") {
+                Toggle("Skip meetings I declined", isOn: $settings.options.skipDeclined)
+                Toggle("Skip all-day events", isOn: $settings.options.skipAllDay)
+                Toggle("Skip out-of-office events", isOn: $settings.options.skipOutOfOffice)
             }
 
             Section {
                 Toggle("Show a calendar in the menu", isOn: $settings.menuCalendarEnabled)
                 if settings.menuCalendarEnabled {
                     Toggle("Show the week day in the menu bar", isOn: $settings.menuBar.showsWeekday)
-                    Toggle("Show the moon phase in the menu bar", isOn: $settings.menuBar.showsMoonPhase)
-                    Toggle("Show the time in the menu bar", isOn: $settings.menuBar.showsTime)
+                }
+            } header: {
+                Text("Menu bar")
+            } footer: {
+                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day next to it when that's on.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if settings.menuCalendarEnabled {
+                Section("Menu calendar") {
                     Picker("Week starts on", selection: $settings.menuCalendar.weekStart) {
                         Text("Same as macOS").tag(MenuCalendarOptions.WeekStart.system)
                         Text("Sunday").tag(MenuCalendarOptions.WeekStart.sunday)
@@ -68,7 +88,10 @@ private struct GeneralTab: View {
                     Toggle("Shade all-day events", isOn: $settings.menuCalendar.shadesAllDay)
                     Toggle("Color events by the calendar they came from", isOn: $settings.menuCalendar.colorsByCalendar)
                     Toggle("Show mornings and afternoons as colored blocks", isOn: $settings.menuCalendar.shadesTimeOfDay)
-                    Toggle("Meeting Stats", isOn: $settings.menuCalendar.showsMeetingStats)
+                }
+
+                Section {
+                    Toggle("Show Meeting Stats in the menu", isOn: $settings.menuCalendar.showsMeetingStats)
                     if settings.menuCalendar.showsMeetingStats {
                         LabeledContent("Working hours") {
                             HStack(spacing: 4) {
@@ -79,10 +102,12 @@ private struct GeneralTab: View {
                             }
                         }
                     }
+                } header: {
+                    Text("Meeting Stats")
+                } footer: {
+                    Text("Adds a Stats view to the menu with the hours you spend in meetings, measured against your working hours.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-            } footer: {
-                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day, the moon phase and the time next to it when those are on. Meeting Stats adds a Stats view with the hours you spend in meetings, measured against your working hours.")
-                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
@@ -93,12 +118,14 @@ private struct GeneralTab: View {
                             : "Show it \(settings.alerts.leadMinutes) \(settings.alerts.leadMinutes == 1 ? "minute" : "minutes") before the start",
                             value: $settings.alerts.leadMinutes, in: 0...15)
                 }
+            } header: {
+                Text("Meeting alerts")
             } footer: {
                 Text("Covers the screen when a meeting in your main calendar begins, with buttons to join the call, go to the room, or ignore it. Each meeting alerts once; a meeting already under way alerts until it ends.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section {
+            Section("Startup") {
                 Toggle("Open at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
                         do {
@@ -107,10 +134,6 @@ private struct GeneralTab: View {
                             launchAtLogin = SMAppService.mainApp.status == .enabled
                         }
                     }
-                if !controller.hasCalendarAccess {
-                    Text("Calendar Sync doesn't have calendar access. Allow it in System Settings › Privacy & Security › Calendars.")
-                        .foregroundStyle(.orange)
-                }
             }
         }
         .formStyle(.grouped)
@@ -134,6 +157,7 @@ private struct SourcesTab: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
     @State private var showingLinkSheet = false
+    @State private var showingOutlookNameSheet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -164,13 +188,7 @@ private struct SourcesTab: View {
                         }
                     }
                     Section("Not in Calendar.app") {
-                        Button("Outlook on the web (sign in)…") {
-                            let source = SourceConfig(
-                                kind: .outlookWeb, calendarName: "Outlook",
-                                showBusyInSecondary: settings.twoWaySync && settings.twoWaySyncOutlookWeb)
-                            settings.sources.append(source)
-                            controller.showOutlookWindow(for: source)
-                        }
+                        Button("Outlook on the web (sign in)…") { showingOutlookNameSheet = true }
                         Button("Calendar link (.ics)…") { showingLinkSheet = true }
                     }
                 }
@@ -180,6 +198,20 @@ private struct SourcesTab: View {
             .padding()
         }
         .sheet(isPresented: $showingLinkSheet) { CalendarLinkSheet() }
+        .sheet(isPresented: $showingOutlookNameSheet) {
+            // Named first, so the sign-in window and the copies go by that name from the start.
+            CalendarNameSheet(
+                title: "Add Outlook on the web",
+                message: "What do you call this calendar? It's also the prefix for its copies, like “[Work] Standup”, which you can change later.",
+                confirm: "Continue"
+            ) { name in
+                let source = SourceConfig(
+                    kind: .outlookWeb, calendarName: name, name: name,
+                    showBusyInSecondary: settings.twoWaySync && settings.twoWaySyncOutlookWeb)
+                settings.sources.append(source)
+                controller.showOutlookWindow(for: source)
+            }
+        }
     }
 
     private var availableCalendars: [EKCalendar] {
@@ -196,6 +228,7 @@ private struct SourceRow: View {
     @Binding var source: SourceConfig
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    @State private var renaming = false
 
     /// Calendar.app sources use the calendar's current name; Outlook web sources use the typed one.
     private var displayName: String {
@@ -225,7 +258,6 @@ private struct SourceRow: View {
             Toggle("Hide meeting names (copy as “\(copyTitle("Busy"))”)", isOn: $source.hideMeetingName)
             Toggle("Copy location and description", isOn: $source.copyDetails)
                 .disabled(source.hideMeetingName)
-            Toggle("Sync this calendar", isOn: $source.isEnabled)
             Toggle("Use its own sync interval", isOn: Binding(
                 get: { source.intervalMinutes != nil },
                 set: { source.intervalMinutes = $0 ? settings.intervalMinutes : nil }))
@@ -247,19 +279,47 @@ private struct SourceRow: View {
                 }
             }
         } header: {
-            switch source.kind {
-            case .eventKit(let calendarID):
-                if let calendar = controller.eventKit.calendar(id: calendarID) {
-                    CalendarLabel(calendar: calendar)
-                } else {
-                    Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
+            // Whether it syncs at all sits with the calendar's name, apart from how it syncs.
+            HStack {
+                switch source.kind {
+                case .eventKit(let calendarID):
+                    if let calendar = controller.eventKit.calendar(id: calendarID) {
+                        CalendarLabel(calendar: calendar)
+                    } else {
+                        Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
+                    }
+                case .outlookWeb:
+                    HStack(spacing: 6) {
+                        Label(outlookTitle, systemImage: "globe")
+                        Button { renaming = true } label: { Image(systemName: "pencil") }
+                            .buttonStyle(.borderless)
+                            .help("Rename")
+                        ExperimentalBadge()
+                    }
+                    .sheet(isPresented: $renaming) {
+                        CalendarNameSheet(
+                            title: "Rename calendar",
+                            message: "The name shown for this calendar here. The prefix for its copies doesn't change.",
+                            confirm: "Rename", name: source.name ?? ""
+                        ) { name in
+                            source.name = name
+                        }
+                    }
                 }
-            case .outlookWeb:
-                Label("Outlook on the web (experimental)", systemImage: "globe")
+                Spacer()
+                Toggle("Sync this calendar", isOn: $source.isEnabled)
+                    .labelsHidden()
+                    .help("Sync this calendar")
             }
         } footer: {
             Text(footer).font(.caption).foregroundStyle(.secondary)
         }
+    }
+
+    /// "Sainsbury's – Outlook on the web": the name given when it was added, then the kind of
+    /// calendar. "N/A" for calendars added before names were asked for.
+    private var outlookTitle: String {
+        "\(source.name ?? "N/A") – Outlook on the web"
     }
 
     private var footer: String {
@@ -462,6 +522,53 @@ private struct IntervalField: View {
 }
 
 /// Subscribes to a secondary calendar link through Calendar.app, which then keeps it updated.
+/// Asks for a secondary calendar's name: when an Outlook web calendar is added, and to rename it.
+private struct CalendarNameSheet: View {
+    let title: String
+    let message: String
+    let confirm: String
+    let onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+
+    init(title: String, message: String, confirm: String, name: String = "",
+         onSave: @escaping (String) -> Void) {
+        self.title = title
+        self.message = message
+        self.confirm = confirm
+        self.onSave = onSave
+        _name = State(initialValue: name)
+    }
+
+    private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.headline)
+            Text(message)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            TextField("Name", text: $name, prompt: Text("e.g. Work"))
+                .onSubmit(save)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button(confirm, action: save)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(trimmed.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 400)
+    }
+
+    private func save() {
+        guard !trimmed.isEmpty else { return }
+        onSave(trimmed)
+        dismiss()
+    }
+}
+
 private struct CalendarLinkSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var link = ""
@@ -557,9 +664,9 @@ private struct PreviewTab: View {
     }
 }
 
-// MARK: - Author
+// MARK: - About
 
-private struct AuthorTab: View {
+private struct AboutTab: View {
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var updates: UpdateChecker
 
@@ -578,6 +685,12 @@ private struct AuthorTab: View {
             VStack(spacing: 4) {
                 Text("Made by Pedro Vicente").font(.headline)
                 Link("pedrovicente.pt", destination: URL(string: "https://pedrovicente.pt")!)
+            }
+
+            Button {
+                openURL(UpdateChecker.repoPage.appendingPathComponent("issues"))
+            } label: {
+                Label("Send feedback or report a bug", systemImage: "ladybug")
             }
 
             Divider().frame(width: 280)
@@ -629,7 +742,7 @@ private struct UpdateBanner: View {
     }
 }
 
-/// The update line in the Author tab: the warning when a newer version is out, otherwise a
+/// The update line in the About tab: the warning when a newer version is out, otherwise a
 /// manual check.
 private struct UpdateStatus: View {
     @EnvironmentObject private var updates: UpdateChecker

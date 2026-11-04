@@ -52,12 +52,8 @@ struct MenuView: View {
             Divider()
 
             HStack {
-                Button("Sync now") {
-                    Task { await controller.syncNow() }
-                }
-                // Enabled without access too: a sync checks again whether access was granted.
-                .disabled(controller.isSyncing)
-                .keyboardShortcut("r")
+                Button("Quit", action: confirmQuit)
+                    .keyboardShortcut("q")
 
                 Spacer()
 
@@ -68,15 +64,39 @@ struct MenuView: View {
                 SettingsLink { Text("Settings…") }
                     .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
                 #endif
-            }
 
-            Button("Quit Calendar Sync") { NSApp.terminate(nil) }
-                .buttonStyle(.link)
-                .font(.callout)
+                Button("Sync now") {
+                    Task { await controller.syncNow() }
+                }
+                // Enabled without access too: a sync checks again whether access was granted.
+                .disabled(controller.isSyncing)
+                .keyboardShortcut("r")
+            }
         }
         .padding(14)
         .frame(width: settings.menuCalendarEnabled ? 360 : 320)
+        // The menu window's own material lets a white window behind it wash the text out; the
+        // window background, nearly opaque, keeps it readable while still hinting at the desktop.
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.92).ignoresSafeArea())
         .background(WindowTopAnchor())
+    }
+
+    /// Quits once the user confirms, so a stray click next to Settings doesn't stop syncing.
+    /// An alert of its own rather than a SwiftUI dialog: the menu window closes as soon as
+    /// anything else takes focus, and would take a dialog of its own with it.
+    private func confirmQuit() {
+        // After the click is handled, so the menu has closed and the alert comes to the front.
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Quit Calendar Sync?"
+            alert.informativeText = "Your calendars stop syncing until you open it again."
+            alert.addButton(withTitle: "Quit")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     #if compiler(>=6.0)
