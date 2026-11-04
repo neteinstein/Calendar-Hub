@@ -67,8 +67,20 @@ public enum MeetingStats {
 
     /// Only timed meetings count: not all-day events, out of office, or meetings declined or cancelled.
     static func counts(_ event: SourceEvent) -> Bool {
-        !event.isAllDay && !event.isOutOfOffice && !event.isDeclined && !event.isCancelled && event.end > event.start
+        !event.isAllDay && !isOutOfOffice(event) && !event.isDeclined && !event.isCancelled && event.end > event.start
     }
+
+    /// Shown as out of office, or titled like it: calendars without that status (iCloud, Google)
+    /// and copies made before they kept it show such events as busy.
+    static func isOutOfOffice(_ event: SourceEvent) -> Bool {
+        if event.isOutOfOffice { return true }
+        let title = event.title.lowercased()
+        if outOfOfficePhrases.contains(where: title.contains) { return true }
+        let words = title.split { !$0.isLetter }
+        return words.contains("ooo") || words.contains("oof")
+    }
+
+    static let outOfOfficePhrases = ["out of office", "out-of-office", "out of the office", "fora do escritório"]
 
     /// The time `events` take up within `interval`; meetings running past its edges count only
     /// the part inside it.

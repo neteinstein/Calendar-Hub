@@ -113,6 +113,31 @@ final class MeetingStatsTests: XCTestCase {
         XCTAssertEqual(summary.recentDays.last?.day, date(11, 4, 0))
     }
 
+    func testSkipsOutOfOffice() {
+        let day = DateInterval(start: date(11, 3, 0), end: date(11, 4, 0))
+        var shownAsOutOfOffice = meeting(date(11, 3, 9), date(11, 3, 17))
+        shownAsOutOfOffice.isOutOfOffice = true
+        let titled = ["Out of office", "[Work] Out of Office – dentist", "OOO", "Pedro OOO afternoon", "OOF", "Fora do escritório"]
+            .map { title -> SourceEvent in
+                var event = meeting(date(11, 3, 13), date(11, 3, 14))
+                event.title = title
+                return event
+            }
+        var standup = meeting(date(11, 3, 10), date(11, 3, 11))
+        standup.title = "Standup (room Foo)"
+        let hours = MeetingStats.hours(of: [shownAsOutOfOffice, standup] + titled, in: day)
+        XCTAssertEqual(hours.countingOverlap, 1, "only the standup counts")
+    }
+
+    func testCopiesKeepOutOfOffice() {
+        let source = SourceConfig(kind: .eventKit(calendarID: "work"), calendarName: "Work")
+        var leave = meeting(date(11, 3, 9), date(11, 3, 17))
+        leave.title = "Holiday"
+        leave.isOutOfOffice = true
+        XCTAssertTrue(CopyFormatter.spec(for: leave, source: source).isOutOfOffice)
+        XCTAssertFalse(CopyFormatter.spec(for: meeting(date(11, 3, 9), date(11, 3, 10)), source: source).isOutOfOffice)
+    }
+
     func testNoFreeTimeAfterWorkingHours() {
         XCTAssertNil(MeetingStats.summary(of: [], now: date(11, 3, 19), calendar: utc).longestFreeToday)
     }
