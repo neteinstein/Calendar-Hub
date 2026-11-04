@@ -223,7 +223,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
             // No meeting in the week almost always means its data didn't load (Outlook can
             // answer with another week). Fail, so existing copies are left alone.
             if !loaded {
-                return .failure("Couldn't read the Outlook calendar (no calendar data loaded).")
+                let weekName = weekFrom.formatted(.dateTime.day().month())
+                NSLog("Calendar Sync: Outlook week of \(weekName) not read: \(captured.count - before) responses, page \(webView.url?.absoluteString ?? "none")")
+                return .failure("Couldn't read the Outlook calendar for the week of \(weekName) (no calendar data loaded).")
             }
         }
 
