@@ -8,7 +8,7 @@
 
 A tiny macOS menu bar app that copies meetings from your secondary calendars into your main calendar, so colleagues stop booking you over meetings they can't see.
 
-[![Version 1.1.27](https://img.shields.io/badge/version-1.1.27-2563EB)](Support/Info.plist)
+[![Version 1.1.28](https://img.shields.io/badge/version-1.1.28-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
@@ -112,7 +112,7 @@ Optional, in the **Two way sync** tab. Your main calendar's events are added to 
 
 It also lets you **skip meetings you declined**, **skip all-day events** and **skip out-of-office events** (on by default). Per secondary calendar, copies can also get the meeting's **location and description**.
 
-Never miss a start: turn on the optional **full-screen alert** and the screen is covered when a main-calendar meeting begins (or up to 15 minutes before), with buttons to **Join call** (⏎), **Go to** the room, or **Ignore** (⎋). Meetings copied from secondary calendars alert too, join link included, and each meeting alerts once.
+Never miss a start: the **full-screen alert** (on unless you turn it off) covers the screen when a main-calendar meeting begins (or up to 15 minutes before), with buttons to **Join call** (⏎), **Go to** the room, or **Ignore** (⎋). Meetings copied from secondary calendars alert too, join link included, and each meeting alerts once.
 
 Prefer the menu bar? Turn on **Show a calendar in the menu** and the icon gains **today's date** — add the **week day** next to it if you like — while clicking it opens a **month view** (click a day for its events; start the week on **Sunday or Monday** and hide **weekends** if you like) or a **scrolling list** of your main calendar's events — it opens at the next event, and scrolling back shows past events dimmed. Events with a meeting link get a join button right in the list. The lists tint each event with the **color of the calendar it came from**, shade **all-day events**, and group each day's **morning** and **afternoon** into colored blocks — each of these can be turned off.
 
@@ -188,7 +188,7 @@ To update later: quit the app, then `git pull && scripts/build-app.sh` and reope
 
 Allow calendar access on first launch. Then open **Settings…** from the menu bar icon:
 
-1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync. Turn on the **full-screen alert** here if you want one when each meeting starts.
+1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync. The **full-screen alert** when each meeting starts is on here; turn it off if you don't want it.
 2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**.
 3. **Two way sync:** turn on **Sync both ways** to show your main calendar as **Busy** in your secondary calendars, so they all show the same booked time. Turning it on includes every secondary calendar you can edit; turn off **Show my main calendar here** for any that shouldn't, or pick **Out of office** instead of **Busy**. For Outlook on the web calendars, also turn on **Also sync Outlook on the web calendars** (experimental).
 4. **Preview:** see what a sync would change, then let it run.
