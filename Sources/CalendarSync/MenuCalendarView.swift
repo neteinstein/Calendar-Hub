@@ -12,6 +12,9 @@ struct MenuCalendarView: View {
     /// A day picked in the month grid, shown as that day's event list until dismissed.
     @State private var selectedDay: Date?
     @State private var events: [SourceEvent] = []
+    /// Which calendar Meeting Stats counts: empty for all of them, "main" for the main
+    /// calendar's own events, or a secondary calendar's id for the meetings copied from it.
+    @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
 
     enum Mode: String {
         case month, list, stats
@@ -47,8 +50,13 @@ struct MenuCalendarView: View {
             case .list:
                 listView
             case .stats:
-                MeetingStatsView(stats: MeetingStats.summary(of: events, now: Date(), calendar: calendar),
-                                 calendar: calendar)
+                VStack(spacing: 8) {
+                    if settings.sources.isEmpty == false {
+                        statsCalendarPicker
+                    }
+                    MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar),
+                                     calendar: calendar)
+                }
             }
         }
         .onAppear { reload() }
@@ -83,6 +91,47 @@ struct MenuCalendarView: View {
         }
         if case .success(let fetched) = controller.eventKit.sourceEvents(calendarID: targetID, from: from, to: to) {
             events = fetched.filter { !$0.isCancelled }
+        }
+    }
+
+    // MARK: - Stats
+
+    private static let mainCalendarTag = "main"
+
+    /// The picked calendar, or all of them when the picked one was removed.
+    private var shownStatsCalendar: String {
+        statsCalendar == Self.mainCalendarTag
+            || settings.sources.contains(where: { $0.id.uuidString == statsCalendar })
+            ? statsCalendar : ""
+    }
+
+    /// The events Meeting Stats counts: all of them, or those of the picked calendar.
+    private var statsEvents: [SourceEvent] {
+        switch shownStatsCalendar {
+        case "": events
+        case Self.mainCalendarTag: events.filter { MenuCalendar.originID(of: $0) == nil }
+        case let id: events.filter { MenuCalendar.originID(of: $0)?.uuidString == id }
+        }
+    }
+
+    /// All | main calendar | each secondary calendar. Segmented while the names fit, else a menu.
+    private var statsCalendarPicker: some View {
+        let mainName = controller.eventKit.calendar(id: settings.targetCalendarID)?.title ?? "Main"
+        let options = [("", "All"), (Self.mainCalendarTag, mainName)]
+            + settings.sources.map { ($0.id.uuidString, $0.calendarName) }
+        let picker = Picker("Calendar", selection: Binding(get: { shownStatsCalendar }, set: { statsCalendar = $0 })) {
+            ForEach(options, id: \.0) { tag, name in
+                Text(name).tag(tag)
+            }
+        }
+        .labelsHidden()
+        return Group {
+            if options.count <= 4 && options.map(\.1.count).reduce(0, +) <= 36 {
+                picker.pickerStyle(.segmented)
+            } else {
+                picker.pickerStyle(.menu).fixedSize()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
