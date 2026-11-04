@@ -81,7 +81,9 @@ public enum CopyFormatter {
             timeZone: event.isAllDay ? nil : event.timeZone,
             url: event.meetingURL,
             notes: notes(meetingURL: event.meetingURL, details: details.notes, marker: marker),
-            location: details.location
+            location: details.location,
+            // Kept when out-of-office events are copied, so the copy isn't taken for a meeting.
+            isOutOfOffice: event.isOutOfOffice
         )
     }
 }
