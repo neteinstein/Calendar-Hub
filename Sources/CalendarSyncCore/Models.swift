@@ -138,6 +138,34 @@ public struct MenuBarOptions: Codable, Hashable, Sendable {
     }
 }
 
+/// A working day, from `start` to `end`, in minutes after midnight. 9:00 to 17:00 unless set.
+public struct WorkingHours: Codable, Hashable, Sendable {
+    public var start: Int
+    public var end: Int
+
+    public init(start: Int = 9 * 60, end: Int = 17 * 60) {
+        self.start = start
+        self.end = end
+    }
+
+    /// Its length in hours; none if the end isn't after the start.
+    public var hours: Double { Double(max(end - start, 0)) / 60 }
+
+    /// The working hours on `day`'s date, or nil if there are none.
+    public func interval(on day: Date, calendar: Calendar) -> DateInterval? {
+        let midnight = calendar.startOfDay(for: day)
+        guard end > start,
+              let from = calendar.date(byAdding: .minute, value: start, to: midnight),
+              let to = calendar.date(byAdding: .minute, value: end, to: midnight) else { return nil }
+        return DateInterval(start: from, end: to)
+    }
+
+    /// "9:00", "17:30", for `start` or `end`.
+    public static func text(_ minutes: Int) -> String {
+        String(format: "%d:%02d", minutes / 60, minutes % 60)
+    }
+}
+
 /// How the menu's month view lays out a week, and how its event lists are colored.
 public struct MenuCalendarOptions: Codable, Hashable, Sendable {
     public enum WeekStart: String, Codable, CaseIterable, Sendable {
@@ -155,15 +183,19 @@ public struct MenuCalendarOptions: Codable, Hashable, Sendable {
     public var shadesTimeOfDay: Bool
     /// The menu gets a Stats view with the hours spent in meetings.
     public var showsMeetingStats: Bool
+    /// The working day Meeting Stats measures against, on weekdays.
+    public var workingHours: WorkingHours
 
     public init(weekStart: WeekStart = .system, showsWeekends: Bool = true, shadesAllDay: Bool = true,
-                colorsByCalendar: Bool = true, shadesTimeOfDay: Bool = true, showsMeetingStats: Bool = false) {
+                colorsByCalendar: Bool = true, shadesTimeOfDay: Bool = true, showsMeetingStats: Bool = false,
+                workingHours: WorkingHours = WorkingHours()) {
         self.weekStart = weekStart
         self.showsWeekends = showsWeekends
         self.shadesAllDay = shadesAllDay
         self.colorsByCalendar = colorsByCalendar
         self.shadesTimeOfDay = shadesTimeOfDay
         self.showsMeetingStats = showsMeetingStats
+        self.workingHours = workingHours
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -175,6 +207,7 @@ public struct MenuCalendarOptions: Codable, Hashable, Sendable {
         colorsByCalendar = try c.decodeIfPresent(Bool.self, forKey: .colorsByCalendar) ?? true
         shadesTimeOfDay = try c.decodeIfPresent(Bool.self, forKey: .shadesTimeOfDay) ?? true
         showsMeetingStats = try c.decodeIfPresent(Bool.self, forKey: .showsMeetingStats) ?? false
+        workingHours = try c.decodeIfPresent(WorkingHours.self, forKey: .workingHours) ?? WorkingHours()
     }
 
     /// `calendar` with its first weekday set to the chosen one.

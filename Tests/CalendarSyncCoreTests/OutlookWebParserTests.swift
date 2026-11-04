@@ -212,4 +212,18 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertEqual(events.first?.start, ISO8601DateFormatter().date(from: "2026-10-26T23:30:00Z"))
         XCTAssertEqual(events.first?.end, ISO8601DateFormatter().date(from: "2026-10-27T00:30:00Z"))
     }
+
+    func testScreenLabelsWith24HourTimes() {
+        let labels = [
+            "calendar view, current time: Wed 09:36",
+            "GOL Squad 3 Standup & Refinement, 09:30 to 10:00, Monday, November 09, 2026, Microsoft Teams Meeting, By Alex Morgan, Tentative, Recurring event",
+            "Release window, 23:30 to 00:30, Monday, November 09, 2026, Busy",
+        ]
+        let london = TimeZone(identifier: "Europe/London")!
+        let events = OutlookWebParser.events(fromScreenLabels: labels, timeZone: london)
+        XCTAssertEqual(events.map(\.title), ["GOL Squad 3 Standup & Refinement", "Release window"])
+        XCTAssertEqual(events[0].start, ISO8601DateFormatter().date(from: "2026-11-09T09:30:00Z"))
+        XCTAssertEqual(events[0].end, ISO8601DateFormatter().date(from: "2026-11-09T10:00:00Z"))
+        XCTAssertEqual(events[1].end, ISO8601DateFormatter().date(from: "2026-11-10T00:30:00Z"))
+    }
 }

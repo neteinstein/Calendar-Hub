@@ -26,10 +26,19 @@ final class OutlookWebSource: NSObject, ObservableObject {
     static let host = "https://outlook.office.com"
 
     @Published private(set) var needsSignIn = false
+    /// Called when the Outlook window closes, by the user or after signing in, so the
+    /// calendar is read then instead of at its next interval.
+    var onWindowClosed: (() -> Void)?
 
     let sourceID: UUID
     private let webView: WKWebView
     private var window: NSWindow?
+    /// Whether the window went to Microsoft's sign-in since it was shown. Once it comes back
+    /// to Outlook, the user is signed in and the window closes itself.
+    private var signingIn = false
+    /// Closed by `closeWindow`, whose caller syncs, so `onWindowClosed` isn't called.
+    private var closingQuietly = false
+    private var urlObservation: NSKeyValueObservation?
     private var captured: [Data] = []
     /// On a clock that setting the time doesn't move, like the waits that use it.
     private var lastCaptureAt: ContinuousClock.Instant?
@@ -66,6 +75,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
             WeakMessageHandler(self), contentWorld: Self.bridgeWorld, name: "calsync")
         webView.configuration.userContentController.addScriptMessageHandler(
             WeakReplyHandler(self), contentWorld: .page, name: "calsyncSecurityKey")
+        urlObservation = webView.observe(\.url) { [weak self] webView, _ in
+            MainActor.assumeIsolated { self?.urlChanged(webView.url) }
+        }
     }
 
     /// The user agent of the Safari installed on this Mac, whose WebKit is the one the web view
@@ -88,6 +100,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// Releases the web view so its stored sign-in can be deleted.
     func tearDown() {
         securityKey.cancel()
+        onWindowClosed = nil
+        urlObservation = nil
         window?.close()
         window = nil
         webView.stopLoading()
@@ -100,6 +114,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
     func showWindow(title: String) {
         let window = self.window ?? makeWindow()
         window.title = "Outlook – \(title)"
+        signingIn = isSignInPage(webView.url)
         if webView.url == nil {
             webView.load(URLRequest(url: Self.weekURL(for: Date())))
         }
@@ -115,8 +130,31 @@ final class OutlookWebSource: NSObject, ObservableObject {
             backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
         window.contentView = webView
+        window.delegate = self
         self.window = window
         return window
+    }
+
+    /// Closes the window, if open, without `onWindowClosed`: for a caller about to sync anyway.
+    func closeWindow() {
+        guard let window, window.isVisible else { return }
+        closingQuietly = true
+        window.close()
+        closingQuietly = false
+    }
+
+    /// Closes the window once a sign-in in it is done: Microsoft sends it back to Outlook. Left
+    /// open, it would keep every sync from reading this calendar, and it is easily lost behind
+    /// other windows.
+    private func urlChanged(_ url: URL?) {
+        guard window?.isVisible == true, let url else { return }
+        if Self.isSignInHost(url) {
+            signingIn = true
+        } else if signingIn, Self.isOutlookHost(url) {
+            signingIn = false
+            NSLog("Calendar Sync: signed in to Outlook, closing its window")
+            window?.close()
+        }
     }
 
     // MARK: - Fetching
@@ -184,8 +222,16 @@ final class OutlookWebSource: NSObject, ObservableObject {
             }
             // No meeting in the week almost always means its data didn't load (Outlook can
             // answer with another week). Fail, so existing copies are left alone.
+            // Outlook can load the next week ahead of time, with the week before it, and then
+            // ask for nothing when it's shown.
             if !loaded {
-                return .failure("Couldn't read the Outlook calendar (no calendar data loaded).")
+                loaded = OutlookWebParser.events(fromPayloads: Array(captured[..<before]))
+                    .contains { $0.start >= weekFrom && $0.start < weekTo }
+            }
+            if !loaded {
+                let weekName = weekFrom.formatted(.dateTime.day().month())
+                NSLog("Calendar Sync: Outlook week of \(weekName) not read: \(captured.count - before) responses, page \(webView.url?.absoluteString ?? "none")")
+                return .failure("Couldn't read the Outlook calendar for the week of \(weekName) (no calendar data loaded).")
             }
         }
 
@@ -379,6 +425,14 @@ final class OutlookWebSource: NSObject, ObservableObject {
 
     /// Microsoft's sign-in hosts: work and personal accounts, and the security key page.
     static let signInHosts = ["login.microsoftonline.com", "login.microsoft.com", "login.live.com"]
+
+    /// Where Microsoft sends a signed-in account: the host loaded, or the one Outlook moves it to.
+    static let outlookHosts = ["outlook.office.com", "outlook.office365.com", "outlook.cloud.microsoft", "outlook.live.com"]
+
+    static func isOutlookHost(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return outlookHosts.contains(host)
+    }
 
     static func isSignInHost(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
@@ -774,6 +828,17 @@ final class OutlookWebSource: NSObject, ObservableObject {
 
     private static var signInHostsJSON: String {
         "[" + signInHosts.map { "'\($0)'" }.joined(separator: ", ") + "]"
+    }
+}
+
+extension OutlookWebSource: NSWindowDelegate {
+    nonisolated func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            signingIn = false
+            if closingQuietly { return }
+            // After the window is gone: until then it still counts as open, and a read waits.
+            DispatchQueue.main.async { [weak self] in self?.onWindowClosed?() }
+        }
     }
 }
 

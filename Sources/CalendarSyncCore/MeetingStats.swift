@@ -46,15 +46,15 @@ public enum MeetingStats {
         public var backToBackLastWeek: Int
         /// The longest stretch without meetings left today within working hours, if any is left.
         public var longestFreeToday: TimeInterval?
+        /// Out of office within the working hours of this week's weekdays, and those hours.
+        public var outOfOfficeThisWeek: Double
+        public var workingHoursThisWeek: Double
     }
 
     public struct Day: Hashable, Sendable {
         public var day: Date
         public var hours: Hours
     }
-
-    /// The working day the free-time insight looks at.
-    public static let workingHours = 9..<18
 
     /// Gaps up to this long between meetings make them back to back.
     static let backToBackGap: TimeInterval = 5 * 60
@@ -85,7 +85,13 @@ public enum MeetingStats {
     /// The time `events` take up within `interval`; meetings running past its edges count only
     /// the part inside it.
     public static func hours(of events: [SourceEvent], in interval: DateInterval) -> Hours {
-        let parts = events.filter(counts).compactMap { event -> (Date, Date)? in
+        hours(of: events, in: interval, where: counts)
+    }
+
+    /// `hours(of:in:)` for the events `included` picks.
+    static func hours(of events: [SourceEvent], in interval: DateInterval,
+                      where included: (SourceEvent) -> Bool) -> Hours {
+        let parts = events.filter(included).compactMap { event -> (Date, Date)? in
             let start = max(event.start, interval.start), end = min(event.end, interval.end)
             return end > start ? (start, end) : nil
         }.sorted { $0.0 < $1.0 }
@@ -119,7 +125,8 @@ public enum MeetingStats {
         return DateInterval(start: starts.min() ?? today, end: end)
     }
 
-    public static func summary(of events: [SourceEvent], now: Date, calendar: Calendar) -> Summary {
+    public static func summary(of events: [SourceEvent], now: Date, calendar: Calendar,
+                               workingHours: WorkingHours = WorkingHours()) -> Summary {
         let today = calendar.startOfDay(for: now)
         func day(_ offset: Int) -> DateInterval {
             let start = calendar.date(byAdding: .day, value: offset, to: today)!
@@ -168,6 +175,18 @@ public enum MeetingStats {
             latestEnd = max(latestEnd ?? meeting.end, meeting.end)
         }
 
+        // This week's weekdays, within working hours.
+        let thisWeek = calendar.dateInterval(of: .weekOfYear, for: now)
+        let workingDaysThisWeek = (0..<7).compactMap { offset -> DateInterval? in
+            guard let week = thisWeek, let day = calendar.date(byAdding: .day, value: offset, to: week.start),
+                  !calendar.isDateInWeekend(day) else { return nil }
+            return workingHours.interval(on: day, calendar: calendar)
+        }
+        let outOfOffice = workingDaysThisWeek.reduce(Hours(hours: 0, countingOverlap: 0)) { total, day in
+            let away = hours(of: events, in: day, where: countsAsAway)
+            return Hours(hours: total.hours + away.hours, countingOverlap: total.countingOverlap + away.countingOverlap)
+        }
+
         return Summary(
             yesterday: hours(of: events, in: day(-1)),
             today: hours(of: events, in: day(0)),
@@ -182,15 +201,23 @@ public enum MeetingStats {
             busiestWeekdayHours: (busiest?.value ?? 0) / Double(averageDays / 7),
             meetingsLastWeek: lastWeekMeetings.count,
             backToBackLastWeek: backToBack,
-            longestFreeToday: longestFree(in: events, now: now, calendar: calendar)
+            longestFreeToday: longestFree(in: events, now: now, calendar: calendar, workingHours: workingHours),
+            outOfOfficeThisWeek: outOfOffice.hours,
+            workingHoursThisWeek: workingDaysThisWeek.reduce(0) { $0 + $1.duration } / 3600
         )
     }
 
+    /// Out of office, all-day ones included, unless declined or cancelled.
+    static func countsAsAway(_ event: SourceEvent) -> Bool {
+        isOutOfOffice(event) && !event.isDeclined && !event.isCancelled && event.end > event.start
+    }
+
     /// The longest gap between meetings from now until the end of today's working hours.
-    static func longestFree(in events: [SourceEvent], now: Date, calendar: Calendar) -> TimeInterval? {
-        guard let dayStart = calendar.date(bySettingHour: workingHours.lowerBound, minute: 0, second: 0, of: now),
-              let dayEnd = calendar.date(bySettingHour: workingHours.upperBound, minute: 0, second: 0, of: now),
-              max(now, dayStart) < dayEnd else { return nil }
+    static func longestFree(in events: [SourceEvent], now: Date, calendar: Calendar,
+                            workingHours: WorkingHours) -> TimeInterval? {
+        guard let day = workingHours.interval(on: now, calendar: calendar),
+              max(now, day.start) < day.end else { return nil }
+        let (dayStart, dayEnd) = (day.start, day.end)
         var cursor = max(now, dayStart)
         var longest: TimeInterval = 0
         for meeting in events.filter(counts).sorted(by: { $0.start < $1.start }) where meeting.end > cursor {

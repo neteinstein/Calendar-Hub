@@ -53,7 +53,7 @@ struct MenuView: View {
 
             HStack {
                 Button("Sync now") {
-                    Task { await controller.sync() }
+                    Task { await controller.syncNow() }
                 }
                 // Enabled without access too: a sync checks again whether access was granted.
                 .disabled(controller.isSyncing)

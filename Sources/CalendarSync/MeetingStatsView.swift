@@ -7,10 +7,17 @@ import SwiftUI
 struct MeetingStatsView: View {
     let stats: MeetingStats.Summary
     let calendar: Calendar
+    let workingHours: WorkingHours
 
     /// Hours of the working day, to show days as a share of it.
     private var workingDayHours: Double {
-        Double(MeetingStats.workingHours.count)
+        max(workingHours.hours, 1)
+    }
+
+    /// "8-hour", "7.5-hour".
+    private var workingDayText: String {
+        let hours = workingHours.hours
+        return (hours == hours.rounded() ? String(Int(hours)) : String(format: "%.1f", hours)) + "-hour"
     }
 
     var body: some View {
@@ -24,7 +31,7 @@ struct MeetingStatsView: View {
                 chart
                 insights
                 yearCard
-                Text("Timed meetings in your main calendar. All-day, declined and out-of-office events don't count, and time in overlapping meetings counts once.")
+                Text("Timed meetings in your main calendar. All-day, declined and out-of-office events don't count, and time in overlapping meetings counts once. Out of office counts the time it covers within working hours, from Monday to Friday.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -63,7 +70,7 @@ struct MeetingStatsView: View {
                 }
             }
             .frame(height: 4)
-            .help("\(Int((share * 100).rounded()))% of a \(Int(workingDayHours))-hour working day")
+            .help("\(Int((share * 100).rounded()))% of a \(workingDayText) working day")
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -150,7 +157,7 @@ struct MeetingStatsView: View {
             insight("calendar", .blue, "Last week", stats.lastWeek, detail: trendText)
             insight("calendar.badge.clock", .indigo, "Last month", stats.lastMonth)
             insight("chart.bar.fill", .teal, "Average per working day", stats.averagePerWorkingDay,
-                    detail: "\(Int((stats.averagePerWorkingDay.hours / workingDayHours * 100).rounded()))% of a \(Int(workingDayHours))-hour day")
+                    detail: "\(Int((stats.averagePerWorkingDay.hours / workingDayHours * 100).rounded()))% of a \(workingDayText) day")
             if let weekday = stats.busiestWeekday {
                 insight("flame.fill", .orange, "Busiest day",
                         calendar.weekdaySymbols[weekday - 1] + "s",
@@ -163,7 +170,11 @@ struct MeetingStatsView: View {
             }
             if let free = stats.longestFreeToday {
                 insight("leaf.fill", .green, "Longest free block left today", durationText(free),
-                        detail: "between \(MeetingStats.workingHours.lowerBound):00 and \(MeetingStats.workingHours.upperBound):00")
+                        detail: "between \(WorkingHours.text(workingHours.start)) and \(WorkingHours.text(workingHours.end))")
+            }
+            if stats.workingHoursThisWeek > 0 {
+                insight("airplane", .purple, "Out of office this week", MeetingStats.format(stats.outOfOfficeThisWeek),
+                        detail: "\(Int((stats.outOfOfficeThisWeek / stats.workingHoursThisWeek * 100).rounded()))% of \(MeetingStats.format(stats.workingHoursThisWeek)) working hours")
             }
         }
     }

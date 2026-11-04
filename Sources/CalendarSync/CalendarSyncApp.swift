@@ -86,7 +86,7 @@ struct CalendarSyncApp: App {
         }
 
         var body: some View {
-            let icon = controller.problems.isEmpty ? "calendar" : "calendar.badge.exclamationmark"
+            let icon = controller.problems.isEmpty ? "calendar" : Self.problemIcon
             if settings.menuCalendarEnabled {
                 HStack(spacing: 3) {
                     Image(systemName: icon)
@@ -103,9 +103,12 @@ struct CalendarSyncApp: App {
                     }
                 }
             } else {
-                Image(systemName: controller.problems.isEmpty ? "calendar.badge.clock" : "calendar.badge.exclamationmark")
+                Image(systemName: controller.problems.isEmpty ? "calendar.badge.clock" : Self.problemIcon)
             }
         }
+
+        /// In place of the calendar while the last sync had problems, so it can't be missed.
+        private static let problemIcon = "exclamationmark.triangle.fill"
     }
 
     var body: some Scene {
