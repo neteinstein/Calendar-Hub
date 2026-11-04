@@ -69,9 +69,19 @@ private struct GeneralTab: View {
                     Toggle("Color events by the calendar they came from", isOn: $settings.menuCalendar.colorsByCalendar)
                     Toggle("Show mornings and afternoons as colored blocks", isOn: $settings.menuCalendar.shadesTimeOfDay)
                     Toggle("Meeting Stats", isOn: $settings.menuCalendar.showsMeetingStats)
+                    if settings.menuCalendar.showsMeetingStats {
+                        LabeledContent("Working hours") {
+                            HStack(spacing: 4) {
+                                timePicker($settings.menuCalendar.workingHours.start, in: 0..<(settings.menuCalendar.workingHours.end))
+                                Text("to")
+                                timePicker($settings.menuCalendar.workingHours.end,
+                                           in: (settings.menuCalendar.workingHours.start + 30)..<(24 * 60 + 1))
+                            }
+                        }
+                    }
                 }
             } footer: {
-                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day, the moon phase and the time next to it when those are on. Meeting Stats adds a Stats view with the hours you spend in meetings.")
+                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day, the moon phase and the time next to it when those are on. Meeting Stats adds a Stats view with the hours you spend in meetings, measured against your working hours.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -104,6 +114,17 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// A time of day in half hours, from the times in `range` (minutes after midnight).
+    private func timePicker(_ minutes: Binding<Int>, in range: Range<Int>) -> some View {
+        Picker("", selection: minutes) {
+            ForEach(Array(stride(from: range.lowerBound, to: range.upperBound, by: 30)), id: \.self) { time in
+                Text(WorkingHours.text(time)).tag(time)
+            }
+        }
+        .labelsHidden()
+        .fixedSize()
     }
 }
 

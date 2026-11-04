@@ -99,7 +99,7 @@ final class MeetingStatsTests: XCTestCase {
             meeting(date(10, 28, 15), date(10, 28, 16)),
             // The week before: one hour.
             meeting(date(10, 20, 9), date(10, 20, 10)),
-            // Today: free 10:00–11:00, a meeting to 12:00, then free until 18:00.
+            // Today: free 10:00–11:00, a meeting to 12:00, then free until 17:00.
             meeting(date(11, 3, 11), date(11, 3, 12)),
         ]
         let summary = MeetingStats.summary(of: events, now: now, calendar: utc)
@@ -107,7 +107,7 @@ final class MeetingStatsTests: XCTestCase {
         XCTAssertEqual(summary.backToBackLastWeek, 1)
         XCTAssertEqual(MeetingStats.trend(summary)!, 1.9166, accuracy: 0.001, "2.92 hours against 1")
         XCTAssertEqual(summary.busiestWeekday, 4, "Wednesday")
-        XCTAssertEqual(summary.longestFreeToday, 6 * 3600)
+        XCTAssertEqual(summary.longestFreeToday, 5 * 3600)
         // Ten working days, today and tomorrow.
         XCTAssertEqual(summary.recentDays.count, 12)
         XCTAssertEqual(summary.recentDays.last?.day, date(11, 4, 0))
@@ -136,6 +136,36 @@ final class MeetingStatsTests: XCTestCase {
         leave.isOutOfOffice = true
         XCTAssertTrue(CopyFormatter.spec(for: leave, source: source).isOutOfOffice)
         XCTAssertFalse(CopyFormatter.spec(for: meeting(date(11, 3, 9), date(11, 3, 10)), source: source).isOutOfOffice)
+    }
+
+    func testOutOfOfficeThisWeekWithinWorkingHours() {
+        // Wednesday 4 November 2026; the week runs Monday 2 to Sunday 8.
+        var holiday = meeting(date(11, 2, 0), date(11, 3, 0), allDay: true)
+        holiday.isOutOfOffice = true // all of Monday: 8 hours
+        var dentist = meeting(date(11, 4, 16), date(11, 4, 19))
+        dentist.title = "OOO dentist" // 16:00 to 17:00 counts
+        var overlapping = meeting(date(11, 4, 16, 30), date(11, 4, 17))
+        overlapping.isOutOfOffice = true // inside the dentist, counts once
+        var weekend = meeting(date(11, 7, 9), date(11, 7, 17))
+        weekend.isOutOfOffice = true
+        var declined = meeting(date(11, 5, 9), date(11, 5, 12), declined: true)
+        declined.isOutOfOffice = true
+        let events = [holiday, dentist, overlapping, weekend, declined, meeting(date(11, 3, 9), date(11, 3, 10))]
+
+        let summary = MeetingStats.summary(of: events, now: date(11, 4, 12), calendar: utc)
+        XCTAssertEqual(summary.outOfOfficeThisWeek, 9)
+        XCTAssertEqual(summary.workingHoursThisWeek, 40)
+
+        let longDays = MeetingStats.summary(of: events, now: date(11, 4, 12), calendar: utc,
+                                            workingHours: WorkingHours(start: 8 * 60, end: 18 * 60 + 30))
+        XCTAssertEqual(longDays.outOfOfficeThisWeek, 10.5 + 2.5)
+        XCTAssertEqual(longDays.workingHoursThisWeek, 52.5)
+    }
+
+    func testWorkingHoursDefaultToNineToFive() throws {
+        let options = try JSONDecoder().decode(MenuCalendarOptions.self, from: Data("{}".utf8))
+        XCTAssertEqual(options.workingHours, WorkingHours(start: 540, end: 1020))
+        XCTAssertEqual(WorkingHours.text(17 * 60 + 30), "17:30")
     }
 
     func testNoFreeTimeAfterWorkingHours() {
