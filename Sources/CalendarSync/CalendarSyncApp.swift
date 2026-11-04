@@ -71,8 +71,8 @@ struct CalendarSyncApp: App {
     }
 
     /// The icon in the menu bar: a calendar glyph, plus today's date when the menu calendar
-    /// is on, and with it the week day, the time and the moon phase when those are on too.
-    /// `Clock` keeps the date and time right as the minutes pass. Not a TimelineView: in a
+    /// is on, and with it the week day when that is on too.
+    /// `Clock` keeps the date right as the minutes pass. Not a TimelineView: in a
     /// menu bar label it re-renders the button in an endless loop and the app hangs at launch.
     private struct MenuBarLabel: View {
         @ObservedObject var settings: SettingsStore
@@ -91,16 +91,6 @@ struct CalendarSyncApp: App {
                 HStack(spacing: 3) {
                     Image(systemName: icon)
                     Text(clock.now, format: dateStyle)
-                    if settings.menuBar.showsTime {
-                        Text(clock.now, format: .dateTime.hour().minute())
-                            .monospacedDigit()
-                            .padding(.leading, 3)
-                    }
-                    if settings.menuBar.showsMoonPhase {
-                        let phase = MoonPhase.phase(on: clock.now)
-                        Image(systemName: phase.symbolName)
-                            .accessibilityLabel(phase.name)
-                    }
                 }
             } else {
                 Image(systemName: controller.problems.isEmpty ? "calendar.badge.clock" : Self.problemIcon)
@@ -209,23 +199,5 @@ final class Clock: ObservableObject {
     /// `date` with its seconds dropped.
     private static func minute(of date: Date) -> Date {
         Date(timeIntervalSinceReferenceDate: (date.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60)
-    }
-}
-
-extension MoonPhase {
-    /// The SF Symbol for the phase, lit on the right while waxing as seen from the northern
-    /// hemisphere. The inverse variants fill the lit part, as almanacs do (● full, ○ new), so
-    /// the glyph reads the same way in a dark menu bar.
-    var symbolName: String {
-        switch self {
-        case .newMoon: "moonphase.new.moon.inverse"
-        case .waxingCrescent: "moonphase.waxing.crescent.inverse"
-        case .firstQuarter: "moonphase.first.quarter.inverse"
-        case .waxingGibbous: "moonphase.waxing.gibbous.inverse"
-        case .fullMoon: "moonphase.full.moon.inverse"
-        case .waningGibbous: "moonphase.waning.gibbous.inverse"
-        case .lastQuarter: "moonphase.last.quarter.inverse"
-        case .waningCrescent: "moonphase.waning.crescent.inverse"
-        }
     }
 }

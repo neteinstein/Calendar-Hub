@@ -31,6 +31,10 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     /// e.g. `[Calendar A] Standup`. For Calendar.app sources the app keeps it in step with the
     /// calendar's current name; for Outlook web sources the user types it.
     public var calendarName: String
+    /// What the user calls an Outlook web source, asked for when it's added; Outlook doesn't
+    /// say. `nil` for sources added before it was asked for, and for Calendar.app sources,
+    /// which go by the calendar's own name.
+    public var name: String?
     /// When on, copies are titled `[Calendar A] Busy` instead of using the meeting name.
     public var hideMeetingName: Bool
     public var isEnabled: Bool
@@ -48,7 +52,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
 
     // `showBusyInSecondary` keeps the key older versions saved it under.
     enum CodingKeys: String, CodingKey {
-        case id, kind, calendarName, hideMeetingName, isEnabled
+        case id, kind, calendarName, name, hideMeetingName, isEnabled
         case showBusyInSecondary = "showBusyInClient"
         case busyStyle, copyDetails, intervalMinutes
     }
@@ -57,6 +61,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         id: UUID = UUID(),
         kind: SourceKind,
         calendarName: String,
+        name: String? = nil,
         hideMeetingName: Bool = false,
         isEnabled: Bool = true,
         showBusyInSecondary: Bool = false,
@@ -67,6 +72,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         self.id = id
         self.kind = kind
         self.calendarName = calendarName
+        self.name = name
         self.hideMeetingName = hideMeetingName
         self.isEnabled = isEnabled
         self.showBusyInSecondary = showBusyInSecondary
@@ -81,6 +87,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         id = try c.decode(UUID.self, forKey: .id)
         kind = try c.decode(SourceKind.self, forKey: .kind)
         calendarName = try c.decode(String.self, forKey: .calendarName)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
         hideMeetingName = try c.decodeIfPresent(Bool.self, forKey: .hideMeetingName) ?? false
         isEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         showBusyInSecondary = try c.decodeIfPresent(Bool.self, forKey: .showBusyInSecondary) ?? false
@@ -120,21 +127,15 @@ public struct SyncOptions: Codable, Hashable, Sendable {
 /// What the menu bar icon shows next to today's date while the menu calendar is on.
 public struct MenuBarOptions: Codable, Hashable, Sendable {
     public var showsWeekday: Bool
-    public var showsMoonPhase: Bool
-    public var showsTime: Bool
 
-    public init(showsWeekday: Bool = false, showsMoonPhase: Bool = false, showsTime: Bool = false) {
+    public init(showsWeekday: Bool = false) {
         self.showsWeekday = showsWeekday
-        self.showsMoonPhase = showsMoonPhase
-        self.showsTime = showsTime
     }
 
     // Settings saved by older versions don't have every key yet.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         showsWeekday = try c.decodeIfPresent(Bool.self, forKey: .showsWeekday) ?? false
-        showsMoonPhase = try c.decodeIfPresent(Bool.self, forKey: .showsMoonPhase) ?? false
-        showsTime = try c.decodeIfPresent(Bool.self, forKey: .showsTime) ?? false
     }
 }
 
