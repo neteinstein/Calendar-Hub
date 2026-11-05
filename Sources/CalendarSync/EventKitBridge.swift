@@ -6,9 +6,15 @@ import Foundation
 @MainActor
 final class EventKitBridge {
     let store = EKEventStore()
+    /// Sample calendars read in place of Calendar.app's, with nothing written (see `DemoCalendars`).
+    let demo: DemoCalendars?
+
+    init(demo: DemoCalendars? = nil) {
+        self.demo = demo
+    }
 
     var hasAccess: Bool {
-        EKEventStore.authorizationStatus(for: .event) == .fullAccess
+        demo != nil || EKEventStore.authorizationStatus(for: .event) == .fullAccess
     }
 
     func requestAccess() async -> Bool {
@@ -22,18 +28,21 @@ final class EventKitBridge {
 
     /// All event calendars, grouped by account then name.
     func calendars() -> [EKCalendar] {
-        store.calendars(for: .event).sorted {
+        if let demo { return demo.calendars }
+        return store.calendars(for: .event).sorted {
             ($0.source.title, $0.title) < ($1.source.title, $1.title)
         }
     }
 
     func calendar(id: String?) -> EKCalendar? {
-        id.flatMap { store.calendar(withIdentifier: $0) }
+        if let demo { return demo.calendars.first { $0.calendarIdentifier == id } }
+        return id.flatMap { store.calendar(withIdentifier: $0) }
     }
 
     // MARK: - Reading
 
     func sourceEvents(calendarID: String, from start: Date, to end: Date) -> SourceFetchResult {
+        if let demo { return .success(demo.events(calendarID: calendarID, from: start, to: end)) }
         guard let calendar = store.calendar(withIdentifier: calendarID) else {
             return .failure("Calendar not found in Calendar.app")
         }

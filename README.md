@@ -6,13 +6,11 @@
 
 **Your secondary calendars' meetings, in your main calendar.**
 
-A tiny macOS menu bar app that copies meetings from your secondary calendars into your main calendar, so colleagues stop booking you over meetings they can't see.
+A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, and a nudge when it starts.
 
-[![Version 1.1.28](https://img.shields.io/badge/version-1.1.28-2563EB)](Support/Info.plist)
+[![Version 2.0.0](https://img.shields.io/badge/version-2.0.0-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
-![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
-![Menu bar app](https://img.shields.io/badge/lives%20in-the%20menu%20bar-14B8A6)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 
@@ -26,198 +24,165 @@ A tiny macOS menu bar app that copies meetings from your secondary calendars int
 
 ---
 
-## Install
-
-With [Homebrew](https://brew.sh/)
-
-To install:
-```bash
-brew install neteinstein/tap/calendar-sync
-```
-
-To run, one time:
-```bash
-open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"
-```
-or to always have it run at startup:
-```bash
-brew services start neteinstein/tap/calendar-sync 
-```
-
-
-The first time it runs, the app links itself into your own Applications folder (`~/Applications`), so Finder and the Dock can open it. The link follows upgrades.
-
-Needs macOS 14+ and the Xcode command line tools. See [Get started](#get-started) for updating, building from source and first-run setup.
-
 ## Why
 
 Booked solid in another calendar. Wide open in your main calendar.
 
-When your meetings live in a secondary calendar (another company's account, a second job, a personal calendar), your main calendar (the one your colleagues book you through) says you're free all day. The old fix was a [hand-built Shortcut and a cron job](#coming-from-the-shortcut). Calendar Sync does the same job properly: one install, a settings window, and copies that stay correct when meetings move.
+When your meetings live in a secondary calendar (another company's account, a second job, a personal calendar), your main calendar says you're free all day. Calendar Sync copies each meeting across as **`[Calendar A] Sprint planning`**, with its join link, and keeps the copy right when the meeting moves or is cancelled.
 
-## What you get
+## A look around
+
+### The menu
 
 <table>
 <tr>
-<td width="50%" valign="top">
-
-### 🏷️ Named by its calendar
-Each copy is titled **`[Calendar name] Meeting name`**, e.g. `[Calendar A] Sprint planning`. For calendars in Calendar.app it uses the calendar's own name and picks up renames.
-
+<td width="33%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-month-dark.webp">
+  <img src="docs/screenshots/menu-month-light.webp" alt="The menu's month view: the next meeting with a Join button above a month grid with a dot per calendar">
+</picture>
+<b>Month.</b> The next meeting with a countdown and <b>Join</b>, and the month with a dot for each calendar that has meetings that day. Click a day for its meetings.
 </td>
-<td width="50%" valign="top">
-
-### 🔗 Meeting link included
-Teams, Zoom, Google Meet and Webex links are copied onto the event and shown first in its notes, so **Join** works straight from your main calendar.
-
+<td width="33%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-list-dark.webp">
+  <img src="docs/screenshots/menu-list-light.webp" alt="The menu's list view: today's meetings with a red line at the current time">
+</picture>
+<b>List.</b> Opens at today, with a line at the current time, the finished meetings folded away, and <b>Join</b> as a meeting comes up.
 </td>
-</tr>
-<tr>
-<td valign="top">
-
-### 🔁 Moved? It moves. Cancelled? It's gone.
-Copies are matched to their original by a hidden tag, not by title and time. Moved meetings are updated, cancelled ones removed, and recurring meetings just work.
-
-</td>
-<td valign="top">
-
-### 🌐 Even browser-only calendars
-Secondary account can't be added to your Mac? Sign in to **Outlook on the web** inside the app once, or subscribe to a published **.ics** link.
-
-</td>
-</tr>
-<tr>
-<td valign="top">
-
-### 🙈 Hide meeting names
-Per calendar, copies can be titled `[Calendar A] Busy` instead. The meeting link still comes along.
-
-</td>
-<td valign="top">
-
-### 🛡️ Safe by design
-It never copies attendees, so no invites go out. It never copies its own copies back, so two-way setups don't loop. If a calendar can't be read, its copies are left alone.
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-### ↩️ Sync both ways
-Optional, in the **Two way sync** tab. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location or attendees. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It works with secondary calendars you can edit in Calendar.app and, if you also turn on **Also sync Outlook on the web calendars** (experimental), with Outlook on the web calendars. `.ics` link calendars are read-only.
-
+<td width="33%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-stats-dark.webp">
+  <img src="docs/screenshots/menu-stats-light.webp" alt="Meeting Stats: hours in meetings per day, a chart of the last two weeks, insights and the year pictured as a walk from Lisbon to Paris">
+</picture>
+<b>Stats.</b> Where your week goes: hours in meetings, the last two weeks, your busiest day, the free time left today, and a year of it pictured as a trip.
 </td>
 </tr>
 </table>
 
-It also lets you **skip meetings you declined**, **skip all-day events** and **skip out-of-office events** (on by default). Per secondary calendar, copies can also get the meeting's **location and description**.
+### When a meeting starts
 
-Never miss a start: the **full-screen alert** (on unless you turn it off) covers the screen when a main-calendar meeting begins (or up to 15 minutes before), with buttons to **Join call** (⏎), **Go to** the room, or **Ignore** (⎋). Meetings copied from secondary calendars alert too, join link included, and each meeting alerts once.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/alert-dark.webp">
+  <img src="docs/screenshots/alert-light.webp" width="860" alt="The full-screen meeting alert: Design review starts in 0:59, with Join call, Go to Room 2.04, Ignore and Remind me in 1 minute">
+</picture>
 
-Prefer the menu bar? Turn on **Show a calendar in the menu** and the icon gains **today's date** — add the **week day** next to it if you like — while clicking it opens a **month view** (click a day for its events; start the week on **Sunday or Monday** and hide **weekends** if you like) or a **scrolling list** of your main calendar's events — it opens at the next event, and scrolling back shows past events dimmed. Events with a meeting link get a join button right in the list. The lists tint each event with the **color of the calendar it came from**, shade **all-day events**, and group each day's **morning** and **afternoon** into colored blocks — each of these can be turned off.
+The screen blurs and a card counts down to the start, with **Join call** (⏎), **Go to** the room, **Ignore** (esc) or **Remind me in 1 minute**. It's on unless you turn it off, and each meeting alerts once.
 
-Curious where your week goes? Turn on **Meeting Stats** and the menu gains a **Stats** view: hours in meetings **yesterday, today and tomorrow**, a chart of the **last two weeks**, **last week** (and how it compares with the week before) and **last month**, your **average per working day**, your **busiest weekday**, how many meetings ran **back to back**, the **longest free block** left today, how much of this week's working hours you're **out of office**, and a **prediction for the year** — pictured as a trip, like walking from Lisbon to Paris. Overlapping meetings count once, with the total counting overlap next to it, like "20 hours (25 counting overlap)". Working hours are 9:00 to 17:00 unless you set your own in Settings.
+### In the menu bar
 
-Settings also shows the app **version** and checks GitHub once a day for a newer one (the newest release, or the version on `main` while there are no releases). When there is one, a warning appears with an **Update** button that shows the pull-and-rebuild instructions.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-bar-dark.webp">
+  <img src="docs/screenshots/menu-bar-light.webp" width="520" alt="The menu bar item showing the date, and showing Design review · 13m">
+</picture>
 
-It syncs **every 15 minutes** by default; set any interval from 1 minute to 24 hours, and give a secondary calendar **its own interval** when it should sync more or less often than the rest (say, Outlook on the web hourly). Calendar.app calendars also sync about 10 seconds after a change. Settings has a **preview** that shows what the next sync would change before it changes anything.
+Today's date, or, if you like, the next meeting and the minutes left when it's 15 minutes away.
 
-## How it works
+### Settings
 
-```mermaid
-flowchart LR
-    A["Secondary calendar<br/>in Calendar.app"] --> S
-    B[".ics calendar link<br/>(subscribed)"] --> S
-    C["Outlook on the web<br/>(sign in once)"] --> S
-    S{{"Calendar Sync<br/>plan: add · update · remove"}} --> M["Main calendar<br/>[Calendar A] Sprint planning ▶ Join"]
-    M -. "Two way sync: Busy, no details" .-> A
-    M -. "Two way sync (experimental)" .-> C
-```
-
-Every copy ends its notes with a tag like `calsync:v1:<source id>:<occurrence id>`. The app uses it to recognise its own copies and match them to their originals, which is why a moved meeting gets updated instead of duplicated.
-
-The Busy events that two way sync adds to secondary calendars carry no tag. The app recognises them by their title (**Busy** or **Out of office**), their description (just “Busy”), having no attendees and not repeating, and matches them to your main calendar by time. So in a secondary calendar that two way sync writes to, an event you make yourself that looks exactly like that is treated as one of them.
-
-## Secondary calendars it can read
-
-| Secondary calendar | How to add it |
-|---|---|
-| **Added to Calendar.app** (Exchange, Google, iCloud, …) | **Add secondary calendar › From Calendar.app** |
-| **Browser only, with a published link** | **Add secondary calendar › Calendar link (.ics)**. Calendar.app subscribes to the link, then you pick it like any other calendar. |
-| **Browser only: Outlook / Microsoft 365** | **Add secondary calendar › Outlook on the web**. Sign in once in the app's own window (MFA included, also with a USB security key). Each sync reloads Outlook's week view in the background, reads the meetings it loads, then loads each meeting in full for its join link and details. *Experimental.* |
+<table>
+<tr>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-calendars-dark.webp">
+  <img src="docs/screenshots/settings-calendars-light.webp" alt="Settings, Secondary Calendars: each calendar with when it last synced and how many copies it has">
+</picture>
+</td>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-menuBar-dark.webp">
+  <img src="docs/screenshots/settings-menuBar-light.webp" alt="Settings, Menu bar: the menu calendar, the next meeting in the menu bar and Meeting Stats">
+</picture>
+</td>
+</tr>
+</table>
 
 <details>
-<summary><b>About the Outlook on the web option</b></summary>
-
+<summary><b>The other panes</b></summary>
 <br>
 
-- It reads the same data your browser shows you. Nothing is sent anywhere except into your own calendar.
-- To Outlook it is one more Safari signed in to the account: the app's window runs the WebKit of the Safari installed on your Mac and reports its user agent, with its own cookie store. Microsoft's sign-in logs show it as Safari on macOS, and the same sign-in policies apply as to a browser.
-- **USB security keys (YubiKey and other FIDO2 keys) work in the window**: macOS only lets full browsers use them, so the app talks to the key itself, the way browsers do. When Microsoft asks for the key, the app asks for the key's PIN, then you touch the key. Only signing in works: register a new key in a browser. Passkeys on the Mac or a phone, and NFC keys, can't be used in the window. A company sign-in page that isn't Microsoft's (Okta, ADFS, …) doesn't offer the key in the window, so use another method there.
-- It depends on how Outlook's web app works internally, which Microsoft can change without notice. If a sync can't find calendar data, or you've been signed out, the existing copies are **left as they are**. The menu bar icon then shows a warning and an **Open Outlook** button.
-- Reading a calendar this way may go against its organization's IT or security policy. **Check with them first**, and consider turning on **Hide meeting names** for that calendar.
-- Each Outlook calendar keeps its own sign-in, so you can add more than one.
-- **Two way sync can write to it too**, if you turn on **Also sync Outlook on the web calendars** in the **Two way sync** tab (off by default, experimental). Right after each read, the app saves the Busy events through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set, and the ones it removes go to Deleted Items. So they're only updated as often as that calendar is read. If a read didn't get every meeting in full, its Busy events are left as they are that time, so none are added twice. Writing to a work calendar this way is more likely to go against its organization's policy than reading it, so check with them first.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-general-dark.webp">
+  <img src="docs/screenshots/settings-general-light.webp" width="640" alt="Settings, General: main calendar, how far ahead and how often to sync, what's copied">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-twoWaySync-dark.webp">
+  <img src="docs/screenshots/settings-twoWaySync-light.webp" width="640" alt="Settings, Two way sync: show the main calendar as Busy in the secondary calendars">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-alerts-dark.webp">
+  <img src="docs/screenshots/settings-alerts-light.webp" width="640" alt="Settings, Meeting alerts: the full-screen alert and how early it shows">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">
+  <img src="docs/screenshots/settings-about-light.webp" width="640" alt="Settings, About: version, update check, feedback and donations">
+</picture>
 
 </details>
 
-## Get started
+<sub>Screenshots show sample calendars.</sub>
 
-You need **macOS 14 or later** and **Xcode 15+** (the command line tools are enough).
+## What it does
 
-### With [Homebrew](https://brew.sh)
+- **Copies your meetings across**, titled by the calendar they came from, with the Teams, Zoom, Google Meet or Webex link, so **Join** works from your main calendar.
+- **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
+- **Reads calendars your Mac can't add:** sign in to **Outlook on the web** once in the app, or subscribe to a published **.ics** link.
+- **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`, link included.
+- **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it.
+- **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
-Install with the two commands under [Install](#install). The formula lives in the [neteinstein/homebrew-tap](https://github.com/neteinstein/homebrew-tap) tap and builds the app from source on your Mac (that's why it needs the Xcode command line tools), so there's nothing to sign or notarize. `brew install --HEAD neteinstein/tap/calendar-sync` builds the latest `main` instead of the pinned version.
+## Install
 
-- **Updating:** `brew update && brew upgrade calendar-sync`. Settings also warns you when a newer version is out, and its **Update** button shows these commands. If the app is running, it keeps running the old version until you restart it, and `brew upgrade` prints how: `brew services restart calendar-sync` if you started it with `brew services`, otherwise `pkill -x CalendarSync; sleep 1; open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"`. The pause lets the old copy quit first, since only one copy runs at a time.
-- **Open at login:** run `brew services start calendar-sync` (the full name, `brew services start neteinstein/tap/calendar-sync`, works too) and leave **Open at login** in Settings off. Only one copy runs at a time, so a second login item would just start and quit. The service runs the app from Homebrew's `opt` path, so it keeps starting the newest version after upgrades. `brew upgrade` doesn't restart it: run `brew services restart calendar-sync` for that.
-- **In your Applications folder:** the first time it runs from Homebrew, the app puts a link to itself in `~/Applications`, unless `/Applications` already has one. Homebrew can't do that at install time, and your desktop account may not be allowed to write to `/Applications`, but it always owns `~/Applications`. The link goes through Homebrew's `opt` path, so it opens the newest version after upgrades. Finder and the Dock treat the link as the app; Spotlight and Launchpad don't list linked apps. Remove the link and it stays removed. Want it in `/Applications` instead? From an account that can write there, run `ln -s "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app" /Applications/`. `brew uninstall` leaves the link behind: remove it with `rm ~/Applications/"Calendar Sync.app"` (or `/Applications/"Calendar Sync.app"`).
-- **Homebrew in a separate admin account:** install and upgrade from the admin account as usual, but run `brew services` from the account you log in to the desktop with. The admin account has no desktop session to start the app in, so there it fails with `Domain does not support specified action`. If your own account then refuses to load the formula from an untrusted tap, run `brew trust --formula neteinstein/tap/calendar-sync` from it first. Don't start the app by hand from the admin account either (the hint `brew services` prints after a failure suggests it): that copy runs in the admin account, not in your desktop session, so it logs `Connection interrupted` errors and keeps running until you stop it with Ctrl-C or `pkill CalendarSync`.
-- Upgrades are ad-hoc signed builds, so macOS asks for calendar access again after each one. Your settings are kept.
-
-### From source
-
-```bash
-git clone https://github.com/neteinstein/Calendar-Sync
-cd Calendar-Sync
-scripts/build-app.sh
-open "build/Calendar Sync.app"
-```
-
-To update later: quit the app, then `git pull && scripts/build-app.sh` and reopen it.
-
-Allow calendar access on first launch. Then open **Settings…** from the menu bar icon:
-
-1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync. The **full-screen alert** when each meeting starts is on here; turn it off if you don't want it.
-2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**.
-3. **Two way sync:** turn on **Sync both ways** to show your main calendar as **Busy** in your secondary calendars, so they all show the same booked time. Turning it on includes every secondary calendar you can edit; turn off **Show my main calendar here** for any that shouldn't, or pick **Out of office** instead of **Busy**. For Outlook on the web calendars, also turn on **Also sync Outlook on the web calendars** (experimental).
-4. **Preview:** see what a sync would change, then let it run.
-
-**No icon in the menu bar?** If the icon is hidden, in System Settings › Menu Bar or by ⌘-dragging it out of the menu bar, Calendar Sync keeps running and syncing without it. Open the app again to bring the icon back. If it disappears again, turn Calendar Sync back on under **Allow in the Menu Bar** in System Settings › Menu Bar.
-
-> [!NOTE]
-> Local builds are ad-hoc signed, so macOS asks for calendar access again after each rebuild.
-
-## Development
+With [Homebrew](https://brew.sh/):
 
 ```bash
-swift test
+brew install neteinstein/tap/calendar-sync
 ```
 
-The tests cover the sync rules: titles, meeting links, details, moves, deletes, filters, no loops, per-calendar intervals, the Outlook data parser and the Outlook Busy-event requests. They run on Linux too. CI builds the app and runs the tests on macOS for every push.
+It needs macOS 14 or later and the Xcode command line tools: Homebrew builds the app on your Mac.
 
-| Folder | What's in it |
-|---|---|
-| [`Sources/CalendarSyncCore`](Sources/CalendarSyncCore) | Platform-independent rules: `SyncPlanner` (what to add, update and remove), `SyncSchedule` (which calendars are due), `CopyFormatter` (titles and notes), `MeetingLink`, `CopyMarker`, `HTMLText`, `OutlookWebParser` and `OutlookWebWriter` (the requests that write Busy events to Outlook on the web) |
-| [`Sources/CalendarSync`](Sources/CalendarSync) | The macOS app: `EventKitBridge` (Calendar.app), `OutlookWebSource` (built-in Outlook browser), `SyncController` (scheduling) and the SwiftUI views |
-| [`Tests`](Tests) | Unit tests for the core |
-| [`scripts/build-app.sh`](scripts/build-app.sh) | Builds and signs `Calendar Sync.app` |
+### Run it
 
-### Known limits
+Once:
 
-- Calendar.app refreshes accounts every few minutes, so changes made in a secondary calendar show up with that delay.
-- If you remove a secondary calendar from the app, the copies already made from it stay in your calendar, and the Busy events two way sync added to it stay in the secondary calendar. Delete them in Calendar if you no longer want them. To have the app take the Busy events back, turn off **Show my main calendar here** (or **Sync both ways**) and let it sync before removing the calendar.
+```bash
+open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"
+```
 
+Or every time you log in:
+
+```bash
+brew services start neteinstein/tap/calendar-sync
+```
+
+The first time it runs, it links itself into your Applications folder, so you can also open it from Finder or the Dock.
+
+### Set it up
+
+1. Allow calendar access when macOS asks.
+2. Open **Settings…** from the menu bar icon, and in **General** choose your main calendar.
+3. In **Secondary Calendars**, add the calendars to copy from.
+
+That's it. It syncs every 15 minutes, and calendars in Calendar.app within seconds of a change.
+
+### Update
+
+```bash
+brew update && brew upgrade calendar-sync
+```
+
+Then restart it with `brew services restart calendar-sync`, or quit it and open it again. Settings tells you when a new version is out. More in [Install and update](docs/install.md), including building from source.
+
+## Feedback and issues
+
+Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Calendar-Sync/issues). Settings › About › **Send feedback or report a bug** takes you there too.
+
+## Learn more
+
+- [Install and update](docs/install.md): Homebrew in detail, opening at login, building from source, a separate admin account, and a missing menu bar icon.
+- [How it works](docs/how-it-works.md): how copies are made and matched, two way sync, the menu, the alert and Meeting Stats in detail, and known limits.
+- [Outlook on the web](docs/outlook-on-the-web.md): how the app reads (and can write to) a browser-only Outlook calendar, and what to check first.
+- [Development](docs/development.md): tests, how the code is laid out, screenshots and releases.
 
 ## License
 

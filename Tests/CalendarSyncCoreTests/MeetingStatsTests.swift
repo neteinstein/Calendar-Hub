@@ -89,6 +89,12 @@ final class MeetingStatsTests: XCTestCase {
                        "5 hours nonstop — not quite enough to swim across the English Channel.")
     }
 
+    func testRoute() {
+        XCTAssertEqual(MeetingStats.route(forYearlyHours: 360), MeetingStats.Route(from: "Lisbon", to: "Paris"))
+        XCTAssertNil(MeetingStats.route(forYearlyHours: 5), "not enough for any journey")
+        XCTAssertNil(MeetingStats.route(forYearlyHours: 2000), "around the world goes nowhere in particular")
+    }
+
     func testInsights() {
         // Tuesday 3 November 2026, 10:00.
         let now = date(11, 3, 10)
@@ -108,6 +114,7 @@ final class MeetingStatsTests: XCTestCase {
         XCTAssertEqual(MeetingStats.trend(summary)!, 1.9166, accuracy: 0.001, "2.92 hours against 1")
         XCTAssertEqual(summary.busiestWeekday, 4, "Wednesday")
         XCTAssertEqual(summary.longestFreeToday, 5 * 3600)
+        XCTAssertEqual(summary.freeBlockToday, DateInterval(start: date(11, 3, 12), end: date(11, 3, 17)))
         // Ten working days, today and tomorrow.
         XCTAssertEqual(summary.recentDays.count, 12)
         XCTAssertEqual(summary.recentDays.last?.day, date(11, 4, 0))
