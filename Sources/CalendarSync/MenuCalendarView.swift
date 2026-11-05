@@ -17,8 +17,9 @@ struct MenuCalendarView: View {
     /// Where the picked day's cell sits in the month view, so its list grows out of it.
     @State private var dayAnchor = UnitPoint.center
     @State private var events: [SourceEvent] = []
-    /// Height of the selected day's events, to show them all, up to the List view's height.
-    @State private var dayEventsHeight: CGFloat = 0
+    /// Height of the month view, which the picked day's list takes too: the menu window
+    /// mustn't resize while the day grows out of its cell (see `WindowTopAnchor`).
+    @State private var monthHeight: CGFloat = 0
     /// Today's finished meetings in the List view, folded into one row until opened.
     @State private var showsEarlier = false
     /// Which calendar Meeting Stats counts: empty for the main calendar, which holds every
@@ -86,7 +87,7 @@ struct MenuCalendarView: View {
         let (from, to): (Date, Date)
         switch shownMode {
         case .month:
-            let days = MenuCalendar.gridDays(for: shownMonth, calendar: calendar, showsWeekends: showsWeekends)
+            let days = gridDays(for: shownMonth)
             guard let first = days.first, let last = days.last,
                   let end = calendar.date(byAdding: .day, value: 1, to: last) else { return }
             (from, to) = (first, end)
@@ -148,18 +149,43 @@ struct MenuCalendarView: View {
 
     // MARK: - Month
 
-    /// The month grid, or the picked day's list grown out of its cell.
+    /// The month grid, or the picked day's list grown out of its cell, in the same height.
     private var monthOrDay: some View {
         ZStack(alignment: .top) {
             if let day = selectedDay {
                 dayView(day)
+                    .frame(height: monthHeight > 0 ? monthHeight : nil, alignment: .top)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.25, anchor: dayAnchor).combined(with: .opacity))
                     .zIndex(1)
             } else {
                 monthView
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: MonthHeightKey.self, value: proxy.size.height)
+                    })
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.97).combined(with: .opacity))
             }
         }
+        .onPreferenceChange(MonthHeightKey.self) { if $0 > 0 { monthHeight = $0 } }
+    }
+
+    private struct MonthHeightKey: PreferenceKey {
+        static let defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+    }
+
+    /// The days of `month`'s grid, always six weeks: the weeks after the month fill the rest,
+    /// so the grid keeps its height from month to month and the menu window doesn't resize
+    /// while the next month slides in.
+    private func gridDays(for month: Date) -> [Date] {
+        var days = MenuCalendar.gridDays(for: month, calendar: calendar, showsWeekends: showsWeekends)
+        let columns = MenuCalendar.weekdays(calendar: calendar, showsWeekends: showsWeekends).count
+        guard columns > 0, var day = days.last else { return days }
+        while days.count < columns * 6 {
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+            if showsWeekends || !calendar.isDateInWeekend(day) { days.append(day) }
+        }
+        return days
     }
 
     private var isShowingThisMonth: Bool {
@@ -167,7 +193,7 @@ struct MenuCalendarView: View {
     }
 
     private var monthView: some View {
-        let days = MenuCalendar.gridDays(for: shownMonth, calendar: calendar, showsWeekends: showsWeekends)
+        let days = gridDays(for: shownMonth)
         let weekdays = MenuCalendar.weekdays(calendar: calendar, showsWeekends: showsWeekends)
         return VStack(spacing: 2) {
             HStack(spacing: 2) {
@@ -330,19 +356,14 @@ struct MenuCalendarView: View {
             }
             if dayEvents.isEmpty {
                 EmptyDay(day: day)
+                    .frame(maxHeight: .infinity)
             } else {
-                // A ScrollView with only a maximum height shrinks to a few rows, so size it to
-                // its events instead, scrolling past the List view's height.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
                         eventRows(dayEvents, nowLine: calendar.isDateInToday(day))
                     }
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(key: DayEventsHeightKey.self, value: proxy.size.height)
-                    })
                 }
-                .onPreferenceChange(DayEventsHeightKey.self) { dayEventsHeight = $0 }
-                .frame(height: min(max(dayEventsHeight, 60), Self.listHeight))
+                .frame(maxHeight: .infinity)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -357,14 +378,9 @@ struct MenuCalendarView: View {
         return hours > 0 ? "\(count) · \(MeetingStats.format(hours))" : count
     }
 
-    private struct DayEventsHeightKey: PreferenceKey {
-        static let defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-    }
-
     // MARK: - List
 
-    /// Height of the List view's scrolling events, and the most a day's events take up.
+    /// Height of the List view's scrolling events.
     private static let listHeight: CGFloat = 300
 
     /// Every event of the window, one section per day under a header that stays put while its
@@ -654,8 +670,8 @@ private struct EarlierRow: View {
 
 /// One event: start and end, a bar in its calendar's color, the title without the copy's
 /// "[Calendar]" prefix, then its calendar, room and call service. A Join button from 15
-/// minutes before until it ends; other calls show a video button on hover. Finished events
-/// are dimmed.
+/// minutes before until it ends; other calls show a faint camera that turns into a gray Join
+/// button while the pointer is over the row. Finished events are dimmed.
 private struct EventRow: View {
     let event: SourceEvent
     var origin: EventOrigin?
@@ -711,16 +727,14 @@ private struct EventRow: View {
             if let url = event.meetingURL, !isPast {
                 if event.start.timeIntervalSince(now) <= 15 * 60 {
                     JoinButton(url: url)
+                } else if hovering {
+                    QuietJoinButton(url: url)
                 } else {
-                    Button {
-                        NSWorkspace.shared.open(url)
-                    } label: {
-                        Image(systemName: "video")
-                    }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .opacity(hovering ? 1 : 0)
-                    .help("Join the call")
+                    Image(systemName: "video")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .padding(.trailing, 4)
+                        .accessibilityLabel("Has a call link")
                 }
             }
         }
