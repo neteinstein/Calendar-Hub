@@ -32,11 +32,15 @@ struct MeetingStatsView: View {
     /// The most the scroll view can grow to before the menu runs off the bottom of the screen.
     @State private var roomOnScreen: CGFloat = 0
 
+    /// Every stat at once, without scrolling, for screenshots.
+    static var showsEverything = false
+
     /// Tall enough for all the stats when the screen has room; scrolls otherwise, never shorter
     /// than it used to be.
     private var height: CGFloat {
         let minimum: CGFloat = 380
         guard contentHeight > minimum else { return minimum }
+        if Self.showsEverything { return contentHeight }
         return min(contentHeight, max(minimum, roomOnScreen))
     }
 
@@ -57,11 +61,14 @@ struct MeetingStatsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 2)
+            // Read straight from the geometry: a preference from inside the scroll view
+            // arrived as 0, which kept the view at its minimum height.
             .background(GeometryReader { proxy in
-                Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                Color.clear
+                    .onAppear { contentHeight = proxy.size.height }
+                    .onChange(of: proxy.size.height) { _, height in contentHeight = height }
             })
         }
-        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
         .frame(height: height)
         .background(ScreenRoom { roomOnScreen = $0 })
         .onAppear {
@@ -72,11 +79,6 @@ struct MeetingStatsView: View {
                 withAnimation(.smooth(duration: 0.8).delay(0.05)) { shown = true }
             }
         }
-    }
-
-    private struct ContentHeightKey: PreferenceKey {
-        static let defaultValue: CGFloat = 0
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
     }
 
     /// Reports how tall the view it backs could get: its height plus the screen's height the
@@ -93,7 +95,8 @@ struct MeetingStatsView: View {
 
             override func layout() {
                 super.layout()
-                guard let window, let screen = window.screen else { return }
+                // A window off screen (screenshots) gets the main screen's room.
+                guard let window, let screen = window.screen ?? NSScreen.main else { return }
                 let spare = screen.visibleFrame.height - window.frame.height - 12
                 let room = (bounds.height + spare).rounded(.down)
                 DispatchQueue.main.async { [report] in report?(room) }
@@ -175,8 +178,9 @@ struct MeetingStatsView: View {
                     RuleMark(y: .value("Average", stats.averagePerWorkingDay.hours))
                         .foregroundStyle(.secondary)
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        .annotation(position: .top, alignment: .trailing, spacing: 1) {
-                            Text("avg \(MeetingStats.format(stats.averagePerWorkingDay.hours))")
+                        .annotation(position: .top, alignment: .leading, spacing: 1) {
+                            Text("avg " + AmountText.parts(stats.averagePerWorkingDay.hours).0
+                                 + AmountText.parts(stats.averagePerWorkingDay.hours).1)
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundStyle(.secondary)
                         }

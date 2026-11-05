@@ -49,7 +49,7 @@ final class SyncController: ObservableObject {
     }
 
     let settings: SettingsStore
-    let eventKit = EventKitBridge()
+    let eventKit: EventKitBridge
     private var outlookSources: [UUID: OutlookWebSource] = [:]
     private var timer: Timer?
     /// When each secondary calendar was last read by a sync that applied its changes.
@@ -68,12 +68,21 @@ final class SyncController: ObservableObject {
         var only: Set<UUID>?
     }
 
-    init(settings: SettingsStore) {
+    /// With `demo`, it shows the sample calendars as just synced and never syncs anything.
+    init(settings: SettingsStore, demo: DemoCalendars? = nil) {
         self.settings = settings
+        eventKit = EventKitBridge(demo: demo)
         Task { await start() }
     }
 
     func start() async {
+        if let demo = eventKit.demo {
+            hasCalendarAccess = true
+            lastSync = Date().addingTimeInterval(-2 * 60)
+            lastSummary = "Up to date (27 copied meetings)"
+            sourceStatus = demo.sourceStatus
+            return
+        }
         // The status, not the request's answer, so `hasCalendarAccess` always matches what
         // sync() compares it with, and the two can't keep sending each other back here.
         _ = await eventKit.requestAccess()
@@ -168,7 +177,7 @@ final class SyncController: ObservableObject {
             await accessChanged()
             return nil
         }
-        guard hasCalendarAccess else { return nil }
+        guard hasCalendarAccess, eventKit.demo == nil else { return nil }
         guard !isSyncing else {
             if apply { queue(only: only) }
             return nil

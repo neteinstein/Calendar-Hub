@@ -411,9 +411,15 @@ struct MenuCalendarView: View {
                 }
             }
             .frame(height: Self.listHeight)
-            .onAppear {
-                // After the first layout, so the lazy stack knows where today is.
-                if let anchor { DispatchQueue.main.async { proxy.scrollTo(anchor, anchor: .top) } }
+            // When the list appears, and again once its events have loaded: on appearing it can
+            // still be empty. The lazy stack only guesses where far rows are until it has laid
+            // them out, so a second scroll lands where the first one made today's rows real.
+            .task(id: anchor) {
+                guard let anchor else { return }
+                for delay in [0.0, 0.2] {
+                    try? await Task.sleep(for: .seconds(delay))
+                    proxy.scrollTo(anchor, anchor: .top)
+                }
             }
         }
     }

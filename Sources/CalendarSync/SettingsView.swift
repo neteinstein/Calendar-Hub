@@ -6,11 +6,12 @@ import SwiftUI
 /// Settings, one pane per part of the app, picked from a sidebar.
 struct SettingsView: View {
     @EnvironmentObject private var controller: SyncController
-    @State private var pane: SettingsPane? = .general
+    /// The pane shown, kept between openings. The menu sets it to open Settings at a given pane.
+    @AppStorage(SettingsPane.defaultsKey) private var pane: SettingsPane = .general
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $pane) { pane in
+            List(SettingsPane.allCases, selection: Binding(get: { pane }, set: { if let picked = $0 { pane = picked } })) { pane in
                 HStack(spacing: 4) {
                     Label {
                         Text(pane.title)
@@ -29,12 +30,13 @@ struct SettingsView: View {
                 }
                 .tag(pane)
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 200, max: 230)
+            .navigationSplitViewColumnWidth(215)
+            // Wide enough for "Secondary Calendars" wherever the split view sizes the sidebar.
+            .frame(minWidth: 215)
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            let shown = pane ?? .general
-            shown.content
-                .navigationTitle(shown.title)
+            pane.content
+                .navigationTitle(pane.title)
         }
         .frame(width: 780, height: 540)
         .toggleStyle(AccentSwitchStyle())
@@ -42,8 +44,11 @@ struct SettingsView: View {
     }
 }
 
-private enum SettingsPane: String, CaseIterable, Identifiable {
+enum SettingsPane: String, CaseIterable, Identifiable {
     case general, calendars, twoWaySync, menuBar, alerts, preview, about
+
+    /// Where the shown pane is kept.
+    static let defaultsKey = "settingsPane"
 
     var id: Self { self }
 
@@ -321,7 +326,7 @@ private struct SourcesTab: View {
                 Menu("Add secondary calendar") {
                     Section("From Calendar.app") {
                         ForEach(availableCalendars, id: \.calendarIdentifier) { calendar in
-                            Button("\(calendar.title) (\(calendar.source.title))") {
+                            Button(calendar.source.map { "\(calendar.title) (\($0.title))" } ?? calendar.title) {
                                 settings.sources.append(SourceConfig(
                                     kind: .eventKit(calendarID: calendar.calendarIdentifier),
                                     calendarName: calendar.title,
@@ -1134,7 +1139,7 @@ private struct CalendarLabel: View {
         HStack(spacing: 6) {
             Circle().fill(Color(cgColor: calendar.cgColor)).frame(width: 9, height: 9)
             Text(calendar.title)
-            Text(calendar.source.title).foregroundStyle(.secondary)
+            if let account = calendar.source?.title { Text(account).foregroundStyle(.secondary) }
         }
     }
 }
