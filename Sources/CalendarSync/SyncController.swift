@@ -12,6 +12,12 @@ final class SyncController: ObservableObject {
     @Published private(set) var lastSync: Date?
     @Published private(set) var lastSummary = "Not synced yet"
     @Published private(set) var problems: [String] = []
+    /// What keeps syncing from starting at all, shown in the menu with its fix.
+    @Published private(set) var setupProblem: SetupProblem?
+    /// The secondary calendars the last sync couldn't read. Their reasons are in `problems` too.
+    @Published private(set) var unreadSources: [UnreadSource] = []
+    /// Per secondary calendar: when a sync last read it and how many copies it has.
+    @Published private(set) var sourceStatus: [UUID: SourceStatus] = [:]
     @Published private(set) var preview: SyncPlan?
     /// Busy events the next sync would add to secondary calendars, per secondary calendar.
     @Published private(set) var busyPreview: [BusyPreview] = []
@@ -20,6 +26,26 @@ final class SyncController: ObservableObject {
         let id: UUID
         let calendarName: String
         let plan: SyncPlan
+    }
+
+    enum SetupProblem: Hashable {
+        case noAccess, noMainCalendar, mainCalendarMissing
+    }
+
+    struct UnreadSource: Identifiable, Hashable {
+        let id: UUID
+        let name: String
+        let reason: String
+
+        /// As it appears in `problems`.
+        var problem: String { "\(name): \(reason)" }
+    }
+
+    struct SourceStatus: Hashable {
+        /// When a sync last read it without a problem.
+        var lastRead: Date?
+        /// Its copies in the main calendar, from today to the end of the sync window.
+        var copies = 0
     }
 
     let settings: SettingsStore
@@ -57,6 +83,8 @@ final class SyncController: ObservableObject {
         guard hasCalendarAccess else {
             lastSummary = "No calendar access. Allow it in System Settings › Privacy & Security › Calendars."
             problems = []
+            unreadSources = []
+            setupProblem = .noAccess
             return
         }
         if storeObserver == nil {
@@ -147,6 +175,7 @@ final class SyncController: ObservableObject {
         }
         guard let targetID = settings.targetCalendarID, eventKit.calendar(id: targetID) != nil else {
             lastSummary = "Choose your main calendar to copy into in Settings."
+            setupProblem = settings.targetCalendarID == nil ? .noMainCalendar : .mainCalendarMissing
             return nil
         }
         isSyncing = true
@@ -180,13 +209,16 @@ final class SyncController: ObservableObject {
 
         guard let existing = eventKit.existingCopies(targetID: targetID, from: start, to: end) else {
             lastSummary = "Target calendar not found."
+            setupProblem = .mainCalendarMissing
             return nil
         }
+        setupProblem = nil
         let plan = SyncPlanner.plan(sources: results, existing: existing, options: settings.options)
 
-        var problems = plan.failedSources.map { id, reason in
-            "\(settings.sources.first { $0.id == id }?.calendarName ?? "Source"): \(reason)"
+        let unread = plan.failedSources.map { id, reason in
+            UnreadSource(id: id, name: settings.sources.first { $0.id == id }?.calendarName ?? "Source", reason: reason)
         }
+        var problems = unread.map(\.problem)
         if apply {
             ignoreStoreChangesUntil = .now + .seconds(5)
             problems += eventKit.apply(plan, targetID: targetID)
@@ -243,6 +275,7 @@ final class SyncController: ObservableObject {
         }
 
         if apply {
+            updateSourceStatus(read: selected, plan: plan, existing: existing)
             lastSync = Date()
             // Counts copies of every secondary calendar, including ones not read this time.
             let copies = existing.count + plan.creates - plan.deletes
@@ -258,7 +291,48 @@ final class SyncController: ObservableObject {
             busyPreview = busyPlans
         }
         self.problems = problems.sorted()
+        unreadSources = unread.sorted { $0.name < $1.name }
         return plan
+    }
+
+    /// Counts each secondary calendar's copies once `plan` is applied, and notes the time for
+    /// the ones read without a problem.
+    private func updateSourceStatus(read: [SourceConfig], plan: SyncPlan, existing: [ExistingCopy]) {
+        var copies: [UUID: Int] = [:]
+        var owner: [String: UUID] = [:]
+        for copy in existing {
+            guard let sourceID = copy.marker?.sourceID else { continue }
+            copies[sourceID, default: 0] += 1
+            owner[copy.eventID] = sourceID
+        }
+        for action in plan.actions {
+            switch action {
+            case .create(let spec):
+                if let sourceID = spec.marker?.sourceID { copies[sourceID, default: 0] += 1 }
+            case .delete(let eventID, _, _):
+                if let sourceID = owner[eventID] { copies[sourceID, default: 0] -= 1 }
+            case .update:
+                break
+            }
+        }
+        var status = sourceStatus
+        for source in settings.sources {
+            status[source.id, default: SourceStatus()].copies = max(copies[source.id] ?? 0, 0)
+        }
+        for source in read where plan.failedSources[source.id] == nil {
+            status[source.id, default: SourceStatus()].lastRead = Date()
+        }
+        sourceStatus = status
+    }
+
+    /// The main calendar's meeting for the menu bar at `now`: one about to start, or one under way.
+    func menuBarMeeting(now: Date) -> SourceEvent? {
+        guard hasCalendarAccess, let targetID = settings.targetCalendarID,
+              case .success(let events) = eventKit.sourceEvents(
+                  calendarID: targetID, from: now.addingTimeInterval(-12 * 3600),
+                  to: now.addingTimeInterval(MenuCalendar.menuBarLead + 60))
+        else { return nil }
+        return MenuCalendar.menuBarMeeting(in: events, now: now)
     }
 
     /// "Sync now": closes the Outlook windows first, since a calendar whose window is open

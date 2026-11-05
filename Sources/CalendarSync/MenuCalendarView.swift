@@ -7,13 +7,20 @@ import SwiftUI
 struct MenuCalendarView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("menuCalendarMode") private var mode: Mode = .month
     @State private var shownMonth = Date()
+    /// The edge the next month grid slides in from: trailing going forward, leading going back.
+    @State private var direction = Edge.trailing
     /// A day picked in the month grid, shown as that day's event list until dismissed.
     @State private var selectedDay: Date?
+    /// Where the picked day's cell sits in the month view, so its list grows out of it.
+    @State private var dayAnchor = UnitPoint.center
     @State private var events: [SourceEvent] = []
     /// Height of the selected day's events, to show them all, up to the List view's height.
     @State private var dayEventsHeight: CGFloat = 0
+    /// Today's finished meetings in the List view, folded into one row until opened.
+    @State private var showsEarlier = false
     /// Which calendar Meeting Stats counts: empty for the main calendar, which holds every
     /// meeting, or a secondary calendar's id for the meetings copied from it.
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
@@ -30,36 +37,30 @@ struct MenuCalendarView: View {
     private var calendar: Calendar { settings.menuCalendar.applied(to: .current) }
     private var showsWeekends: Bool { settings.menuCalendar.showsWeekends }
 
+    /// Slides and growth, or plain fades with Reduce Motion on.
+    private var motion: Animation { reduceMotion ? .easeInOut(duration: 0.2) : .snappy(duration: 0.32) }
+
     var body: some View {
         VStack(spacing: 10) {
-            Picker("View", selection: Binding(get: { shownMode }, set: { mode = $0 })) {
-                Text("Month").tag(Mode.month)
-                Text("List").tag(Mode.list)
-                if settings.menuCalendar.showsMeetingStats {
-                    Text("Stats").tag(Mode.stats)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            SlidingSegments(options: modes, selection: Binding(get: { shownMode }, set: { mode = $0 }))
 
-            switch shownMode {
-            case .month:
-                if let day = selectedDay {
-                    dayView(day)
-                } else {
-                    monthView
-                }
-            case .list:
-                listView
-            case .stats:
-                VStack(spacing: 8) {
-                    if settings.sources.isEmpty == false {
-                        statsCalendarPicker
+            ZStack(alignment: .top) {
+                switch shownMode {
+                case .month:
+                    monthOrDay
+                case .list:
+                    listView.transition(.opacity)
+                case .stats:
+                    VStack(spacing: 8) {
+                        if settings.sources.isEmpty == false {
+                            statsCalendarPicker
+                        }
+                        let workingHours = settings.menuCalendar.workingHours
+                        MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar,
+                                                                     workingHours: workingHours),
+                                         calendar: calendar, workingHours: workingHours)
                     }
-                    let workingHours = settings.menuCalendar.workingHours
-                    MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar,
-                                                                 workingHours: workingHours),
-                                     calendar: calendar, workingHours: workingHours)
+                    .transition(.opacity)
                 }
             }
         }
@@ -68,6 +69,10 @@ struct MenuCalendarView: View {
         .onChange(of: shownMonth) { _, _ in reload() }
         .onChange(of: settings.menuCalendar) { _, _ in reload() }
         .onChange(of: controller.lastSync) { _, _ in reload() }
+    }
+
+    private var modes: [(value: Mode, title: String)] {
+        [(.month, "Month"), (.list, "List")] + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
     }
 
     // MARK: - Data
@@ -143,89 +148,194 @@ struct MenuCalendarView: View {
 
     // MARK: - Month
 
-    private var monthView: some View {
-        VStack(spacing: 6) {
-            HStack {
-                Button(action: { shownMonth = calendar.date(byAdding: .month, value: -1, to: shownMonth) ?? shownMonth },
-                       label: { Image(systemName: "chevron.left") })
-                Spacer()
-                Text(shownMonth, format: .dateTime.month(.wide).year()).font(.headline)
-                Spacer()
-                Button("Today") { shownMonth = Date() }
-                    .disabled(calendar.isDate(shownMonth, equalTo: Date(), toGranularity: .month))
-                Button(action: { shownMonth = calendar.date(byAdding: .month, value: 1, to: shownMonth) ?? shownMonth },
-                       label: { Image(systemName: "chevron.right") })
-            }
-            .buttonStyle(.borderless)
-
-            let days = MenuCalendar.gridDays(for: shownMonth, calendar: calendar, showsWeekends: showsWeekends)
-            let busyDays = Set(events.map { calendar.startOfDay(for: $0.start) })
-            let weekdays = MenuCalendar.weekdays(calendar: calendar, showsWeekends: showsWeekends)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: weekdays.count), spacing: 2) {
-                // By weekday: the very short symbols repeat (two "T"s, two "S"s).
-                ForEach(weekdays, id: \.self) { weekday in
-                    Text(calendar.veryShortStandaloneWeekdaySymbols[weekday - 1])
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                ForEach(days, id: \.self) { day in
-                    dayCell(day, hasEvents: busyDays.contains(calendar.startOfDay(for: day)))
-                }
+    /// The month grid, or the picked day's list grown out of its cell.
+    private var monthOrDay: some View {
+        ZStack(alignment: .top) {
+            if let day = selectedDay {
+                dayView(day)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.25, anchor: dayAnchor).combined(with: .opacity))
+                    .zIndex(1)
+            } else {
+                monthView
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.97).combined(with: .opacity))
             }
         }
     }
 
-    private func dayCell(_ day: Date, hasEvents: Bool) -> some View {
-        let isToday = calendar.isDateInToday(day)
-        let inMonth = calendar.isDate(day, equalTo: shownMonth, toGranularity: .month)
-        // Weekends get a soft gray background so they stand apart from working days.
-        let background: Color = isToday ? .accentColor
-            : calendar.isDateInWeekend(day) ? .secondary.opacity(0.12) : .clear
-        return Button {
-            selectedDay = day
-        } label: {
-            VStack(spacing: 2) {
-                Text("\(calendar.component(.day, from: day))")
-                    .font(.callout)
-                    .fontWeight(isToday ? .bold : .regular)
-                    .foregroundStyle(isToday ? AnyShapeStyle(.white)
-                                     : inMonth ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-                Circle()
-                    .fill(hasEvents ? (isToday ? Color.white : Color.accentColor) : .clear)
-                    .frame(width: 4, height: 4)
+    private var isShowingThisMonth: Bool {
+        calendar.isDate(shownMonth, equalTo: Date(), toGranularity: .month)
+    }
+
+    private var monthView: some View {
+        let days = MenuCalendar.gridDays(for: shownMonth, calendar: calendar, showsWeekends: showsWeekends)
+        let weekdays = MenuCalendar.weekdays(calendar: calendar, showsWeekends: showsWeekends)
+        return VStack(spacing: 2) {
+            HStack(spacing: 2) {
+                (Text(shownMonth, format: .dateTime.month(.wide)) + Text(" ")
+                    + Text(shownMonth, format: .dateTime.year()).foregroundStyle(.secondary))
+                    .font(.system(size: 15, weight: .semibold))
+                    .id(monthKey(shownMonth))
+                    .transition(.opacity)
+                Spacer()
+                if !isShowingThisMonth {
+                    Button("Today") { show(month: Date()) }
+                        .buttonStyle(PillButtonStyle())
+                        .padding(.trailing, 4)
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
+                IconButton("chevron.left", help: "Previous month") { step(by: -1) }
+                IconButton("chevron.right", help: "Next month") { step(by: 1) }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
-            .background(background, in: RoundedRectangle(cornerRadius: 6))
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .padding(.leading, 2)
+
+            // By weekday: the very short symbols repeat (two "T"s, two "S"s).
+            HStack(spacing: 2) {
+                ForEach(weekdays, id: \.self) { weekday in
+                    Text(calendar.veryShortStandaloneWeekdaySymbols[weekday - 1])
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 18)
+
+            ZStack {
+                monthGrid(days: days, columns: weekdays.count)
+                    .id(monthKey(shownMonth))
+                    .transition(reduceMotion ? .opacity : .push(from: direction))
+            }
+            .clipped()
         }
-        .buttonStyle(.plain)
+    }
+
+    private func monthKey(_ month: Date) -> String {
+        let parts = calendar.dateComponents([.year, .month], from: month)
+        return "\(parts.year ?? 0)-\(parts.month ?? 0)"
+    }
+
+    private func step(by months: Int) {
+        if let month = calendar.date(byAdding: .month, value: months, to: shownMonth) { show(month: month) }
+    }
+
+    /// Slides to `month`: from the trailing edge going forward, from the leading edge going back.
+    private func show(month: Date) {
+        guard !calendar.isDate(month, equalTo: shownMonth, toGranularity: .month) else { return }
+        let edge: Edge = month > shownMonth ? .trailing : .leading
+        // The grid leaving takes its transition from the last update, so the edge changes
+        // first, in an update of its own, and the month in the next one.
+        if edge != direction {
+            direction = edge
+            DispatchQueue.main.async { withAnimation(motion) { shownMonth = month } }
+        } else {
+            withAnimation(motion) { shownMonth = month }
+        }
+    }
+
+    private func monthGrid(days: [Date], columns: Int) -> some View {
+        let dots = dotsByDay()
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: columns), spacing: 1) {
+            ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                let isToday = calendar.isDateInToday(day)
+                let inMonth = calendar.isDate(day, equalTo: shownMonth, toGranularity: .month)
+                DayCell(
+                    number: calendar.component(.day, from: day),
+                    isToday: isToday,
+                    inMonth: inMonth,
+                    isPast: !isToday && day < Date(),
+                    dots: dots[calendar.startOfDay(for: day)] ?? []
+                ) {
+                    open(day, index: index, of: days.count, columns: columns)
+                }
+                .accessibilityLabel(Text(day, format: .dateTime.weekday(.wide).day().month(.wide)))
+            }
+        }
+        .background(alignment: .topLeading) { weekendBands(days: days, columns: columns) }
+    }
+
+    /// One soft band behind each run of weekend columns, so weekends read as a block.
+    private func weekendBands(days: [Date], columns: Int) -> some View {
+        let weekend = days.prefix(columns).enumerated()
+            .filter { calendar.isDateInWeekend($0.element) }.map(\.offset)
+        // Runs of neighbouring columns: Saturday and Sunday side by side make one band.
+        var runs: [ClosedRange<Int>] = []
+        for column in weekend {
+            if let last = runs.last, last.upperBound == column - 1 {
+                runs[runs.count - 1] = last.lowerBound...column
+            } else {
+                runs.append(column...column)
+            }
+        }
+        return GeometryReader { proxy in
+            let spacing: CGFloat = 2
+            let width = (proxy.size.width - spacing * CGFloat(columns - 1)) / CGFloat(max(columns, 1))
+            ForEach(runs, id: \.lowerBound) { run in
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(Color.secondary.opacity(0.09))
+                    .frame(width: width * CGFloat(run.count) + spacing * CGFloat(run.count - 1),
+                           height: proxy.size.height)
+                    .offset(x: CGFloat(run.lowerBound) * (width + spacing))
+            }
+        }
+    }
+
+    /// Up to three dots per day, in the colors of the calendars its meetings came from, or one
+    /// accent dot when events aren't colored by calendar.
+    private func dotsByDay() -> [Date: [Color]] {
+        var byDay: [Date: [Color]] = [:]
+        var seen: [Date: Set<String>] = [:]
+        var origins: [String: Color] = [:]
+        let colors = settings.menuCalendar.colorsByCalendar
+        for event in events.sorted(by: { $0.start < $1.start }) {
+            let day = calendar.startOfDay(for: event.start)
+            guard (byDay[day]?.count ?? 0) < (colors ? 3 : 1) else { continue }
+            let key = colors ? (MenuCalendar.originID(of: event)?.uuidString ?? "main") : "any"
+            guard seen[day, default: []].insert(key).inserted else { continue }
+            if origins[key] == nil {
+                origins[key] = colors
+                    ? (EventOrigin.of(event, settings: settings, eventKit: controller.eventKit)?.color ?? .accentColor)
+                    : .accentColor
+            }
+            byDay[day, default: []].append(origins[key]!)
+        }
+        return byDay
+    }
+
+    /// Opens `day`'s list, growing out of its cell.
+    private func open(_ day: Date, index: Int, of count: Int, columns: Int) {
+        let rows = max(count / max(columns, 1), 1)
+        let column = index % max(columns, 1), row = index / max(columns, 1)
+        // The grid starts below the header and the weekday letters, about a fifth of the way down.
+        dayAnchor = UnitPoint(x: (CGFloat(column) + 0.5) / CGFloat(columns),
+                              y: 0.2 + 0.8 * (CGFloat(row) + 0.5) / CGFloat(rows))
+        withAnimation(motion) { selectedDay = day }
     }
 
     // MARK: - One day
 
     private func dayView(_ day: Date) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Button {
-                    selectedDay = nil
-                } label: {
-                    Label("Month", systemImage: "chevron.left")
+        let dayEvents = events(on: day)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                IconButton("chevron.left", help: "Back to the month") {
+                    withAnimation(motion) { selectedDay = nil }
                 }
-                .buttonStyle(.borderless)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(day, format: .dateTime.weekday(.wide).day().month(.wide))
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(daySummary(dayEvents, on: day) + (calendar.isDateInToday(day) ? " · today" : ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                Text(day, format: .dateTime.weekday(.wide).day().month()).font(.headline)
             }
-            let dayEvents = events(on: day)
             if dayEvents.isEmpty {
-                Text("No events")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 60)
+                EmptyDay(day: day)
             } else {
                 // A ScrollView with only a maximum height shrinks to a few rows, so size it to
                 // its events instead, scrolling past the List view's height.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        eventRows(dayEvents)
+                        eventRows(dayEvents, nowLine: calendar.isDateInToday(day))
                     }
                     .background(GeometryReader { proxy in
                         Color.clear.preference(key: DayEventsHeightKey.self, value: proxy.size.height)
@@ -235,6 +345,16 @@ struct MenuCalendarView: View {
                 .frame(height: min(max(dayEventsHeight, 60), Self.listHeight))
             }
         }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    /// "6 meetings · 4 hours", or "No meetings".
+    private func daySummary(_ dayEvents: [SourceEvent], on day: Date) -> String {
+        let meetings = dayEvents.filter { !$0.isAllDay && !$0.isDeclined }
+        guard !meetings.isEmpty, let interval = calendar.dateInterval(of: .day, for: day) else { return "No meetings" }
+        let hours = MeetingStats.hours(of: meetings, in: interval).hours
+        let count = "\(meetings.count) \(meetings.count == 1 ? "meeting" : "meetings")"
+        return hours > 0 ? "\(count) · \(MeetingStats.format(hours))" : count
     }
 
     private struct DayEventsHeightKey: PreferenceKey {
@@ -247,145 +367,367 @@ struct MenuCalendarView: View {
     /// Height of the List view's scrolling events, and the most a day's events take up.
     private static let listHeight: CGFloat = 300
 
-    /// Every event of the window, one section per day. Opens at the first event still to
-    /// come; scrolling back shows past events dimmed.
+    /// Every event of the window, one section per day under a header that stays put while its
+    /// day scrolls. Opens at today; today's finished meetings are folded into one row, and
+    /// scrolling back shows past days dimmed.
     private var listView: some View {
         let sections = MenuCalendar.sections(for: events, calendar: calendar)
-        let now = Date()
-        let anchor = sections.flatMap(\.events).first { $0.end >= now }?.key
+        let today = calendar.startOfDay(for: Date())
+        let anchor = sections.first { $0.day >= today }?.day
         return ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                LazyVStack(alignment: .leading, spacing: 2, pinnedViews: .sectionHeaders) {
                     if sections.isEmpty {
                         Text("No events")
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 60)
                     }
                     ForEach(sections, id: \.day) { section in
-                        Text(sectionTitle(section.day))
-                            .font(.caption.bold())
-                            .foregroundStyle(section.day < calendar.startOfDay(for: now) ? .tertiary : .secondary)
-                            .padding(.top, 8)
-                        eventRows(section.events)
+                        let isToday = calendar.isDateInToday(section.day)
+                        Section {
+                            eventRows(section.events, nowLine: isToday, foldsEarlier: isToday)
+                                .padding(.bottom, 6)
+                        } header: {
+                            dayHeader(section)
+                                .id(section.day)
+                        }
                     }
                 }
             }
             .frame(height: Self.listHeight)
             .onAppear {
-                if let anchor { proxy.scrollTo(anchor, anchor: .top) }
+                // After the first layout, so the lazy stack knows where today is.
+                if let anchor { DispatchQueue.main.async { proxy.scrollTo(anchor, anchor: .top) } }
             }
         }
+    }
+
+    private func dayHeader(_ section: MenuCalendar.DaySection) -> some View {
+        let isToday = calendar.isDateInToday(section.day)
+        let isPast = section.day < calendar.startOfDay(for: Date())
+        let relative = relativeName(section.day)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(relative ?? section.day.formatted(.dateTime.weekday(.wide)))
+                .font(.system(size: 11, weight: .bold))
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .foregroundStyle(isToday ? AnyShapeStyle(Color.accentColor) : isPast ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+            Text(relative == nil ? section.day.formatted(.dateTime.day().month())
+                                 : section.day.formatted(.dateTime.weekday().day().month()))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Text(daySummary(section.events, on: section.day))
+                .font(.system(size: 10.5))
+                .monospacedDigit()
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        .background(.bar)
+    }
+
+    private func relativeName(_ day: Date) -> String? {
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInTomorrow(day) { return "Tomorrow" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        return nil
     }
 
     // MARK: - Event rows
 
     /// One day's events: all-day ones first, then the morning and afternoon ones, each in a
-    /// colored block when that's on. Rows carry their key as id for the list's scrolling.
+    /// colored block when that's on. Today gets a line at the current time, and in the List
+    /// view its finished meetings fold into one row. Rows carry their key as id.
     @ViewBuilder
-    private func eventRows(_ dayEvents: [SourceEvent]) -> some View {
+    private func eventRows(_ dayEvents: [SourceEvent], nowLine: Bool = false, foldsEarlier: Bool = false) -> some View {
+        let now = Date()
         let options = settings.menuCalendar
         let parts = MenuCalendar.parts(of: dayEvents, calendar: calendar)
-        ForEach(parts.allDay, id: \.key) { row($0) }
+        let timed = parts.morning + parts.afternoon
+        let earlier = foldsEarlier ? timed.filter { $0.end < now } : []
+        let folded = Set(showsEarlier ? [] : earlier.map(\.key))
+        // The now line goes before the first meeting still to start, or after the last one.
+        let nextKey = nowLine ? timed.first { $0.start > now }?.key : nil
+
+        ForEach(parts.allDay, id: \.key) { allDayRow($0, shaded: options.shadesAllDay) }
+        if !earlier.isEmpty {
+            EarlierRow(events: earlier, isOpen: showsEarlier) {
+                withAnimation(motion) { showsEarlier.toggle() }
+            }
+        }
         if options.shadesTimeOfDay {
-            timeOfDayBlock("Morning", parts.morning, color: .orange)
-            timeOfDayBlock("Afternoon", parts.afternoon, color: .indigo)
+            timeOfDayBlock("Morning", symbol: "sun.max.fill", parts.morning.filter { !folded.contains($0.key) },
+                           color: .orange, nextKey: nextKey)
+            timeOfDayBlock("Afternoon", symbol: "moon.fill", parts.afternoon.filter { !folded.contains($0.key) },
+                           color: .indigo, nextKey: nextKey)
         } else {
-            ForEach(parts.morning + parts.afternoon, id: \.key) { row($0) }
+            timedRows(timed.filter { !folded.contains($0.key) }, nextKey: nextKey)
+        }
+        if nowLine && nextKey == nil && !timed.isEmpty {
+            NowLine(now: now)
         }
     }
 
     @ViewBuilder
-    private func timeOfDayBlock(_ title: String, _ blockEvents: [SourceEvent], color: Color) -> some View {
+    private func timeOfDayBlock(_ title: String, symbol: String, _ blockEvents: [SourceEvent], color: Color,
+                                nextKey: String?) -> some View {
         if !blockEvents.isEmpty {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption2).foregroundStyle(.secondary)
-                ForEach(blockEvents, id: \.key) { row($0) }
+                Label(title, systemImage: symbol)
+                    .font(.system(size: 9.5, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                    .foregroundStyle(color.opacity(0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.top, 5)
+                timedRows(blockEvents, nextKey: nextKey)
             }
-            .padding(4)
+            .padding(.bottom, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .background(color.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
         }
     }
 
-    private func row(_ event: SourceEvent) -> some View {
-        EventRow(event: event, tint: originColor(of: event), shadesAllDay: settings.menuCalendar.shadesAllDay)
-            .id(event.key)
+    private func timedRows(_ list: [SourceEvent], nextKey: String?) -> some View {
+        ForEach(list, id: \.key) { event in
+            if event.key == nextKey { NowLine(now: Date()) }
+            EventRow(event: event, origin: origin(of: event), tint: tint(of: event))
+                .id(event.key)
+        }
     }
 
-    /// Soft colors for secondary calendars without one of their own (Outlook on the web).
-    private static let fallbackColors: [Color] = [.teal, .orange, .pink, .purple, .green, .blue]
-
-    /// The color of the calendar an event was copied from: its Calendar.app color when it has
-    /// one, else one of the fallback colors. The main calendar's own events use its color.
-    private func originColor(of event: SourceEvent) -> Color? {
-        guard settings.menuCalendar.colorsByCalendar else { return nil }
-        guard let originID = MenuCalendar.originID(of: event) else {
-            return controller.eventKit.calendar(id: settings.targetCalendarID).map { Color(cgColor: $0.cgColor) }
+    private func allDayRow(_ event: SourceEvent, shaded: Bool) -> some View {
+        let tint = tint(of: event) ?? .secondary
+        return HStack(spacing: 8) {
+            Text("All day")
+                .font(.system(size: 9.5, weight: .bold))
+                .textCase(.uppercase)
+                .foregroundStyle(tint)
+            Text(MenuCalendar.displayTitle(of: event))
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            if let origin = origin(of: event) {
+                Text(origin.name).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+            }
         }
-        guard let index = settings.sources.firstIndex(where: { $0.id == originID }) else { return nil }
-        if case .eventKit(let calendarID) = settings.sources[index].kind,
-           let source = controller.eventKit.calendar(id: calendarID) {
-            return Color(cgColor: source.cgColor)
-        }
-        return Self.fallbackColors[index % Self.fallbackColors.count]
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(tint.opacity(shaded ? 0.18 : 0.07), in: RoundedRectangle(cornerRadius: 8))
+        .opacity(event.end < Date() ? 0.45 : 1)
+        .id(event.key)
     }
 
-    private func sectionTitle(_ day: Date) -> String {
-        if calendar.isDateInToday(day) { return "Today" }
-        if calendar.isDateInTomorrow(day) { return "Tomorrow" }
-        if calendar.isDateInYesterday(day) { return "Yesterday" }
-        return day.formatted(.dateTime.weekday(.wide).day().month())
+    private func origin(of event: SourceEvent) -> EventOrigin? {
+        EventOrigin.of(event, settings: settings, eventKit: controller.eventKit)
+    }
+
+    /// The color of the calendar an event was copied from, when events are colored that way.
+    private func tint(of event: SourceEvent) -> Color? {
+        settings.menuCalendar.colorsByCalendar ? origin(of: event)?.color : nil
     }
 }
 
-/// One event line: time, title, location, and a join button when there's a link.
-/// Events already over are dimmed. Tinted with the color of the calendar it came from, if
-/// given; all-day events get a stronger background when `shadesAllDay` is on.
-private struct EventRow: View {
-    let event: SourceEvent
-    var tint: Color?
-    var shadesAllDay = false
+/// One day in the month grid: today in a filled circle, a dot per calendar with meetings, and
+/// a soft highlight under the pointer.
+private struct DayCell: View {
+    let number: Int
+    let isToday: Bool
+    let inMonth: Bool
+    let isPast: Bool
+    let dots: [Color]
+    let action: () -> Void
+    @State private var hovering = false
 
     var body: some View {
-        let isPast = event.end < Date()
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(event.isAllDay ? "All day" : event.start.formatted(.dateTime.hour().minute()))
-                .font(.caption.monospacedDigit())
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Text("\(number)")
+                    .font(.system(size: 12.5, weight: isToday ? .semibold : .regular))
+                    .monospacedDigit()
+                    .foregroundStyle(isToday ? AnyShapeStyle(.white)
+                                     : !inMonth ? AnyShapeStyle(.tertiary)
+                                     : isPast ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                    .frame(width: 22, height: 22)
+                    .background {
+                        if isToday {
+                            Circle()
+                                .fill(Color.accentColor)
+                                .shadow(color: Color.accentColor.opacity(0.45), radius: 3, y: 1)
+                        }
+                    }
+                HStack(spacing: 2) {
+                    ForEach(dots.indices, id: \.self) { index in
+                        Circle().fill(dots[index]).frame(width: 4, height: 4)
+                    }
+                }
+                .frame(height: 4)
+                .opacity(inMonth ? 1 : 0.45)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .background(hovering ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+/// "Nothing on Saturday", for a day without events.
+private struct EmptyDay: View {
+    let day: Date
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(systemName: "leaf.fill")
+                .font(.title3)
+                .foregroundStyle(.green)
+                .padding(.bottom, 2)
+            Text("Nothing on \(day.formatted(.dateTime.weekday(.wide)))")
+                .font(.callout.weight(.semibold))
+            Text("No events in your main calendar.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .trailing)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.title.isEmpty ? "Busy" : event.title)
-                    .font(.callout)
-                    .lineLimit(1)
-                if let location = event.location?.components(separatedBy: .newlines).first,
-                   !location.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Text(location).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-            if let url = event.meetingURL, !isPast {
-                Button {
-                    NSWorkspace.shared.open(url)
-                } label: {
-                    Image(systemName: "video.fill")
-                }
-                .buttonStyle(.borderless)
-                .help("Join the call")
-            }
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 4)
-        .background(background, in: RoundedRectangle(cornerRadius: 5))
-        .overlay(alignment: .leading) {
-            if let tint {
-                Capsule().fill(tint).frame(width: 3).padding(.vertical, 3)
-            }
+        .frame(maxWidth: .infinity, minHeight: 90)
+    }
+}
+
+/// A red line at the current time, between the last meeting and the next one.
+private struct NowLine: View {
+    let now: Date
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Text(now, format: .dateTime.hour().minute())
+                .font(.system(size: 9.5, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(.red)
+                .frame(width: 40, alignment: .trailing)
+            Rectangle()
+                .fill(.red)
+                .frame(height: 1.5)
+                .overlay(alignment: .leading) {
+                    Circle().fill(.red).frame(width: 7, height: 7).offset(x: -3.5)
+                }
         }
-        .opacity(isPast ? 0.4 : 1)
+        .padding(.horizontal, 6)
+        .frame(height: 12)
+        .accessibilityLabel(Text("Now, \(now.formatted(.dateTime.hour().minute()))"))
+        .id("now")
+    }
+}
+
+/// Today's finished meetings, folded: "2 earlier · Standup, Sprint planning".
+private struct EarlierRow: View {
+    let events: [SourceEvent]
+    let isOpen: Bool
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .rotationEffect(.degrees(isOpen ? 90 : 0))
+                Text("\(events.count) earlier")
+                    .font(.system(size: 11, weight: .semibold))
+                if !isOpen {
+                    Text(events.map { MenuCalendar.displayTitle(of: $0) }.joined(separator: ", "))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isOpen ? "Fold today's finished meetings" : "Show today's finished meetings")
+    }
+}
+
+/// One event: start and end, a bar in its calendar's color, the title without the copy's
+/// "[Calendar]" prefix, then its calendar, room and call service. A Join button from 15
+/// minutes before until it ends; other calls show a video button on hover. Finished events
+/// are dimmed.
+private struct EventRow: View {
+    let event: SourceEvent
+    var origin: EventOrigin?
+    /// The calendar's color, or nil when events aren't colored by calendar.
+    var tint: Color?
+    @State private var hovering = false
+
+    private var meta: String {
+        var parts: [String] = []
+        if let origin { parts.append(origin.name) }
+        if let location = event.location?.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespaces), !location.isEmpty {
+            parts.append(location)
+        }
+        if let url = event.meetingURL, let service = MeetingLink.serviceName(of: url) { parts.append(service) }
+        return parts.joined(separator: " · ")
     }
 
-    private var background: Color {
-        let shaded = event.isAllDay && shadesAllDay
-        return (tint ?? .secondary).opacity(shaded ? 0.25 : tint == nil ? 0 : 0.1)
+    var body: some View {
+        let now = Date()
+        let isPast = event.end < now
+        HStack(spacing: 9) {
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(event.start, format: .dateTime.hour().minute())
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text(event.end, format: .dateTime.hour().minute())
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+            .monospacedDigit()
+            .frame(width: 40, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(MenuCalendar.displayTitle(of: event))
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                if !meta.isEmpty {
+                    HStack(spacing: 4) {
+                        if let tint { Circle().fill(tint).frame(width: 6, height: 6) }
+                        Text(meta).lineLimit(1)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.leading, 12)
+            .overlay(alignment: .leading) {
+                Capsule().fill(tint ?? Color.secondary.opacity(0.35)).frame(width: 3)
+            }
+
+            Spacer(minLength: 0)
+
+            if let url = event.meetingURL, !isPast {
+                if event.start.timeIntervalSince(now) <= 15 * 60 {
+                    JoinButton(url: url)
+                } else {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
+                        Image(systemName: "video")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .opacity(hovering ? 1 : 0)
+                    .help("Join the call")
+                }
+            }
+        }
+        .padding(.vertical, 5)
+        .padding(.horizontal, 6)
+        .background(hovering ? Color.primary.opacity(0.05) : .clear, in: RoundedRectangle(cornerRadius: 8))
+        .onHover { hovering = $0 }
+        .opacity(isPast ? 0.45 : 1)
     }
 }

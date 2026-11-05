@@ -8,7 +8,7 @@
 
 A tiny macOS menu bar app that copies meetings from your secondary calendars into your main calendar, so colleagues stop booking you over meetings they can't see.
 
-[![Version 1.1.28](https://img.shields.io/badge/version-1.1.28-2563EB)](Support/Info.plist)
+[![Version 1.1.29](https://img.shields.io/badge/version-1.1.29-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 ![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
@@ -104,7 +104,7 @@ It never copies attendees, so no invites go out. It never copies its own copies 
 <td colspan="2" valign="top">
 
 ### ↩️ Sync both ways
-Optional, in the **Two way sync** tab. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location or attendees. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It works with secondary calendars you can edit in Calendar.app and, if you also turn on **Also sync Outlook on the web calendars** (experimental), with Outlook on the web calendars. `.ics` link calendars are read-only.
+Optional, in the **Two way sync** pane. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location or attendees. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It works with secondary calendars you can edit in Calendar.app and, if you also turn on **Also sync Outlook on the web calendars** (experimental), with Outlook on the web calendars. `.ics` link calendars are read-only.
 
 </td>
 </tr>
@@ -112,13 +112,15 @@ Optional, in the **Two way sync** tab. Your main calendar's events are added to 
 
 It also lets you **skip meetings you declined**, **skip all-day events** and **skip out-of-office events** (on by default). Per secondary calendar, copies can also get the meeting's **location and description**.
 
-Never miss a start: the **full-screen alert** (on unless you turn it off) covers the screen when a main-calendar meeting begins (or up to 15 minutes before), with buttons to **Join call** (⏎), **Go to** the room, or **Ignore** (⎋). Meetings copied from secondary calendars alert too, join link included, and each meeting alerts once.
+Never miss a start: the **full-screen alert** (on unless you turn it off) blurs the screen when a main-calendar meeting begins (or up to 15 minutes before) and **counts down to the start**, with buttons to **Join call** (⏎), **Go to** the room, **Ignore** (⎋), or **Remind me in 1 minute**. Meetings copied from secondary calendars alert too, join link and calendar name included, and each meeting alerts once.
 
-Prefer the menu bar? Turn on **Show a calendar in the menu** and the icon gains **today's date** — add the **week day** next to it if you like — while clicking it opens a **month view** (click a day for its events; start the week on **Sunday or Monday** and hide **weekends** if you like) or a **scrolling list** of your main calendar's events — it opens at the next event, and scrolling back shows past events dimmed. Events with a meeting link get a join button right in the list. The lists tint each event with the **color of the calendar it came from**, shade **all-day events**, and group each day's **morning** and **afternoon** into colored blocks — each of these can be turned off.
+The menu leads with what's next: an **Up next** card shows the next meeting today, or the one under way, with a countdown and a **Join** button. Below the calendar, a pill says when the last sync ran, and anything that went wrong shows as a card with its fix, like **Open Outlook** for a calendar that signed you out.
 
-Curious where your week goes? Turn on **Meeting Stats** and the menu gains a **Stats** view: hours in meetings **yesterday, today and tomorrow**, a chart of the **last two weeks**, **last week** (and how it compares with the week before) and **last month**, your **average per working day**, your **busiest weekday**, how many meetings ran **back to back**, the **longest free block** left today, how much of this week's working hours you're **out of office**, and a **prediction for the year** — pictured as a trip, like walking from Lisbon to Paris. Overlapping meetings count once, with the total counting overlap next to it, like "20 hours (25 counting overlap)". Working hours are 9:00 to 17:00 unless you set your own in Settings.
+Prefer the menu bar? Turn on **Show a calendar in the menu** and the icon gains **today's date** — add the **week day** next to it if you like — while clicking it opens a **month view** (click a day for its events; start the week on **Sunday or Monday** and hide **weekends** if you like) or a **scrolling list** of your main calendar's events — it opens at today, with a line at the current time, today's finished meetings folded into one row, and each day's header kept in view while you scroll. Copies show the meeting's own name, with the calendar it came from under it, and a **Join** button appears from 15 minutes before a meeting. The lists tint each event with the **color of the calendar it came from**, shade **all-day events**, and group each day's **morning** and **afternoon** into colored blocks — each of these can be turned off. Turn on **Show the next meeting in the menu bar** and, from 15 minutes before a meeting until it ends, the icon shows its name and the minutes left, like `Design review · 12m`.
 
-Settings also shows the app **version** and checks GitHub once a day for a newer one (the newest release, or the version on `main` while there are no releases). When there is one, a warning appears with an **Update** button that shows the pull-and-rebuild instructions.
+Curious where your week goes? Turn on **Meeting Stats** and the menu gains a **Stats** view: hours in meetings **yesterday, today and tomorrow**, a chart of the **last two weeks**, **last week** (and how it compares with the week before) and **last month**, your **average per working day**, your **busiest weekday**, how many meetings ran **back to back**, the **longest free block** left today and when it is, how much of this week's working hours you're **out of office**, and a **prediction for the year** — pictured as a trip, like walking from Lisbon to Paris. Overlapping meetings count once, with the total counting overlap next to it, like "20 hours (25 counting overlap)". Working hours are 9:00 to 17:00 unless you set your own in Settings.
+
+Settings' **About** pane also shows the app **version** and checks GitHub once a day for a newer one (the newest release, or the version on `main` while there are no releases). When there is one, a warning appears with an **Update** button that shows the pull-and-rebuild instructions.
 
 It syncs **every 15 minutes** by default; set any interval from 1 minute to 24 hours, and give a secondary calendar **its own interval** when it should sync more or less often than the rest (say, Outlook on the web hourly). Calendar.app calendars also sync about 10 seconds after a change. Settings has a **preview** that shows what the next sync would change before it changes anything.
 
@@ -157,7 +159,7 @@ The Busy events that two way sync adds to secondary calendars carry no tag. The 
 - It depends on how Outlook's web app works internally, which Microsoft can change without notice. If a sync can't find calendar data, or you've been signed out, the existing copies are **left as they are**. The menu bar icon then shows a warning and an **Open Outlook** button.
 - Reading a calendar this way may go against its organization's IT or security policy. **Check with them first**, and consider turning on **Hide meeting names** for that calendar.
 - Each Outlook calendar keeps its own sign-in, so you can add more than one.
-- **Two way sync can write to it too**, if you turn on **Also sync Outlook on the web calendars** in the **Two way sync** tab (off by default, experimental). Right after each read, the app saves the Busy events through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set, and the ones it removes go to Deleted Items. So they're only updated as often as that calendar is read. If a read didn't get every meeting in full, its Busy events are left as they are that time, so none are added twice. Writing to a work calendar this way is more likely to go against its organization's policy than reading it, so check with them first.
+- **Two way sync can write to it too**, if you turn on **Also sync Outlook on the web calendars** in the **Two way sync** pane (off by default, experimental). Right after each read, the app saves the Busy events through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set, and the ones it removes go to Deleted Items. So they're only updated as often as that calendar is read. If a read didn't get every meeting in full, its Busy events are left as they are that time, so none are added twice. Writing to a work calendar this way is more likely to go against its organization's policy than reading it, so check with them first.
 
 </details>
 
@@ -186,12 +188,13 @@ open "build/Calendar Sync.app"
 
 To update later: quit the app, then `git pull && scripts/build-app.sh` and reopen it.
 
-Allow calendar access on first launch. Then open **Settings…** from the menu bar icon:
+Allow calendar access on first launch. Then open **Settings…** from the menu bar icon and go through the panes in its sidebar:
 
-1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync. The **full-screen alert** when each meeting starts is on here; turn it off if you don't want it.
-2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**.
+1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync.
+2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**. Each calendar shows when it was last read and how many copies it has.
 3. **Two way sync:** turn on **Sync both ways** to show your main calendar as **Busy** in your secondary calendars, so they all show the same booked time. Turning it on includes every secondary calendar you can edit; turn off **Show my main calendar here** for any that shouldn't, or pick **Out of office** instead of **Busy**. For Outlook on the web calendars, also turn on **Also sync Outlook on the web calendars** (experimental).
-4. **Preview:** see what a sync would change, then let it run.
+4. **Menu bar** and **Meeting alerts:** the menu's calendar, the next meeting in the menu bar, Meeting Stats, and the **full-screen alert** when each meeting starts, which is on unless you turn it off.
+5. **Preview:** see what a sync would change, then let it run.
 
 **No icon in the menu bar?** If the icon is hidden, in System Settings › Menu Bar or by ⌘-dragging it out of the menu bar, Calendar Sync keeps running and syncing without it. Open the app again to bring the icon back. If it disappears again, turn Calendar Sync back on under **Allow in the Menu Bar** in System Settings › Menu Bar.
 

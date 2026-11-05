@@ -112,4 +112,79 @@ final class MenuCalendarTests: XCTestCase {
     func testSectionsOfNoEvents() {
         XCTAssertEqual(MenuCalendar.sections(for: [], calendar: utc), [])
     }
+
+    // MARK: - Titles and the next meeting
+
+    func testOriginalTitleDropsTheCalendarPrefix() {
+        XCTAssertEqual(CopyFormatter.originalTitle("[Calendar A] Sprint planning"), "Sprint planning")
+        XCTAssertEqual(CopyFormatter.originalTitle("[A]Standup"), "Standup")
+        XCTAssertEqual(CopyFormatter.originalTitle("Dentist"), "Dentist")
+        XCTAssertEqual(CopyFormatter.originalTitle("[Draft]"), "[Draft]", "nothing after the brackets: keep it")
+        XCTAssertEqual(CopyFormatter.originalTitle("Review [v2] notes"), "Review [v2] notes")
+    }
+
+    func testDisplayTitleStripsOnlyCopies() {
+        let marker = CopyMarker(sourceID: UUID(), key: "k").encoded
+        let copy = SourceEvent(key: "c", title: "[A] Standup", start: date(2026, 11, 5, hour: 9),
+                               end: date(2026, 11, 5, hour: 10), notes: marker)
+        let own = SourceEvent(key: "o", title: "[Draft] Plan", start: date(2026, 11, 5, hour: 9), end: date(2026, 11, 5, hour: 10))
+        let untitled = SourceEvent(key: "u", title: " ", start: date(2026, 11, 5, hour: 9), end: date(2026, 11, 5, hour: 10))
+        XCTAssertEqual(MenuCalendar.displayTitle(of: copy), "Standup")
+        XCTAssertEqual(MenuCalendar.displayTitle(of: own), "[Draft] Plan", "the main calendar's own events keep their title")
+        XCTAssertEqual(MenuCalendar.displayTitle(of: untitled), "Busy")
+    }
+
+    func testUpNextIsTheMeetingUnderWayOrTheNextOneToday() {
+        let now = date(2026, 11, 5, hour: 11)
+        func event(_ key: String, _ start: Int, _ end: Int, day: Int = 5, allDay: Bool = false, declined: Bool = false) -> SourceEvent {
+            SourceEvent(key: key, title: key, start: date(2026, 11, day, hour: start), end: date(2026, 11, day, hour: end),
+                        isAllDay: allDay, isDeclined: declined)
+        }
+        XCTAssertEqual(MenuCalendar.upNext(in: [event("pm", 14, 15), event("now", 10, 12), event("past", 9, 10)],
+                                           now: now, calendar: utc)?.key, "now")
+        XCTAssertEqual(MenuCalendar.upNext(in: [event("pm", 14, 15), event("noon", 12, 13), event("past", 9, 10)],
+                                           now: now, calendar: utc)?.key, "noon")
+        XCTAssertNil(MenuCalendar.upNext(in: [event("tomorrow", 9, 10, day: 6), event("past", 9, 10)], now: now, calendar: utc),
+                     "nothing left today")
+        XCTAssertNil(MenuCalendar.upNext(in: [event("all day", 0, 24, allDay: true), event("declined", 12, 13, declined: true)],
+                                         now: now, calendar: utc))
+        let away = SourceEvent(key: "ooo", title: "Out of office", start: date(2026, 11, 5, hour: 10),
+                               end: date(2026, 11, 5, hour: 18), isOutOfOffice: true)
+        XCTAssertNil(MenuCalendar.upNext(in: [away], now: now, calendar: utc), "out of office isn't a meeting")
+    }
+
+    func testCountdowns() {
+        let start = date(2026, 11, 5, hour: 11).addingTimeInterval(30 * 60)
+        let meeting = SourceEvent(key: "m", title: "Design review", start: start, end: start.addingTimeInterval(45 * 60))
+        let at = { (minutes: Double) in start.addingTimeInterval(minutes * 60) }
+        XCTAssertEqual(MenuCalendar.countdown(to: meeting, now: at(-12)), "in 12 min")
+        XCTAssertEqual(MenuCalendar.countdown(to: meeting, now: at(-11.5)), "in 12 min", "rounded up")
+        XCTAssertEqual(MenuCalendar.countdown(to: meeting, now: at(-80)), "in 1h 20m")
+        XCTAssertEqual(MenuCalendar.countdown(to: meeting, now: at(25)), "now · 20 min left")
+        XCTAssertEqual(MenuCalendar.menuBarText(for: meeting, now: at(-12)), "Design review · 12m")
+        XCTAssertEqual(MenuCalendar.menuBarText(for: meeting, now: at(22)), "Design review · 23m left")
+        XCTAssertNil(MenuCalendar.menuBarText(for: meeting, now: at(-16)), "more than 15 minutes away")
+        XCTAssertNil(MenuCalendar.menuBarText(for: meeting, now: at(45)), "over")
+        let long = SourceEvent(key: "l", title: "Quarterly business review with the regional leads", start: start, end: at(60))
+        XCTAssertEqual(MenuCalendar.menuBarText(for: long, now: at(-5)), "Quarterly business re… · 5m")
+        XCTAssertEqual(MenuCalendar.shortDuration(minutes: 60), "1h")
+    }
+
+    func testMenuBarPrefersTheMeetingAboutToStart() {
+        let now = date(2026, 11, 5, hour: 11)
+        let focus = SourceEvent(key: "focus", title: "Focus", start: date(2026, 11, 5, hour: 9), end: date(2026, 11, 5, hour: 13))
+        let soon = SourceEvent(key: "soon", title: "Standup", start: now.addingTimeInterval(10 * 60), end: now.addingTimeInterval(25 * 60))
+        let later = SourceEvent(key: "later", title: "Review", start: date(2026, 11, 5, hour: 14), end: date(2026, 11, 5, hour: 15))
+        XCTAssertEqual(MenuCalendar.menuBarMeeting(in: [focus, soon, later], now: now)?.key, "soon")
+        XCTAssertEqual(MenuCalendar.menuBarMeeting(in: [focus, later], now: now)?.key, "focus")
+        XCTAssertNil(MenuCalendar.menuBarMeeting(in: [later], now: now))
+    }
+
+    func testMeetingServiceNames() {
+        XCTAssertEqual(MeetingLink.serviceName(of: URL(string: "https://teams.microsoft.com/l/meetup-join/19%3a")!), "Teams")
+        XCTAssertEqual(MeetingLink.serviceName(of: URL(string: "https://acme.zoom.us/j/123")!), "Zoom")
+        XCTAssertEqual(MeetingLink.serviceName(of: URL(string: "https://meet.google.com/abc-defg-hij")!), "Meet")
+        XCTAssertNil(MeetingLink.serviceName(of: URL(string: "https://notzoom.us/j/1")!))
+        XCTAssertNil(MeetingLink.serviceName(of: URL(string: "https://whereby.com/room")!))
+    }
 }
