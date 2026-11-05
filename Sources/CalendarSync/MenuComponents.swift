@@ -8,13 +8,17 @@ struct IconButton: View {
     let symbol: String
     let help: String
     var shortcut: KeyEquivalent?
+    /// In place of the gray, for a button that should stand out.
+    var tint: Color?
     let action: () -> Void
     @State private var hovering = false
 
-    init(_ symbol: String, help: String, shortcut: KeyEquivalent? = nil, action: @escaping () -> Void) {
+    init(_ symbol: String, help: String, shortcut: KeyEquivalent? = nil, tint: Color? = nil,
+         action: @escaping () -> Void) {
         self.symbol = symbol
         self.help = help
         self.shortcut = shortcut
+        self.tint = tint
         self.action = action
     }
 
@@ -23,7 +27,7 @@ struct IconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
                 .frame(width: 26, height: 24)
-                .foregroundStyle(hovering ? .primary : .secondary)
+                .foregroundStyle(tint.map(AnyShapeStyle.init) ?? (hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary)))
                 .background(hovering ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 7))
                 .contentShape(RoundedRectangle(cornerRadius: 7))
         }

@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, and a nudge when it starts.
 
-[![Version 2.0.1](https://img.shields.io/badge/version-2.0.1-2563EB)](Support/Info.plist)
+[![Version 2.0.2](https://img.shields.io/badge/version-2.0.2-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -171,7 +171,7 @@ That's it. It syncs every 15 minutes, and calendars in Calendar.app within secon
 brew update && brew upgrade calendar-sync
 ```
 
-Then restart it with `brew services restart calendar-sync`, or quit it and open it again. Settings tells you when a new version is out. More in [Install and update](docs/install.md), including building from source.
+Then restart it with `brew services restart calendar-sync`, or quit it and open it again. Or let the app do it: it checks for a new version once a day, and when there is one, a blue **update** button appears next to **Sync now** in the menu. Click it and Terminal runs these commands and restarts the app. More in [Install and update](docs/install.md), including building from source.
 
 ## Feedback and issues
 
