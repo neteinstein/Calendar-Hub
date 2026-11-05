@@ -44,7 +44,7 @@ public enum SyncPlanner {
                 failed[config.id] = reason
             case .success(let events):
                 syncedSourceIDs.insert(config.id)
-                for event in events where shouldCopy(event, options: options) {
+                for event in events where shouldCopy(event, from: config, options: options) {
                     let spec = CopyFormatter.spec(for: event, source: config)
                     if let marker = spec.marker, desired[marker] == nil {
                         desired[marker] = spec
@@ -189,9 +189,10 @@ public enum SyncPlanner {
         return (actions, unchanged)
     }
 
-    static func shouldCopy(_ event: SourceEvent, options: SyncOptions) -> Bool {
+    static func shouldCopy(_ event: SourceEvent, from source: SourceConfig, options: SyncOptions) -> Bool {
         if event.isCancelled { return false }
         if options.skipDeclined && event.isDeclined { return false }
+        if !source.copyUnaccepted && !event.isAccepted { return false }
         if options.skipAllDay && event.isAllDay { return false }
         if options.skipOutOfOffice && event.isOutOfOffice { return false }
         // Never copy our own copies or Busy events back (two-way setups would loop forever).

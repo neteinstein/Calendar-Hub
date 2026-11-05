@@ -187,7 +187,11 @@ public enum OutlookWebParser {
             let rest = Range(m.range(at: 5), in: label).map { String(label[$0]) } ?? ""
             // The rest has how the event shows, untranslated: "Busy", "Tentative", "Free",
             // "WorkingElsewhere", or "OOF" for out of office.
-            let isOutOfOffice = rest.split(separator: ",").contains { $0.trimmingCharacters(in: .whitespaces) == "OOF" }
+            let fields = rest.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            let isOutOfOffice = fields.contains("OOF")
+            // The label doesn't say whether you accepted. Exchange shows an invitation as
+            // tentative until you accept it, so a tentative one counts as not accepted.
+            let isUnconfirmed = fields.contains("Tentative")
 
             let lowered = title.lowercased()
             let key = screenKey(title: title, start: start)
@@ -197,6 +201,7 @@ public enum OutlookWebParser {
                 title: title,
                 start: start,
                 end: end,
+                isUnconfirmed: isUnconfirmed,
                 isCancelled: lowered.hasPrefix("canceled:") || lowered.hasPrefix("cancelled:"),
                 isOutOfOffice: isOutOfOffice,
                 meetingURL: MeetingLink.firstMeetingLink(in: rest)
@@ -234,6 +239,8 @@ public enum OutlookWebParser {
             ?? obj.object("responseStatus")?.string("response")
             ?? "").lowercased()
         let isDeclined = response.hasPrefix("decline")
+        // OWA: Tentative / NoResponseReceived; Graph: tentativelyAccepted / notResponded.
+        let isUnconfirmed = response.hasPrefix("tentative") || response == "noresponsereceived" || response == "notresponded"
 
         // OWA: FreeBusyType / LegacyFreeBusyStatus "OOF"; Graph: showAs "oof".
         let showAs = (obj.string("freeBusyType") ?? obj.string("legacyFreeBusyStatus") ?? obj.string("showAs") ?? "").lowercased()
@@ -262,6 +269,7 @@ public enum OutlookWebParser {
             isAllDay: isAllDay,
             timeZone: nil,
             isDeclined: isDeclined,
+            isUnconfirmed: isUnconfirmed,
             isCancelled: isCancelled,
             isOutOfOffice: isOutOfOffice,
             meetingURL: meetingURL,
