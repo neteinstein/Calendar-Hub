@@ -25,6 +25,17 @@ public enum MeetingLink {
         try! NSRegularExpression(pattern: "^https?://" + $0, options: [.caseInsensitive])
     }
 
+    /// "Teams", "Zoom", "Meet" or "Webex" for a link to one of those, to name the call next to
+    /// a Join button.
+    public static func serviceName(of url: URL) -> String? {
+        let host = url.host?.lowercased() ?? ""
+        let names: [(suffix: String, name: String)] = [
+            ("teams.microsoft.com", "Teams"), ("teams.live.com", "Teams"), ("zoom.us", "Zoom"),
+            ("zoomgov.com", "Zoom"), ("meet.google.com", "Meet"), ("webex.com", "Webex"),
+        ]
+        return names.first { host == $0.suffix || host.hasSuffix("." + $0.suffix) }?.name
+    }
+
     /// Returns `url` if it's already a meeting link, else the first meeting link found in
     /// `location`, then `notes`. Other links (agendas, docs) are ignored.
     public static func find(url: URL?, location: String?, notes: String?) -> URL? {

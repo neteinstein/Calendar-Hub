@@ -82,4 +82,85 @@ public enum MenuCalendar {
     public static func originID(of event: SourceEvent) -> UUID? {
         CopyMarker.find(in: event.notes)?.sourceID
     }
+
+    /// The title to show for an event in the menu: a copy's title without its "[Calendar A] "
+    /// prefix, since the menu shows the calendar's name and color next to it. "Busy" for none.
+    public static func displayTitle(of event: SourceEvent) -> String {
+        let title = originID(of: event) == nil ? event.title : CopyFormatter.originalTitle(event.title)
+        return title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Busy" : title
+    }
+
+    // MARK: - Next meeting
+
+    /// A meeting worth counting down to: timed, and not declined, cancelled or out of office.
+    static func isMeeting(_ event: SourceEvent) -> Bool {
+        !event.isAllDay && !event.isDeclined && !event.isCancelled && !MeetingStats.isOutOfOffice(event)
+    }
+
+    /// The meeting to show as "Up next": the one under way, or else the next one to start
+    /// today. Timed meetings only: not declined, cancelled or out-of-office events.
+    public static func upNext(in events: [SourceEvent], now: Date, calendar: Calendar) -> SourceEvent? {
+        events
+            .filter { event in
+                isMeeting(event) && event.end > now
+                    && (event.start <= now || calendar.isDate(event.start, inSameDayAs: now))
+            }
+            .min { ($0.start, $0.end) < ($1.start, $1.end) }
+    }
+
+    /// Whole minutes from `now` to `date`, rounded up, so a meeting at 11:30 is "in 12 min"
+    /// from 11:18:00 until 11:18:59 and never "in 0 min" before it starts.
+    public static func minutes(from now: Date, to date: Date) -> Int {
+        max(0, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
+    }
+
+    /// "12m", "1h", "1h 20m": short enough for the menu bar.
+    public static func shortDuration(minutes: Int) -> String {
+        let (h, m) = (minutes / 60, minutes % 60)
+        return h == 0 ? "\(m)m" : m == 0 ? "\(h)h" : "\(h)h \(m)m"
+    }
+
+    /// The Up next card's countdown: "in 12 min", "in 1h 20m", "starting now", or while it
+    /// runs "now · 20 min left".
+    public static func countdown(to event: SourceEvent, now: Date) -> String {
+        if event.start > now {
+            let minutes = minutes(from: now, to: event.start)
+            return minutes < 60 ? "in \(minutes) min" : "in " + shortDuration(minutes: minutes)
+        }
+        let left = minutes(from: now, to: event.end)
+        return left < 60 ? "now · \(left) min left" : "now · \(shortDuration(minutes: left)) left"
+    }
+
+    /// How close a meeting has to be for the menu bar to show it instead of the date.
+    public static let menuBarLead: TimeInterval = 15 * 60
+
+    /// The meeting the menu bar shows: the next one starting within `menuBarLead`, or else the
+    /// one under way that ends first. A long block (focus time, say) doesn't hide the meeting
+    /// about to start.
+    public static func menuBarMeeting(in events: [SourceEvent], now: Date) -> SourceEvent? {
+        let candidates = events.filter { isMeeting($0) && $0.end > now }
+        if let soon = candidates
+            .filter({ $0.start > now && $0.start.timeIntervalSince(now) <= menuBarLead })
+            .min(by: { $0.start < $1.start }) {
+            return soon
+        }
+        return candidates.filter { $0.start <= now }.min { $0.end < $1.end }
+    }
+
+    /// Longest title the menu bar shows, so the item doesn't push others off a small screen.
+    static let menuBarTitleLength = 22
+
+    /// What the menu bar shows for `event`: "Design review · 12m" within `menuBarLead` of its
+    /// start, "Design review · 23m left" while it runs, or nil when it's further away or over.
+    public static func menuBarText(for event: SourceEvent, now: Date) -> String? {
+        guard !event.isAllDay, event.end > now, event.start.timeIntervalSince(now) <= menuBarLead else { return nil }
+        var title = displayTitle(of: event)
+        if title.count > menuBarTitleLength {
+            title = title.prefix(menuBarTitleLength - 1).trimmingCharacters(in: .whitespaces) + "…"
+        }
+        if event.start > now {
+            return "\(title) · \(shortDuration(minutes: minutes(from: now, to: event.start)))"
+        }
+        return "\(title) · \(shortDuration(minutes: minutes(from: now, to: event.end))) left"
+    }
 }

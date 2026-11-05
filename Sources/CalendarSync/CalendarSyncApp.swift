@@ -6,7 +6,7 @@ struct CalendarSyncApp: App {
     @StateObject private var settings: SettingsStore
     @StateObject private var controller: SyncController
     @StateObject private var alerts: EventAlertController
-    @StateObject private var updates = UpdateChecker()
+    @StateObject private var updates: UpdateChecker
     @StateObject private var clock = Clock()
     @StateObject private var menuBarItem = MenuBarItem.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -15,13 +15,26 @@ struct CalendarSyncApp: App {
     private static var instanceLock: InstanceLock?
 
     init() {
-        Self.quitIfAlreadyRunning()
-        Self.linkIntoApplicationsOnce()
-        let settings = SettingsStore()
-        let controller = SyncController(settings: settings)
+        // The demo (sample calendars, for screenshots) runs next to the real app and leaves
+        // Calendar.app, the Applications folder and the real settings alone.
+        let demo = DemoCalendars.isRequested ? DemoCalendars() : nil
+        if demo == nil {
+            Self.quitIfAlreadyRunning()
+            Self.linkIntoApplicationsOnce()
+        }
+        let settings = demo?.makeSettings() ?? SettingsStore()
+        let controller = SyncController(settings: settings, demo: demo)
+        let updates = UpdateChecker()
         _settings = StateObject(wrappedValue: settings)
         _controller = StateObject(wrappedValue: controller)
-        _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit))
+        _updates = StateObject(wrappedValue: updates)
+        _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
+                                                                 checks: demo == nil))
+        if let demo, Snapshots.folder != nil {
+            Snapshots.context = .init(settings: settings, controller: controller, updates: updates, defaults: demo.defaults)
+            // Screenshots need no menu bar icon of their own.
+            MenuBarItem.shared.isInserted = false
+        }
     }
 
     /// A copy already running would sync the same calendars: an "Open at login" item next to
@@ -71,10 +84,12 @@ struct CalendarSyncApp: App {
     }
 
     /// The icon in the menu bar: a calendar glyph, plus today's date when the menu calendar
-    /// is on, and with it the week day when that is on too.
-    /// `Clock` keeps the date right as the minutes pass. Not a TimelineView: in a
+    /// is on, and with it the week day when that is on too. With "Show the next meeting" on, a
+    /// meeting about to start or under way takes the date's place. A badge on the glyph marks a
+    /// sync with problems; menu bar labels are drawn in one color, so it's part of the symbol.
+    /// `Clock` keeps the date and the minutes right as the minutes pass. Not a TimelineView: in a
     /// menu bar label it re-renders the button in an endless loop and the app hangs at launch.
-    private struct MenuBarLabel: View {
+    struct MenuBarLabel: View {
         @ObservedObject var settings: SettingsStore
         @ObservedObject var controller: SyncController
         @ObservedObject var clock: Clock
@@ -85,20 +100,32 @@ struct CalendarSyncApp: App {
             return settings.menuBar.showsWeekday ? style.weekday(.abbreviated) : style
         }
 
+        /// "Design review · 12m", when that's on and a meeting is close or under way.
+        private var meetingText: String? {
+            guard settings.menuBar.showsNextMeeting,
+                  let meeting = controller.menuBarMeeting(now: clock.now) else { return nil }
+            return MenuCalendar.menuBarText(for: meeting, now: clock.now)
+        }
+
         var body: some View {
-            let icon = controller.problems.isEmpty ? "calendar" : Self.problemIcon
-            if settings.menuCalendarEnabled {
+            let hasProblems = !controller.problems.isEmpty || controller.setupProblem != nil
+            let text = meetingText
+            if settings.menuCalendarEnabled || text != nil {
                 HStack(spacing: 3) {
-                    Image(systemName: icon)
-                    Text(clock.now, format: dateStyle)
+                    Image(systemName: hasProblems ? Self.problemIcon : "calendar")
+                    if let text {
+                        Text(text)
+                    } else {
+                        Text(clock.now, format: dateStyle)
+                    }
                 }
             } else {
-                Image(systemName: controller.problems.isEmpty ? "calendar.badge.clock" : Self.problemIcon)
+                Image(systemName: hasProblems ? Self.problemIcon : "calendar.badge.clock")
             }
         }
 
-        /// In place of the calendar while the last sync had problems, so it can't be missed.
-        private static let problemIcon = "exclamationmark.triangle.fill"
+        /// In place of the plain calendar while the last sync had problems, so it can't be missed.
+        private static let problemIcon = "calendar.badge.exclamationmark"
     }
 
     var body: some Scene {
@@ -159,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Snapshots.runIfRequested()
         DistributedNotificationCenter.default().addObserver(
             forName: Self.showMenuBarItem, object: nil, queue: .main
         ) { _ in

@@ -1,0 +1,13 @@
+# Outlook on the web
+
+[← Back to the README](../README.md)
+
+For an Outlook / Microsoft 365 calendar you can only open in a browser, choose **Add secondary calendar › Outlook on the web** in Settings › Secondary Calendars, and sign in once in the app's own window. Each sync reloads Outlook's week view in the background, reads the meetings it loads, then loads each meeting in full for its join link and details. *Experimental.*
+
+- It reads the same data your browser shows you. Nothing is sent anywhere except into your own calendar.
+- To Outlook it is one more Safari signed in to the account: the app's window runs the WebKit of the Safari installed on your Mac and reports its user agent, with its own cookie store. Microsoft's sign-in logs show it as Safari on macOS, and the same sign-in policies apply as to a browser.
+- **USB security keys (YubiKey and other FIDO2 keys) work in the window**: macOS only lets full browsers use them, so the app talks to the key itself, the way browsers do. When Microsoft asks for the key, the app asks for the key's PIN, then you touch the key. Only signing in works: register a new key in a browser. Passkeys on the Mac or a phone, and NFC keys, can't be used in the window. A company sign-in page that isn't Microsoft's (Okta, ADFS, …) doesn't offer the key in the window, so use another method there.
+- It depends on how Outlook's web app works internally, which Microsoft can change without notice. If a sync can't find calendar data, or you've been signed out, the existing copies are **left as they are**. The menu then shows what happened with an **Open Outlook** button, and Settings marks the calendar with a red badge.
+- Reading a calendar this way may go against its organization's IT or security policy. **Check with them first**, and consider turning on **Hide meeting names** for that calendar.
+- Each Outlook calendar keeps its own sign-in, so you can add more than one.
+- **Two way sync can write to it too**, if you turn on **Also sync Outlook on the web calendars** in the **Two way sync** pane (off by default, experimental). Right after each read, the app saves the Busy events through Outlook's own web service, the way Outlook on the web saves an event you make: no invitations go out and no reminder is set, and the ones it removes go to Deleted Items. So they're only updated as often as that calendar is read. If a read didn't get every meeting in full, its Busy events are left as they are that time, so none are added twice. Writing to a work calendar this way is more likely to go against its organization's policy than reading it, so check with them first.

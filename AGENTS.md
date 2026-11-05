@@ -13,6 +13,13 @@ the tap serves it. So every PR:
 2. Is followed by a PR on [neteinstein/homebrew-tap](https://github.com/neteinstein/homebrew-tap)
    that feeds the new version to Homebrew, as described next.
 
+## Screenshots
+
+The README shows screenshots of the menu, the alert, the menu bar item and Settings, rendered
+from the app with sample calendars. After changing how any of those look, run
+`scripts/screenshots.sh` and commit the new `docs/screenshots` in the same PR (see
+[`docs/development.md`](docs/development.md#screenshots)).
+
 ## Bumping the version
 
 The version is `CFBundleShortVersionString` (and the `CFBundleVersion` build number) in
