@@ -72,6 +72,8 @@ final class EventKitBridge {
             isAllDay: event.isAllDay,
             timeZone: event.timeZone,
             isDeclined: myStatus == .declined,
+            // Your own events, and the ones you organise, have no status.
+            isUnconfirmed: myStatus == .pending || myStatus == .tentative,
             isCancelled: event.status == .canceled,
             // Exchange's "Out of office" comes through as unavailable.
             isOutOfOffice: event.availability == .unavailable,

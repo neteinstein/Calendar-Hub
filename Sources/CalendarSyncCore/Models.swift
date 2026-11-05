@@ -47,6 +47,9 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     /// When on, copies also get the meeting's location and description. Ignored while
     /// `hideMeetingName` is on, so hidden meetings don't leak through their details.
     public var copyDetails: Bool
+    /// When off, only meetings you accepted are copied (see `SourceEvent.isAccepted`), not ones
+    /// you haven't answered, accepted tentatively or declined.
+    public var copyUnaccepted: Bool
     /// How often this calendar is read, in minutes. `nil` uses the app-wide interval.
     public var intervalMinutes: Int?
 
@@ -54,7 +57,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, kind, calendarName, name, hideMeetingName, isEnabled
         case showBusyInSecondary = "showBusyInClient"
-        case busyStyle, copyDetails, intervalMinutes
+        case busyStyle, copyDetails, copyUnaccepted, intervalMinutes
     }
 
     public init(
@@ -67,6 +70,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         showBusyInSecondary: Bool = false,
         busyStyle: BusyStyle = .busy,
         copyDetails: Bool = false,
+        copyUnaccepted: Bool = true,
         intervalMinutes: Int? = nil
     ) {
         self.id = id
@@ -78,6 +82,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         self.showBusyInSecondary = showBusyInSecondary
         self.busyStyle = busyStyle
         self.copyDetails = copyDetails
+        self.copyUnaccepted = copyUnaccepted
         self.intervalMinutes = intervalMinutes
     }
 
@@ -93,6 +98,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         showBusyInSecondary = try c.decodeIfPresent(Bool.self, forKey: .showBusyInSecondary) ?? false
         busyStyle = try c.decodeIfPresent(BusyStyle.self, forKey: .busyStyle) ?? .busy
         copyDetails = try c.decodeIfPresent(Bool.self, forKey: .copyDetails) ?? false
+        copyUnaccepted = try c.decodeIfPresent(Bool.self, forKey: .copyUnaccepted) ?? true
         intervalMinutes = try c.decodeIfPresent(Int.self, forKey: .intervalMinutes)
     }
 }
@@ -239,6 +245,8 @@ public struct SourceEvent: Hashable, Sendable {
     public var isAllDay: Bool
     public var timeZone: TimeZone?
     public var isDeclined: Bool
+    /// An invitation not answered yet, or accepted tentatively.
+    public var isUnconfirmed: Bool
     public var isCancelled: Bool
     /// Shown as "Out of office" in the source calendar.
     public var isOutOfOffice: Bool
@@ -248,6 +256,9 @@ public struct SourceEvent: Hashable, Sendable {
     public var notes: String?
     public var location: String?
 
+    /// Accepted, or not an invitation at all: your own events and the ones you organise.
+    public var isAccepted: Bool { !isDeclined && !isUnconfirmed }
+
     public init(
         key: String,
         title: String,
@@ -256,6 +267,7 @@ public struct SourceEvent: Hashable, Sendable {
         isAllDay: Bool = false,
         timeZone: TimeZone? = nil,
         isDeclined: Bool = false,
+        isUnconfirmed: Bool = false,
         isCancelled: Bool = false,
         isOutOfOffice: Bool = false,
         meetingURL: URL? = nil,
@@ -269,6 +281,7 @@ public struct SourceEvent: Hashable, Sendable {
         self.isAllDay = isAllDay
         self.timeZone = timeZone
         self.isDeclined = isDeclined
+        self.isUnconfirmed = isUnconfirmed
         self.isCancelled = isCancelled
         self.isOutOfOffice = isOutOfOffice
         self.meetingURL = meetingURL

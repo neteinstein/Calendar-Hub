@@ -49,6 +49,20 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertEqual(e.meetingURL?.absoluteString, "https://teams.microsoft.com/l/meetup-join/xyz")
     }
 
+    func testResponses() {
+        let owa = ["Accept", "Organizer", "Unknown", "Tentative", "NoResponseReceived", "Decline"].enumerated().map { i, response in
+            #"{"ItemId":{"Id":"\#(i)"},"Subject":"M","Start":"2026-10-23T0\#(i):00:00Z","End":"2026-10-23T0\#(i):30:00Z","ResponseType":"\#(response)"}"#
+        }
+        let graph = ["accepted", "organizer", "none", "tentativelyAccepted", "notResponded", "declined"].enumerated().map { i, response in
+            #"{"id":"g\#(i)","subject":"M","start":{"dateTime":"2026-10-24T0\#(i):00:00","timeZone":"UTC"},"end":{"dateTime":"2026-10-24T0\#(i):30:00","timeZone":"UTC"},"responseStatus":{"response":"\#(response)"}}"#
+        }
+        for items in [owa, graph] {
+            let events = OutlookWebParser.events(fromPayloads: [Data(#"{"Items":[\#(items.joined(separator: ","))]}"#.utf8)])
+            XCTAssertEqual(events.map(\.isAccepted), [true, true, true, false, false, false])
+            XCTAssertEqual(events.map(\.isUnconfirmed), [false, false, false, true, true, false])
+        }
+    }
+
     func testIgnoresNonEventsAndDuplicates() {
         let a = #"{"Items":[{"ItemId":{"Id":"1"},"Subject":"A","Start":"2026-10-23T09:00:00Z","End":"2026-10-23T10:00:00Z"}]}"#
         let noise = #"{"Folders":[{"DisplayName":"Calendar","Id":"f1"}],"start":"x"}"#
@@ -225,6 +239,8 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertEqual(events[0].start, ISO8601DateFormatter().date(from: "2026-11-09T09:30:00Z"))
         XCTAssertEqual(events[0].end, ISO8601DateFormatter().date(from: "2026-11-09T10:00:00Z"))
         XCTAssertEqual(events[1].end, ISO8601DateFormatter().date(from: "2026-11-10T00:30:00Z"))
+        // Exchange shows an invitation as tentative until it's accepted.
+        XCTAssertEqual(events.map(\.isUnconfirmed), [true, false])
     }
 
     func testScreenLabelsOutOfOfficeAndIcons() {
@@ -240,6 +256,7 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertEqual(events.map(\.isOutOfOffice), [true, true, false, false])
         // The same key as when the week's data is captured, so the meeting isn't read twice.
         XCTAssertEqual(events[0].key, OutlookWebParser.screenKey(title: "Picking up kids from school", start: events[0].start))
-        XCTAssertFalse(SyncPlanner.shouldCopy(events[0], options: SyncOptions()))
+        let source = SourceConfig(kind: .outlookWeb, calendarName: "Sainsbury's")
+        XCTAssertFalse(SyncPlanner.shouldCopy(events[0], from: source, options: SyncOptions()))
     }
 }

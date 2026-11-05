@@ -135,6 +135,23 @@ final class SyncPlannerTests: XCTestCase {
         XCTAssertEqual(keep.creates, 3) // declined + all-day + ok; never cancelled or our own copies
     }
 
+    func testUnacceptedMeetingsCanBeLeftOutPerCalendar() {
+        var unanswered = event("u", "Not answered", at: 1); unanswered.isUnconfirmed = true
+        var declined = event("d", "Declined", at: 2); declined.isDeclined = true
+        let events = [unanswered, declined, event("a", "Accepted or my own", at: 3)]
+        var acceptedOnly = SourceConfig(kind: .outlookWeb, calendarName: "Client X")
+        acceptedOnly.copyUnaccepted = false
+        let options = SyncOptions(skipDeclined: false)
+
+        let plan = SyncPlanner.plan(sources: [(source, .success(events)), (acceptedOnly, .success(events))],
+                                    existing: [], options: options)
+        let titles = plan.actions.compactMap { if case .create(let spec) = $0 { spec.title } else { nil } }
+        XCTAssertEqual(titles, [
+            "[Calendar A] Not answered", "[Calendar A] Declined", "[Calendar A] Accepted or my own",
+            "[Client X] Accepted or my own",
+        ])
+    }
+
     func testDuplicateCopiesAreCleanedUp() {
         let first = SyncPlanner.plan(sources: [(source, .success([event("1", "A", at: 1)]))], existing: [], options: SyncOptions())
         var dupes = copies(from: first)
@@ -229,6 +246,7 @@ final class SyncPlannerTests: XCTestCase {
         let source = #"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","kind":{"outlookWeb":{}},"calendarName":"A"}"#
         let config = try JSONDecoder().decode(SourceConfig.self, from: Data(source.utf8))
         XCTAssertFalse(config.copyDetails)
+        XCTAssertTrue(config.copyUnaccepted)
         XCTAssertNil(config.intervalMinutes)
     }
 
