@@ -226,4 +226,20 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertEqual(events[0].end, ISO8601DateFormatter().date(from: "2026-11-09T10:00:00Z"))
         XCTAssertEqual(events[1].end, ISO8601DateFormatter().date(from: "2026-11-10T00:30:00Z"))
     }
+
+    func testScreenLabelsOutOfOfficeAndIcons() {
+        let labels = [
+            "Class icon, Picking up kids from school, 17:00 to 17:30, Monday, November 09, 2026, OOF, Recurring event",
+            "Dentist, 10:00 to 11:00, Tuesday, November 10, 2026, Clinic, OOF",
+            "Lunch icon, Team lunch, 12:30 to 13:30, Wednesday, November 11, 2026, By Alex Morgan, Busy",
+            "OOF handover, 15:00 to 16:00, Thursday, November 12, 2026, Microsoft Teams Meeting, By Alex Morgan, WorkingElsewhere",
+        ]
+        let london = TimeZone(identifier: "Europe/London")!
+        let events = OutlookWebParser.events(fromScreenLabels: labels, timeZone: london)
+        XCTAssertEqual(events.map(\.title), ["Picking up kids from school", "Dentist", "Team lunch", "OOF handover"])
+        XCTAssertEqual(events.map(\.isOutOfOffice), [true, true, false, false])
+        // The same key as when the week's data is captured, so the meeting isn't read twice.
+        XCTAssertEqual(events[0].key, OutlookWebParser.screenKey(title: "Picking up kids from school", start: events[0].start))
+        XCTAssertFalse(SyncPlanner.shouldCopy(events[0], options: SyncOptions()))
+    }
 }
