@@ -847,43 +847,51 @@ private struct CalendarLinkSheet: View {
 
 // MARK: - Preview
 
+/// A scrolling form like the other panes: in the Settings sidebar, a pane without a scroll
+/// view of its own left the sidebar blank.
 private struct PreviewTab: View {
     @EnvironmentObject private var controller: SyncController
 
     var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
-                Text("See what the next sync would change, without changing anything.")
-                Spacer()
-                Button("Preview") { Task { await controller.sync(apply: false) } }
-                    .disabled(controller.isSyncing)
+        Form {
+            Section {
+                HStack {
+                    Text("See what the next sync would change, without changing anything.")
+                    Spacer()
+                    Button("Preview") { Task { await controller.sync(apply: false) } }
+                        .disabled(controller.isSyncing)
+                }
             }
             if let plan = controller.preview {
-                Text(plan.isEmpty
-                     ? "Nothing to change (\(plan.unchangedCount) copies up to date)."
-                     : "\(plan.creates) to add, \(plan.updates) to update, \(plan.deletes) to remove, \(plan.unchangedCount) unchanged.")
-                    .foregroundStyle(.secondary)
-                ForEach(controller.busyPreview) { busy in
-                    Text("Busy in \(busy.calendarName): \(busy.plan.creates) to add, \(busy.plan.updates) to update, \(busy.plan.deletes) to remove.")
+                Section {
+                    Text(plan.isEmpty
+                         ? "Nothing to change (\(plan.unchangedCount) copies up to date)."
+                         : "\(plan.creates) to add, \(plan.updates) to update, \(plan.deletes) to remove, \(plan.unchangedCount) unchanged.")
                         .foregroundStyle(.secondary)
-                }
-                List(previewRows(plan), id: \.offset) { row in
-                    HStack {
-                        Text(row.element.action.verb).frame(width: 60, alignment: .leading).foregroundStyle(.secondary)
-                        Text(row.element.title)
-                        Spacer()
-                        Text(row.element.action.start, format: .dateTime.weekday().day().month().hour().minute())
+                    ForEach(controller.busyPreview) { busy in
+                        Text("Busy in \(busy.calendarName): \(busy.plan.creates) to add, \(busy.plan.updates) to update, \(busy.plan.deletes) to remove.")
                             .foregroundStyle(.secondary)
                     }
+                    ForEach(previewRows(plan), id: \.offset) { row in
+                        HStack {
+                            Text(row.element.action.verb).frame(width: 60, alignment: .leading).foregroundStyle(.secondary)
+                            Text(row.element.title)
+                            Spacer()
+                            Text(row.element.action.start, format: .dateTime.weekday().day().month().hour().minute())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-            } else {
-                Spacer()
             }
-            ForEach(controller.problems, id: \.self) { problem in
-                Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            if !controller.problems.isEmpty {
+                Section {
+                    ForEach(controller.problems, id: \.self) { problem in
+                        Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    }
+                }
             }
         }
-        .padding()
+        .formStyle(.grouped)
     }
 
     /// Main-calendar changes first, then the Busy events per secondary calendar.
@@ -898,11 +906,21 @@ private struct PreviewTab: View {
 
 // MARK: - About
 
+/// In a scroll view, like the other panes: without one, the Settings sidebar went blank.
 private struct AboutTab: View {
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var updates: UpdateChecker
 
     var body: some View {
+        ScrollView {
+            content
+                .padding(.horizontal, 24)
+                .padding(.vertical, 32)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 14) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
@@ -946,8 +964,6 @@ private struct AboutTab: View {
             }
             .controlSize(.large)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
