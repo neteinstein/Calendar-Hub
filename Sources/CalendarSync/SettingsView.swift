@@ -543,6 +543,7 @@ private struct SourceRow: View {
             Toggle("Hide meeting names (copy as “\(copyTitle("Busy"))”)", isOn: $source.hideMeetingName)
             Toggle("Copy location and description", isOn: $source.copyDetails)
                 .disabled(source.hideMeetingName)
+            Toggle("Copy meetings I haven't accepted", isOn: $source.copyUnaccepted)
             Toggle("Use its own sync interval", isOn: Binding(
                 get: { source.intervalMinutes != nil },
                 set: { source.intervalMinutes = $0 ? settings.intervalMinutes : nil }))
@@ -645,6 +646,9 @@ private struct SourceRow: View {
             text += source.hideMeetingName
                 ? " Location and description aren't copied while meeting names are hidden."
                 : " The location and description are copied too."
+        }
+        if !source.copyUnaccepted {
+            text += " Meetings you haven't answered, accepted tentatively or declined aren't copied."
         }
         let minutes = SyncSchedule.interval(for: source, defaultMinutes: settings.intervalMinutes)
         text += " Synced every \(minutes) \(minutes == 1 ? "minute" : "minutes")"
