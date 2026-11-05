@@ -40,7 +40,7 @@ To update later: quit the app, then `git pull && scripts/build-app.sh` and reope
 Allow calendar access on first launch. Then open **Settings…** from the menu bar icon and go through the panes in its sidebar:
 
 1. **General:** choose your **main calendar** (the one meetings are copied into), how many days ahead, and how often to sync.
-2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**. Each calendar shows when it was last read and how many copies it has, or what went wrong and how to fix it.
+2. **Secondary Calendars:** add each secondary calendar. For Outlook on the web, also give it a calendar name. Optionally turn on **Copy location and description** or **Use its own sync interval**, or turn off **Copy meetings I haven't accepted**. Each calendar shows when it was last read and how many copies it has, or what went wrong and how to fix it.
 3. **Two way sync:** turn on **Sync both ways** to show your main calendar as **Busy** in your secondary calendars, so they all show the same booked time. Turning it on includes every secondary calendar you can edit; turn off **Show my main calendar here** for any that shouldn't, or pick **Out of office** instead of **Busy**. For Outlook on the web calendars, also turn on **Also sync Outlook on the web calendars** (experimental).
 4. **Menu bar** and **Meeting alerts:** the menu's calendar, the next meeting in the menu bar, Meeting Stats, and the **full-screen alert** when each meeting starts, which is on unless you turn it off.
 5. **Preview:** see what a sync would change, then let it run.
