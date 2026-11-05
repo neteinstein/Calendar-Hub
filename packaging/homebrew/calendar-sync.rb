@@ -65,8 +65,9 @@ class CalendarSync < Formula
       If you opened it yourself, quit it and open the new version with:
         pkill -x CalendarSync; sleep 1; open "#{opt_prefix}/Calendar Sync.app"
 
-      The build is ad-hoc signed, so macOS asks for calendar access again
-      after each upgrade. Your settings are kept.
+      The build is ad-hoc signed, so macOS asks for calendar access (and
+      Reminders access, once you open Tasks) again after each upgrade. Your
+      settings and tasks are kept.
     EOS
   end
 

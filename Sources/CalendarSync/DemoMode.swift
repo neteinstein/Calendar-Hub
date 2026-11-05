@@ -18,6 +18,8 @@ final class DemoCalendars {
     let main: EKCalendar
     let calendarA: EKCalendar
     let personal: EKCalendar
+    /// The Reminders list the sample tasks are in.
+    let reminders: EKCalendar
     let sourceA = UUID()
     let sourceX = UUID()
     let defaults: UserDefaults
@@ -34,6 +36,9 @@ final class DemoCalendars {
         main = calendar("Work", 0.07, 0.65, 0.58)
         calendarA = calendar("Calendar A", 0.55, 0.36, 0.96)
         personal = calendar("Personal", 0.95, 0.35, 0.45)
+        reminders = EKCalendar(for: .reminder, eventStore: store)
+        reminders.title = "Reminders"
+        reminders.cgColor = CGColor(red: 1, green: 0.58, blue: 0, alpha: 1)
         let suite = "org.neteinstein.calendarsync.demo"
         defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -65,6 +70,73 @@ final class DemoCalendars {
         return [sourceA: .init(lastRead: lastRead, copies: 18), sourceX: .init(lastRead: lastRead, copies: 9)]
     }
 
+    // MARK: - Tasks
+
+    /// The sample tasks, changed here as the Tasks view changes them. Reminders is never touched.
+    private(set) lazy var tasks: [TaskItem] = sampleTasks()
+
+    func save(_ task: TaskItem) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index] = task
+        } else {
+            tasks.append(task)
+        }
+    }
+
+    func remove(_ task: TaskItem) {
+        tasks.removeAll { $0.id == task.id }
+    }
+
+    /// Notes in Markdown for the notes window's screenshot.
+    private static let designDocNotes = """
+        ## What to look at
+        - **Navigation:** does the new sidebar hold up on a small screen?
+        - The contrast of the *secondary* buttons
+        - [x] Skim the summary
+        - [ ] Read the open questions
+
+        > Ana wants a decision on the color tokens.
+
+        The doc: [Design review v3](https://example.com/design-v3)
+        """
+
+    /// Tasks to prepare two of today's meetings, a few others, and one done.
+    private func sampleTasks() -> [TaskItem] {
+        let calendar = Calendar.current
+        let now = Date()
+        let meetings = today()
+        func link(_ title: String) -> TaskEventLink? {
+            meetings.first { $0.title.hasSuffix(title) }.map { TaskEventLink($0) }
+        }
+        func at(_ hour: Int, inDays days: Int = 0) -> Date {
+            let day = calendar.date(byAdding: .day, value: days, to: now)!
+            return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)!
+        }
+        var tasks: [TaskItem] = []
+        if let review = link("Design review") {
+            tasks.append(TaskItem(title: "Read the design doc", notes: Self.designDocNotes, due: review.start,
+                                  nudges: [review.start - 5 * 60], event: review))
+            tasks.append(TaskItem(title: "Bring the latest mockups", due: review.start, event: review))
+        }
+        if let oneOnOne = link("1:1 with Ana") {
+            tasks.append(TaskItem(title: "Write down topics for Ana", due: oneOnOne.start,
+                                  nudges: [oneOnOne.start - 30 * 60], event: oneOnOne))
+        }
+        tasks += [
+            TaskItem(title: "Send the sprint notes", due: at(17), nudges: [at(16)]),
+            TaskItem(title: "Book flights to Paris", due: calendar.startOfDay(for: at(9, inDays: 1)), dueHasTime: false,
+                     nudges: [at(9, inDays: 1)]),
+            TaskItem(title: "Renew the passport", creationDate: now - 3 * 86400),
+            TaskItem(title: "Review the Q4 roadmap", isCompleted: true, completionDate: now - 3600),
+        ]
+        return tasks.enumerated().map { index, task in
+            var task = task
+            task.id = "demo-task-\(index)"
+            task.creationDate = task.creationDate ?? now - Double(index) * 60
+            return task
+        }
+    }
+
     // MARK: - Events
 
     /// The events of a sample calendar between `start` and `end`. Today's are placed around the
@@ -90,7 +162,9 @@ final class DemoCalendars {
     private func event(_ title: String, _ start: Date, minutes: Int, from source: UUID? = nil,
                        url: URL? = nil, location: String? = nil, allDay: Bool = false) -> SourceEvent {
         let prefix = source == sourceA ? "[Calendar A] " : source == sourceX ? "[Client X] " : ""
-        let key = "\(title)|\(start.timeIntervalSince1970)"
+        // By day, not start: today's meetings follow the clock, and the sample tasks for them
+        // must still find them.
+        let key = "\(title)|\(Calendar.current.startOfDay(for: start).timeIntervalSince1970)"
         let notes = source.map { CopyFormatter.notes(meetingURL: url, marker: CopyMarker(sourceID: $0, key: key)) }
         return SourceEvent(key: key, title: prefix + title, start: start,
                            end: start.addingTimeInterval(Double(minutes) * 60), isAllDay: allDay,
@@ -148,6 +222,7 @@ enum Snapshots {
         let settings: SettingsStore
         let controller: SyncController
         let updates: UpdateChecker
+        let tasks: TaskStore
         let defaults: UserDefaults
     }
 
@@ -179,9 +254,10 @@ enum Snapshots {
                 .environmentObject(context.settings)
                 .environmentObject(context.controller)
                 .environmentObject(context.updates)
+                .environmentObject(context.tasks)
                 .defaultAppStorage(context.defaults)
         }
-        for mode in ["month", "list", "stats"] {
+        for mode in ["month", "list", "tasks", "stats"] {
             context.defaults.set(mode, forKey: "menuCalendarMode")
             await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode)-\(suffix)", appearance, to: folder)
         }
@@ -191,14 +267,20 @@ enum Snapshots {
             next.start = Date().addingTimeInterval(59)
             next.end = next.start.addingTimeInterval(length)
             await shoot(AlertDesk(event: next, origin: EventOrigin.of(next, settings: context.settings,
-                                                                     eventKit: context.controller.eventKit)),
+                                                                     eventKit: context.controller.eventKit),
+                                  prepare: context.tasks.openTasks(forEvent: next.key).map(\.title)),
                         "alert-\(suffix)", appearance, to: folder, settle: 2)
+        }
+        if let task = context.tasks.tasks.first(where: { $0.notes?.isEmpty == false }) {
+            await shoot(environment(WindowFrame(title: task.title) {
+                TaskNotesView(draft: TaskNotesDraft(task: task, tasks: context.tasks)).frame(width: 480, height: 470)
+            }), "task-notes-\(suffix)", appearance, to: folder)
         }
         await shoot(environment(MenuBarStrips(settings: context.settings, controller: context.controller)),
                     "menu-bar-\(suffix)", appearance, to: folder)
         for pane in SettingsPane.allCases where pane != .preview {
             context.defaults.set(pane.rawValue, forKey: SettingsPane.defaultsKey)
-            await shoot(environment(SettingsWindowFrame(title: pane.title) { SettingsView() }),
+            await shoot(environment(WindowFrame(title: pane.title) { SettingsView() }),
                         "settings-\(pane.rawValue)-\(suffix)", appearance, to: folder)
         }
     }
@@ -326,6 +408,7 @@ private struct MenuBarStrips: View {
 private struct AlertDesk: View {
     let event: SourceEvent
     let origin: EventOrigin?
+    let prepare: [String]
 
     var body: some View {
         ZStack {
@@ -336,7 +419,7 @@ private struct AlertDesk: View {
             }
             .blur(radius: 18)
             Color.black.opacity(0.28)
-            EventAlertView(event: event, origin: origin, blursDesktop: false, dismiss: {}, snooze: {})
+            EventAlertView(event: event, origin: origin, prepare: prepare, blursDesktop: false, dismiss: {}, snooze: {})
         }
         .frame(width: 1160, height: 720)
         .clipped()
@@ -361,8 +444,9 @@ private struct AlertDesk: View {
     }
 }
 
-/// A Settings window around a pane: title bar with its title, background, rounded edge and shadow.
-private struct SettingsWindowFrame<Content: View>: View {
+/// A window around a Settings pane or a task's notes: title bar with its title, background,
+/// rounded edge and shadow.
+private struct WindowFrame<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
 

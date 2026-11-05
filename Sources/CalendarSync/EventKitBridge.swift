@@ -184,6 +184,135 @@ final class EventKitBridge {
         return errors
     }
 
+    // MARK: - Tasks
+
+    /// Tasks are reminders in Reminders, asked for separately from the calendars and only
+    /// once the Tasks view is used.
+    var reminderAccess: EKAuthorizationStatus {
+        demo != nil ? .fullAccess : EKEventStore.authorizationStatus(for: .reminder)
+    }
+
+    func requestReminderAccess() async -> Bool {
+        if reminderAccess == .fullAccess { return true }
+        do {
+            return try await store.requestFullAccessToReminders()
+        } catch {
+            return false
+        }
+    }
+
+    /// The Reminders lists that can take new reminders, grouped by account then name.
+    func reminderLists() -> [EKCalendar] {
+        if let demo { return [demo.reminders] }
+        return store.calendars(for: .reminder).filter(\.allowsContentModifications).sorted {
+            ($0.source.title, $0.title) < ($1.source.title, $1.title)
+        }
+    }
+
+    /// The list with `id`, or Reminders' list for new reminders when there's no `id` or the
+    /// list is gone.
+    func reminderList(id: String?) -> EKCalendar? {
+        if let demo { return demo.reminders }
+        if let id, let list = store.calendar(withIdentifier: id) { return list }
+        return store.defaultCalendarForNewReminders()
+    }
+
+    /// The open tasks in `list`, and those done in the last week.
+    func tasks(in list: EKCalendar) async -> [TaskItem] {
+        if let demo { return demo.tasks }
+        let calendar = Calendar.current
+        let weekAgo = calendar.date(byAdding: .day, value: -7, to: Date())
+        let predicates = [
+            store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: [list]),
+            store.predicateForCompletedReminders(withCompletionDateStarting: weekAgo, ending: nil, calendars: [list]),
+        ]
+        var tasks: [TaskItem] = []
+        for predicate in predicates {
+            tasks += await withCheckedContinuation { continuation in
+                // Called on a queue of EventKit's; the reminders don't leave it.
+                store.fetchReminders(matching: predicate) { @Sendable reminders in
+                    continuation.resume(returning: (reminders ?? []).map { Self.task($0, calendar: calendar) })
+                }
+            }
+        }
+        return tasks
+    }
+
+    nonisolated private static func task(_ reminder: EKReminder, calendar: Calendar) -> TaskItem {
+        let dueParts = reminder.dueDateComponents
+        let due = dueParts.flatMap { parts in
+            (parts.calendar ?? calendar).date(from: parts).map { parts.hour == nil ? calendar.startOfDay(for: $0) : $0 }
+        }
+        // Alerts set by date, and those Reminders keeps relative to the due date. Location
+        // alerts aren't nudges at a time, and are left as they are.
+        let nudges = (reminder.alarms ?? []).compactMap { alarm in
+            alarm.absoluteDate ?? (alarm.structuredLocation == nil ? due?.addingTimeInterval(alarm.relativeOffset) : nil)
+        }
+        return TaskItem(
+            id: reminder.calendarItemIdentifier,
+            title: reminder.title ?? "",
+            notes: reminder.notes,
+            due: due,
+            dueHasTime: dueParts?.hour != nil,
+            isCompleted: reminder.isCompleted,
+            completionDate: reminder.completionDate,
+            creationDate: reminder.creationDate,
+            nudges: nudges.sorted(),
+            event: TaskEventLink(url: reminder.url)
+        )
+    }
+
+    /// Saves `task` as a new reminder in `list`, or over the reminder it was read from.
+    /// Returns the saved task, with its id when it was new.
+    func save(_ task: TaskItem, in list: EKCalendar) throws -> TaskItem {
+        var task = task
+        if let demo {
+            if task.id.isEmpty {
+                task.id = UUID().uuidString
+                task.creationDate = Date()
+            }
+            demo.save(task)
+            return task
+        }
+        let existing = task.id.isEmpty ? nil : store.calendarItem(withIdentifier: task.id) as? EKReminder
+        let reminder = existing ?? EKReminder(eventStore: store)
+        // As it is now, so the due date and the alerts are only rewritten when they changed:
+        // saving notes as they're typed mustn't set the alerts again each time.
+        let current = existing.map { Self.task($0, calendar: .current) }
+        if reminder.calendar == nil { reminder.calendar = list }
+        reminder.title = task.title
+        reminder.notes = task.notes
+        if current?.due != task.due || current?.dueHasTime != task.dueHasTime {
+            reminder.dueDateComponents = task.due.map { due in
+                Calendar.current.dateComponents(
+                    task.dueHasTime ? [.calendar, .year, .month, .day, .hour, .minute] : [.calendar, .year, .month, .day],
+                    from: due)
+            }
+        }
+        if current?.nudges != task.nudges {
+            let locationAlarms = (reminder.alarms ?? []).filter { $0.structuredLocation != nil }
+            reminder.alarms = locationAlarms + task.nudges.map { EKAlarm(absoluteDate: $0) }
+        }
+        // The link is ours; a URL put there some other way is kept unless the task has an event.
+        if let event = task.event {
+            reminder.url = event.url
+        } else if TaskEventLink(url: reminder.url) != nil {
+            reminder.url = nil
+        }
+        reminder.isCompleted = task.isCompleted
+        try store.save(reminder, commit: true)
+        return Self.task(reminder, calendar: .current)
+    }
+
+    func removeTask(_ task: TaskItem) throws {
+        if let demo {
+            demo.remove(task)
+            return
+        }
+        guard let reminder = store.calendarItem(withIdentifier: task.id) as? EKReminder else { return }
+        try store.remove(reminder, commit: true)
+    }
+
     private func fill(_ event: EKEvent, with spec: CopySpec, calendar: EKCalendar) {
         event.title = spec.title
         event.isAllDay = spec.isAllDay

@@ -7,6 +7,7 @@ import SwiftUI
 struct MenuCalendarView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    @EnvironmentObject private var tasks: TaskStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("menuCalendarMode") private var mode: Mode = .month
     @State private var shownMonth = Date()
@@ -27,12 +28,15 @@ struct MenuCalendarView: View {
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
 
     enum Mode: String {
-        case month, list, stats
+        case month, list, tasks, stats
     }
 
-    /// The saved mode, or the list when Stats was picked and Meeting Stats is now off.
+    /// The saved mode, or the list when Tasks or Stats was picked and is now off.
     private var shownMode: Mode {
-        mode == .stats && !settings.menuCalendar.showsMeetingStats ? .list : mode
+        switch mode {
+        case .tasks where !settings.taskOptions.showsInMenu, .stats where !settings.menuCalendar.showsMeetingStats: .list
+        default: mode
+        }
     }
 
     private var calendar: Calendar { settings.menuCalendar.applied(to: .current) }
@@ -51,6 +55,8 @@ struct MenuCalendarView: View {
                     monthOrDay
                 case .list:
                     listView.transition(.opacity)
+                case .tasks:
+                    TasksView(events: events, calendar: calendar).transition(.opacity)
                 case .stats:
                     VStack(spacing: 8) {
                         if settings.sources.isEmpty == false {
@@ -69,11 +75,14 @@ struct MenuCalendarView: View {
         .onChange(of: mode) { _, _ in reload() }
         .onChange(of: shownMonth) { _, _ in reload() }
         .onChange(of: settings.menuCalendar) { _, _ in reload() }
+        .onChange(of: settings.taskOptions.showsInMenu) { _, _ in reload() }
         .onChange(of: controller.lastSync) { _, _ in reload() }
     }
 
     private var modes: [(value: Mode, title: String)] {
-        [(.month, "Month"), (.list, "List")] + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
+        [(.month, "Month"), (.list, "List")]
+            + (settings.taskOptions.showsInMenu ? [(.tasks, "Tasks")] : [])
+            + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
     }
 
     // MARK: - Data
@@ -95,6 +104,11 @@ struct MenuCalendarView: View {
             let today = calendar.startOfDay(for: Date())
             (from, to) = (calendar.date(byAdding: .day, value: -30, to: today)!,
                           calendar.date(byAdding: .day, value: 60, to: today)!)
+        case .tasks:
+            // The last week, for the events of overdue tasks, and the month ahead to pick from.
+            let today = calendar.startOfDay(for: Date())
+            (from, to) = (calendar.date(byAdding: .day, value: -7, to: today)!,
+                          calendar.date(byAdding: .day, value: 31, to: today)!)
         case .stats:
             let window = MeetingStats.window(now: Date(), calendar: calendar)
             (from, to) = (window.start, window.end)
@@ -259,6 +273,7 @@ struct MenuCalendarView: View {
 
     private func monthGrid(days: [Date], columns: Int) -> some View {
         let dots = dotsByDay()
+        let dayTasks = tasksByDay
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: columns), spacing: 1) {
             ForEach(Array(days.enumerated()), id: \.element) { index, day in
                 let isToday = calendar.isDateInToday(day)
@@ -268,11 +283,13 @@ struct MenuCalendarView: View {
                     isToday: isToday,
                     inMonth: inMonth,
                     isPast: !isToday && day < Date(),
-                    dots: dots[calendar.startOfDay(for: day)] ?? []
+                    dots: dots[calendar.startOfDay(for: day)] ?? [],
+                    taskCount: dayTasks[calendar.startOfDay(for: day)]?.count ?? 0
                 ) {
                     open(day, index: index, of: days.count, columns: columns)
                 }
                 .accessibilityLabel(Text(day, format: .dateTime.weekday(.wide).day().month(.wide)))
+                .accessibilityValue(taskCountText(dayTasks[calendar.startOfDay(for: day)]?.count ?? 0))
             }
         }
         .background(alignment: .topLeading) { weekendBands(days: days, columns: columns) }
@@ -354,12 +371,14 @@ struct MenuCalendarView: View {
                 }
                 Spacer()
             }
-            if dayEvents.isEmpty {
+            let dayTasks = tasksByDay[calendar.startOfDay(for: day)] ?? []
+            if dayEvents.isEmpty && dayTasks.isEmpty {
                 EmptyDay(day: day)
                     .frame(maxHeight: .infinity)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
+                        taskBlock(dayTasks)
                         eventRows(dayEvents, nowLine: calendar.isDateInToday(day))
                     }
                 }
@@ -387,7 +406,8 @@ struct MenuCalendarView: View {
     /// day scrolls. Opens at today; today's finished meetings are folded into one row, and
     /// scrolling back shows past days dimmed.
     private var listView: some View {
-        let sections = MenuCalendar.sections(for: events, calendar: calendar)
+        let dayTasks = tasksByDay
+        let sections = listSections(dayTasks: dayTasks)
         let today = calendar.startOfDay(for: Date())
         let anchor = sections.first { $0.day >= today }?.day
         return ScrollViewReader { proxy in
@@ -401,6 +421,7 @@ struct MenuCalendarView: View {
                     ForEach(sections, id: \.day) { section in
                         let isToday = calendar.isDateInToday(section.day)
                         Section {
+                            taskBlock(dayTasks[section.day] ?? [])
                             eventRows(section.events, nowLine: isToday, foldsEarlier: isToday)
                                 .padding(.bottom, 6)
                         } header: {
@@ -422,6 +443,18 @@ struct MenuCalendarView: View {
                 }
             }
         }
+    }
+
+    /// The days of the list: those with events, and those with tasks within the events' reach.
+    private func listSections(dayTasks: [Date: [TaskItem]]) -> [MenuCalendar.DaySection] {
+        var sections = MenuCalendar.sections(for: events, calendar: calendar)
+        let today = calendar.startOfDay(for: Date())
+        let last = calendar.date(byAdding: .day, value: 60, to: today) ?? today
+        let eventDays = Set(sections.map(\.day))
+        for day in dayTasks.keys where !eventDays.contains(day) && day >= today && day < last {
+            sections.append(MenuCalendar.DaySection(day: day, events: []))
+        }
+        return sections.sorted { $0.day < $1.day }
     }
 
     private func dayHeader(_ section: MenuCalendar.DaySection) -> some View {
@@ -514,7 +547,8 @@ struct MenuCalendarView: View {
     private func timedRows(_ list: [SourceEvent], nextKey: String?) -> some View {
         ForEach(list, id: \.key) { event in
             if event.key == nextKey { NowLine(now: Date()) }
-            EventRow(event: event, origin: origin(of: event), tint: tint(of: event))
+            EventRow(event: event, origin: origin(of: event), tint: tint(of: event), taskCount: taskCount(of: event))
+                .contextMenu { taskMenu(for: event) }
                 .id(event.key)
         }
     }
@@ -538,7 +572,74 @@ struct MenuCalendarView: View {
         .padding(.vertical, 6)
         .background(tint.opacity(shaded ? 0.18 : 0.07), in: RoundedRectangle(cornerRadius: 8))
         .opacity(event.end < Date() ? 0.45 : 1)
+        .contextMenu { taskMenu(for: event) }
         .id(event.key)
+    }
+
+    // MARK: - Tasks
+
+    /// The open tasks by day, today taking the overdue ones, while the menu shows tasks.
+    private var tasksByDay: [Date: [TaskItem]] {
+        settings.taskOptions.showsInMenu ? TaskPlanner.byDay(tasks.tasks, now: Date(), calendar: calendar) : [:]
+    }
+
+    private func taskCountText(_ count: Int) -> String {
+        count == 0 ? "" : count == 1 ? "1 task" : "\(count) tasks"
+    }
+
+    /// A day's tasks, in a block of their own above its events. Tick one off here, or click it
+    /// to open it in the Tasks view.
+    @ViewBuilder
+    private func taskBlock(_ dayTasks: [TaskItem]) -> some View {
+        if !dayTasks.isEmpty {
+            let now = Date()
+            VStack(alignment: .leading, spacing: 0) {
+                Label("Tasks", systemImage: "checklist")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                    .foregroundStyle(Color.green.opacity(0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.top, 5)
+                ForEach(dayTasks) { task in
+                    let event = task.event.flatMap { link in events.first { $0.key == link.key } }
+                    TaskRow(task: task, now: now, calendar: calendar, eventStart: event?.start,
+                            tint: event.flatMap { tint(of: $0) },
+                            eventMissing: task.event.map { tasks.missingEvents.contains($0.key) } ?? false,
+                            toggle: { withAnimation(motion) { tasks.toggleDone(task) } },
+                            open: { openInTasks(task) },
+                            delete: { withAnimation(motion) { tasks.delete(task) } })
+                }
+            }
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.green.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+            .padding(.bottom, 2)
+        }
+    }
+
+    /// Opens `task` in the Tasks view's editor.
+    private func openInTasks(_ task: TaskItem) {
+        tasks.draft = task
+        selectedDay = nil
+        mode = .tasks
+    }
+
+    /// How many open tasks are for `event`, while the menu shows tasks.
+    private func taskCount(of event: SourceEvent) -> Int {
+        settings.taskOptions.showsInMenu ? tasks.openTasks(forEvent: event.key).count : 0
+    }
+
+    /// "Add a Task for This Event…": opens a new task for it in the Tasks view.
+    @ViewBuilder
+    private func taskMenu(for event: SourceEvent) -> some View {
+        if settings.taskOptions.showsInMenu {
+            Button("Add a Task for This Event…") {
+                tasks.draft = tasks.newTask(for: event)
+                selectedDay = nil
+                mode = .tasks
+            }
+        }
     }
 
     private func origin(of event: SourceEvent) -> EventOrigin? {
@@ -559,6 +660,8 @@ private struct DayCell: View {
     let inMonth: Bool
     let isPast: Bool
     let dots: [Color]
+    /// Open tasks that day, shown as a ring after the dots.
+    var taskCount = 0
     let action: () -> Void
     @State private var hovering = false
 
@@ -582,6 +685,9 @@ private struct DayCell: View {
                 HStack(spacing: 2) {
                     ForEach(dots.indices, id: \.self) { index in
                         Circle().fill(dots[index]).frame(width: 4, height: 4)
+                    }
+                    if taskCount > 0 {
+                        Circle().strokeBorder(Color.secondary, lineWidth: 1).frame(width: 5, height: 5)
                     }
                 }
                 .frame(height: 4)
@@ -674,6 +780,16 @@ private struct EarlierRow: View {
     }
 }
 
+/// A count after a small icon, tight together.
+private struct TaskCountLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 2) {
+            configuration.icon.imageScale(.small)
+            configuration.title.monospacedDigit()
+        }
+    }
+}
+
 /// One event: start and end, a bar in its calendar's color, the title without the copy's
 /// "[Calendar]" prefix, then its calendar, room and call service. A Join button from 15
 /// minutes before until it ends; other calls show a faint camera that turns into a gray Join
@@ -683,6 +799,8 @@ private struct EventRow: View {
     var origin: EventOrigin?
     /// The calendar's color, or nil when events aren't colored by calendar.
     var tint: Color?
+    /// Its open tasks, shown as a count next to the title.
+    var taskCount = 0
     @State private var hovering = false
 
     private var meta: String {
@@ -711,9 +829,18 @@ private struct EventRow: View {
             .frame(width: 40, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(MenuCalendar.displayTitle(of: event))
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(MenuCalendar.displayTitle(of: event))
+                        .font(.system(size: 13, weight: .medium))
+                        .lineLimit(1)
+                    if taskCount > 0 {
+                        Label("\(taskCount)", systemImage: "checklist")
+                            .font(.system(size: 10, weight: .semibold))
+                            .labelStyle(TaskCountLabelStyle())
+                            .foregroundStyle(.secondary)
+                            .help(taskCount == 1 ? "1 task to prepare it" : "\(taskCount) tasks to prepare it")
+                    }
+                }
                 if !meta.isEmpty {
                     HStack(spacing: 4) {
                         if let tint { Circle().fill(tint).frame(width: 6, height: 6) }
