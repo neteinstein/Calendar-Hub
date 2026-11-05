@@ -11,17 +11,22 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(SettingsPane.allCases, selection: $pane) { pane in
-                Label {
-                    Text(pane.title)
-                } icon: {
-                    Image(systemName: pane.symbol)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 20, height: 20)
-                        .background(pane.color.gradient, in: RoundedRectangle(cornerRadius: 5))
+                HStack(spacing: 4) {
+                    Label {
+                        Text(pane.title)
+                    } icon: {
+                        Image(systemName: pane.symbol)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(pane.color.gradient, in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    Spacer(minLength: 0)
+                    // The secondary calendars the last sync couldn't read.
+                    if pane == .calendars, !controller.unreadSources.isEmpty {
+                        ProblemBadge(count: controller.unreadSources.count)
+                    }
                 }
-                // The secondary calendars the last sync couldn't read.
-                .badge(pane == .calendars ? controller.unreadSources.count : 0)
                 .tag(pane)
             }
             .navigationSplitViewColumnWidth(min: 200, ideal: 200, max: 230)
@@ -304,6 +309,7 @@ private struct SourcesTab: View {
                     description: Text("Add a secondary calendar to start copying its meetings."))
             } else {
                 Form {
+                    UnreadSourcesSection()
                     ForEach($settings.sources) { $source in
                         SourceRow(source: $source)
                     }
@@ -356,6 +362,63 @@ private struct SourcesTab: View {
         })
         return controller.eventKit.calendars().filter {
             !used.contains($0.calendarIdentifier) && $0.calendarIdentifier != settings.targetCalendarID
+        }
+    }
+}
+
+/// A red warning badge with a count: things to check, in the sidebar.
+private struct ProblemBadge: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "exclamationmark.triangle.fill")
+            Text("\(count)")
+        }
+        .font(.system(size: 10.5, weight: .bold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.red, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 0.5))
+        .help(count == 1 ? "A secondary calendar wasn't read" : "\(count) secondary calendars weren't read")
+        .accessibilityLabel(count == 1 ? "1 calendar needs attention" : "\(count) calendars need attention")
+    }
+}
+
+/// The secondary calendars the last sync couldn't read, at the top of Secondary Calendars, so
+/// they're seen without scrolling to them. Each with its fix when there is one.
+private struct UnreadSourcesSection: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var controller: SyncController
+
+    var body: some View {
+        if !controller.unreadSources.isEmpty {
+            Section {
+                ForEach(controller.unreadSources) { unread in
+                    let source = settings.sources.first { $0.id == unread.id }
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(source.map { $0.name ?? $0.calendarName } ?? unread.name) wasn't read")
+                                .fontWeight(.semibold)
+                            Text(unread.reason + (unread.reason.hasSuffix(".") ? "" : ".") + " Its copies are left as they are.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        if let source, source.kind == .outlookWeb {
+                            Button("Open Outlook") { controller.showOutlookWindow(for: source) }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            } header: {
+                Label("Needs attention", systemImage: "exclamationmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
         }
     }
 }
