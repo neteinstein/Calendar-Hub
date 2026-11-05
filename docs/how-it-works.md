@@ -32,7 +32,7 @@ It syncs **every 15 minutes** by default; set any interval from 1 minute to 24 h
 
 ## Two way sync
 
-Optional, in the **Two way sync** pane. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location or attendees. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It works with secondary calendars you can edit in Calendar.app and, if you also turn on **Also sync Outlook on the web calendars** (experimental), with Outlook on the web calendars. `.ics` link calendars are read-only.
+Optional, in the **Two way sync** pane. Your main calendar's events are added to your secondary calendars as plain **Busy** events — or **Out of office**, your pick per calendar — with the time and nothing else: no title, link, location, attendees or alerts, so a meeting doesn't notify you twice. Their description is just “Busy”, so you can tell what was added automatically, and nothing in them names the app. Copies of a secondary calendar's own meetings are skipped, and meetings copied from the other secondary calendars do show, so each one sees the time the others have booked. It works with secondary calendars you can edit in Calendar.app and, if you also turn on **Also sync Outlook on the web calendars** (experimental), with Outlook on the web calendars. `.ics` link calendars are read-only.
 
 The Busy events carry no tag. The app recognises them by their title (**Busy** or **Out of office**), their description (just “Busy”), having no attendees and not repeating, and matches them to your main calendar by time. So in a secondary calendar that two way sync writes to, an event you make yourself that looks exactly like that is treated as one of them.
 
@@ -47,7 +47,7 @@ The Busy events carry no tag. The app recognises them by their title (**Busy** o
 
 ## The meeting alert
 
-The **full-screen alert** (on unless you turn it off) blurs the screen when a main-calendar meeting begins, or up to 15 minutes before, and counts down to the start. Its buttons: **Join call** (⏎), **Go to** the room, **Ignore** (esc), or **Remind me in 1 minute**. Meetings copied from secondary calendars alert too, join link and calendar name included. Each meeting alerts once; a meeting already under way (say, after the Mac wakes) alerts until it ends.
+The **full-screen alert** (on unless you turn it off) blurs the screen when a main-calendar meeting begins, or up to 15 minutes before, and counts down to the start. Its buttons: **Join call** (⏎), **Go to** the room, **Ignore** (esc), or **Remind me in 1 minute**. Any other key, or a click anywhere but the buttons, ignores it too. Meetings copied from secondary calendars alert too, join link and calendar name included. Each meeting alerts once; a meeting already under way (say, after the Mac wakes) alerts until it ends.
 
 ## Meeting Stats
 
