@@ -6,9 +6,9 @@
 
 **Your secondary calendars' meetings, in your main calendar.**
 
-A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, and a nudge when it starts.
+A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.2](https://img.shields.io/badge/version-2.0.2-2563EB)](Support/Info.plist)
+[![Version 2.0.3](https://img.shields.io/badge/version-2.0.3-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -36,21 +36,30 @@ When your meetings live in a secondary calendar (another company's account, a se
 
 <table>
 <tr>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-month-dark.webp">
   <img src="docs/screenshots/menu-month-light.webp" alt="The menu's month view: the next meeting with a Join button above a month grid with a dot per calendar">
 </picture>
 <b>Month.</b> The next meeting with a countdown and <b>Join</b>, and the month with a dot for each calendar that has meetings that day. Click a day for its meetings.
 </td>
-<td width="33%" valign="top">
+<td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-list-dark.webp">
   <img src="docs/screenshots/menu-list-light.webp" alt="The menu's list view: today's meetings with a red line at the current time">
 </picture>
 <b>List.</b> Opens at today, with a line at the current time, the finished meetings folded away, and <b>Join</b> as a meeting comes up.
 </td>
-<td width="33%" valign="top">
+</tr>
+<tr>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-tasks-dark.webp">
+  <img src="docs/screenshots/menu-tasks-light.webp" alt="The menu's Tasks view: today's tasks, two of them to prepare Design review, each with its next nudge">
+</picture>
+<b>Tasks.</b> Tasks and reminders, kept in Reminders. Tie one to a meeting to prepare it, and set nudges to get it done. They move with the meeting, show on its alert, and on their day in Month and List.
+</td>
+<td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-stats-dark.webp">
   <img src="docs/screenshots/menu-stats-light.webp" alt="Meeting Stats: hours in meetings per day, a chart of the last two weeks, insights and the year pictured as a walk from Lisbon to Paris">
@@ -60,14 +69,23 @@ When your meetings live in a secondary calendar (another company's account, a se
 </tr>
 </table>
 
+### Task notes
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/task-notes-dark.webp">
+  <img src="docs/screenshots/task-notes-light.webp" width="560" alt="A task's notes window: Read the design doc, for Design review, with notes in Markdown: a heading, a list, a checklist, a quote and a link">
+</picture>
+
+Open a task's notes in a window of their own: Markdown, formatted as you type, with buttons for headings, bold, lists, checklists and links. They're saved in the reminder's notes, so Reminders has them too.
+
 ### When a meeting starts
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/alert-dark.webp">
-  <img src="docs/screenshots/alert-light.webp" width="860" alt="The full-screen meeting alert: Design review starts in 0:59, with Join call, Go to Room 2.04, Ignore and Remind me in 1 minute">
+  <img src="docs/screenshots/alert-light.webp" width="860" alt="The full-screen meeting alert: Design review starts in 0:59, with two tasks to prepare it, Join call, Go to Room 2.04, Ignore and Remind me in 1 minute">
 </picture>
 
-The screen blurs and a card counts down to the start, with **Join call** (⏎), **Go to** the room, **Ignore** (esc) or **Remind me in 1 minute**. Any other key, or a click anywhere but the buttons, ignores it too. It's on unless you turn it off, and each meeting alerts once.
+The screen blurs and a card counts down to the start, with the meeting's open tasks **to prepare**, and **Join call** (⏎), **Go to** the room, **Ignore** (esc) or **Remind me in 1 minute**. Any other key, or a click anywhere but the buttons, ignores it too. It's on unless you turn it off, and each meeting alerts once.
 
 ### In the menu bar
 
@@ -114,6 +132,10 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
   <img src="docs/screenshots/settings-alerts-light.webp" width="640" alt="Settings, Meeting alerts: the full-screen alert and how early it shows">
 </picture>
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-tasks-dark.webp">
+  <img src="docs/screenshots/settings-tasks-light.webp" width="640" alt="Settings, Tasks: the Tasks view in the menu, the Reminders list tasks are kept in, and the nudges new tasks get">
+</picture>
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">
   <img src="docs/screenshots/settings-about-light.webp" width="640" alt="Settings, About: version, update check, feedback and donations">
 </picture>
@@ -129,6 +151,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Reads calendars your Mac can't add:** sign in to **Outlook on the web** once in the app, or subscribe to a published **.ics** link.
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`, link included.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
+- **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## Install
@@ -180,7 +203,7 @@ Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Cal
 ## Learn more
 
 - [Install and update](docs/install.md): Homebrew in detail, opening at login, building from source, a separate admin account, and a missing menu bar icon.
-- [How it works](docs/how-it-works.md): how copies are made and matched, two way sync, the menu, the alert and Meeting Stats in detail, and known limits.
+- [How it works](docs/how-it-works.md): how copies are made and matched, two way sync, the menu, the alert, tasks and Meeting Stats in detail, and known limits.
 - [Outlook on the web](docs/outlook-on-the-web.md): how the app reads (and can write to) a browser-only Outlook calendar, and what to check first.
 - [Development](docs/development.md): tests, how the code is laid out, screenshots and releases.
 

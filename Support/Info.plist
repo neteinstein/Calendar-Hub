@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.2</string>
+	<string>2.0.3</string>
 	<key>CFBundleVersion</key>
-	<string>37</string>
+	<string>38</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -26,5 +26,9 @@
 	<string>Calendar Sync reads your secondary calendars and copies their meetings into the calendar you choose.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>Calendar Sync reads your secondary calendars and copies their meetings into the calendar you choose.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Calendar Sync keeps the tasks you add in its menu as reminders, so they're on your other devices too and stay in Reminders.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Calendar Sync keeps the tasks you add in its menu as reminders, so they're on your other devices too and stay in Reminders.</string>
 </dict>
 </plist>

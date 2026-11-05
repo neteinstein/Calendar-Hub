@@ -7,6 +7,8 @@ struct CalendarSyncApp: App {
     @StateObject private var controller: SyncController
     @StateObject private var alerts: EventAlertController
     @StateObject private var updates: UpdateChecker
+    @StateObject private var tasks: TaskStore
+    @StateObject private var taskNotes: TaskNotesWindows
     @StateObject private var clock = Clock()
     @StateObject private var menuBarItem = MenuBarItem.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -25,13 +27,17 @@ struct CalendarSyncApp: App {
         let settings = demo?.makeSettings() ?? SettingsStore()
         let controller = SyncController(settings: settings, demo: demo)
         let updates = UpdateChecker(defaults: demo?.defaults ?? .standard)
+        let tasks = TaskStore(settings: settings, controller: controller)
         _settings = StateObject(wrappedValue: settings)
         _controller = StateObject(wrappedValue: controller)
         _updates = StateObject(wrappedValue: updates)
+        _tasks = StateObject(wrappedValue: tasks)
+        _taskNotes = StateObject(wrappedValue: TaskNotesWindows(settings: settings, controller: controller, tasks: tasks))
         _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
-                                                                 checks: demo == nil))
+                                                                 tasks: tasks, checks: demo == nil))
         if let demo, Snapshots.folder != nil {
-            Snapshots.context = .init(settings: settings, controller: controller, updates: updates, defaults: demo.defaults)
+            Snapshots.context = .init(settings: settings, controller: controller, updates: updates, tasks: tasks,
+                                      defaults: demo.defaults)
             // Screenshots need no menu bar icon of their own.
             MenuBarItem.shared.isInserted = false
         }
@@ -134,6 +140,8 @@ struct CalendarSyncApp: App {
                 .environmentObject(settings)
                 .environmentObject(controller)
                 .environmentObject(updates)
+                .environmentObject(tasks)
+                .environment(\.openTaskNotes, OpenTaskNotesAction { [taskNotes] in taskNotes.show($0) })
         } label: {
             MenuBarLabel(settings: settings, controller: controller, clock: clock)
         }
@@ -144,6 +152,7 @@ struct CalendarSyncApp: App {
                 .environmentObject(settings)
                 .environmentObject(controller)
                 .environmentObject(updates)
+                .environmentObject(tasks)
         }
     }
 }

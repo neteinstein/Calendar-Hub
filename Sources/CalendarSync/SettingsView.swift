@@ -45,7 +45,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, menuBar, alerts, preview, about
+    case general, calendars, twoWaySync, menuBar, alerts, tasks, preview, about
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -59,6 +59,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .twoWaySync: "Two way sync"
         case .menuBar: "Menu bar"
         case .alerts: "Meeting alerts"
+        case .tasks: "Tasks"
         case .preview: "Preview"
         case .about: "About"
         }
@@ -71,6 +72,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .twoWaySync: "arrow.left.arrow.right"
         case .menuBar: "menubar.rectangle"
         case .alerts: "bell.fill"
+        case .tasks: "checklist"
         case .preview: "eye.fill"
         case .about: "info"
         }
@@ -83,6 +85,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .twoWaySync: .teal
         case .menuBar: .purple
         case .alerts: .red
+        case .tasks: .green
         case .preview: .orange
         }
     }
@@ -95,6 +98,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .twoWaySync: TwoWaySyncTab()
         case .menuBar: MenuBarTab()
         case .alerts: AlertsTab()
+        case .tasks: TasksTab()
         case .preview: PreviewTab()
         case .about: AboutTab()
         }
@@ -294,6 +298,82 @@ private struct AlertSketch: View {
         .frame(height: 150)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Tasks
+
+private struct TasksTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var controller: SyncController
+    @EnvironmentObject private var tasks: TaskStore
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show Tasks in the menu", isOn: $settings.taskOptions.showsInMenu)
+                if !settings.menuCalendarEnabled {
+                    Text("Turn on Show a calendar in the menu (Menu bar) to see it.")
+                        .foregroundStyle(.orange)
+                }
+            } footer: {
+                Text("Adds a Tasks view to the menu, next to List, for tasks and reminders, and shows each day's tasks in Month and List. Right-click a meeting in the List for a task to prepare it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                if tasks.access == .fullAccess {
+                    Picker("Keep tasks in", selection: $settings.taskOptions.listID) {
+                        Text(defaultListName).tag(String?.none)
+                        ForEach(controller.eventKit.reminderLists(), id: \.calendarIdentifier) { list in
+                            CalendarLabel(calendar: list).tag(Optional(list.calendarIdentifier))
+                        }
+                    }
+                } else {
+                    LabeledContent("Calendar Sync can't see your reminders") {
+                        Button(tasks.access == .notDetermined ? "Allow Access" : "Open System Settings") {
+                            if tasks.access == .notDetermined {
+                                Task { await tasks.requestAccess() }
+                            } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Reminders")
+            } footer: {
+                Text("Each task is a reminder in this list, so it's on your iPhone and other devices too, and stays in Reminders if you remove Calendar Sync. A task for an event links to it, and moves with it when the event moves.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                nudgePicker("For an event", selection: $settings.taskOptions.eventNudge, forEvent: true)
+                nudgePicker("With a due date", selection: $settings.taskOptions.dueNudge, forEvent: false)
+            } header: {
+                Text("Nudges for new tasks")
+            } footer: {
+                Text("Nudges are the reminder's alerts: Reminders shows them as notifications on all your devices, even while Calendar Sync isn't running. Each task can have its own, set in the task.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .task { await tasks.reload() }
+    }
+
+    /// "Default list (Reminders)", naming the list Reminders adds new reminders to.
+    private var defaultListName: String {
+        guard tasks.access == .fullAccess, let list = controller.eventKit.reminderList(id: nil) else { return "Default list" }
+        return "Default list (\(list.title))"
+    }
+
+    private func nudgePicker(_ title: String, selection: Binding<Nudge?>, forEvent: Bool) -> some View {
+        Picker(title, selection: selection) {
+            Text("None").tag(Nudge?.none)
+            ForEach(Nudge.presets(anchorHasTime: true), id: \.self) { nudge in
+                Text(nudge.title(forEvent: forEvent) ?? "").tag(Optional(nudge))
+            }
+        }
     }
 }
 

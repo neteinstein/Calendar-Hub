@@ -1,6 +1,7 @@
 #!/bin/bash
-# Renders the README's screenshots into docs/screenshots: the menu (Month, List, Stats), the
-# meeting alert, the menu bar item and each Settings pane, in light and dark, as WebP.
+# Renders the README's screenshots into docs/screenshots: the menu (Month, List, Tasks, Stats), the
+# meeting alert, a task's notes window, the menu bar item and each Settings pane, in light and
+# dark, as WebP.
 #
 # The app draws them itself with sample calendars (Work, Calendar A, Client X), so nothing from
 # your own calendars ends up in them, and it can run next to your running copy. Today's sample

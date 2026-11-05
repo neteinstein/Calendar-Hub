@@ -9,6 +9,8 @@ import SwiftUI
 final class EventAlertController: ObservableObject {
     private let settings: SettingsStore
     private let eventKit: EventKitBridge
+    /// For the tasks to prepare a meeting, listed on its alert.
+    private let tasks: TaskStore?
     private var timer: Timer?
     /// Occurrence keys already alerted, with when, so each event alerts once. Pruned daily.
     private var shown: [String: Date] = [:]
@@ -27,9 +29,10 @@ final class EventAlertController: ObservableObject {
     private var lastReadFailure: String?
 
     /// Without `checks`, no alert is ever shown: the demo's meetings sit around the current time.
-    init(settings: SettingsStore, eventKit: EventKitBridge, checks: Bool = true) {
+    init(settings: SettingsStore, eventKit: EventKitBridge, tasks: TaskStore? = nil, checks: Bool = true) {
         self.settings = settings
         self.eventKit = eventKit
+        self.tasks = tasks
         guard checks else { return }
         // On the main run loop, so the block runs on the main actor; in the common modes, so
         // it keeps checking while the menu is open.
@@ -127,6 +130,7 @@ final class EventAlertController: ObservableObject {
         panel.contentView = NSHostingView(rootView: EventAlertView(
             event: event,
             origin: EventOrigin.of(event, settings: settings, eventKit: eventKit),
+            prepare: tasks?.openTasks(forEvent: event.key).map(\.title) ?? [],
             dismiss: { [weak self] in self?.dismiss() },
             snooze: { [weak self] in self?.snooze(event) }))
         window = panel
@@ -212,6 +216,8 @@ private final class AlertPanel: NSPanel {
 struct EventAlertView: View {
     let event: SourceEvent
     let origin: EventOrigin?
+    /// The open tasks for the meeting, under "To prepare".
+    var prepare: [String] = []
     /// Off for screenshots, which draw a blurred desktop of their own.
     var blursDesktop = true
     let dismiss: () -> Void
@@ -296,6 +302,11 @@ struct EventAlertView: View {
             }
             .modifier(Entrance(shown: shown, delay: 0.17))
 
+            if !prepare.isEmpty {
+                PrepareList(titles: prepare, tint: tint)
+                    .modifier(Entrance(shown: shown, delay: 0.2))
+            }
+
             StartProgress(start: event.start, tint: tint)
                 .modifier(Entrance(shown: shown, delay: 0.22))
 
@@ -359,6 +370,38 @@ struct EventAlertView: View {
                 .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.45, dampingFraction: 0.8).delay(delay),
                            value: shown)
         }
+    }
+}
+
+/// The meeting's open tasks, three at most: what's left to prepare.
+private struct PrepareList: View {
+    let titles: [String]
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label("To prepare", systemImage: "checklist")
+                .font(.system(size: 11.5, weight: .bold))
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .foregroundStyle(tint)
+            ForEach(titles.prefix(3), id: \.self) { title in
+                Label {
+                    Text(title).lineLimit(1)
+                } icon: {
+                    Image(systemName: "circle").foregroundStyle(.secondary)
+                }
+                .font(.system(size: 15))
+            }
+            if titles.count > 3 {
+                Text("and \(titles.count - 3) more")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
