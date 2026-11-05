@@ -24,7 +24,7 @@ struct CalendarSyncApp: App {
         }
         let settings = demo?.makeSettings() ?? SettingsStore()
         let controller = SyncController(settings: settings, demo: demo)
-        let updates = UpdateChecker()
+        let updates = UpdateChecker(defaults: demo?.defaults ?? .standard)
         _settings = StateObject(wrappedValue: settings)
         _controller = StateObject(wrappedValue: controller)
         _updates = StateObject(wrappedValue: updates)
@@ -133,6 +133,7 @@ struct CalendarSyncApp: App {
             MenuView()
                 .environmentObject(settings)
                 .environmentObject(controller)
+                .environmentObject(updates)
         } label: {
             MenuBarLabel(settings: settings, controller: controller, clock: clock)
         }
