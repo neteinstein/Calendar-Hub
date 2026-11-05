@@ -114,11 +114,11 @@ struct MenuView: View {
         case .noMainCalendar:
             ProblemCard(title: "Choose your main calendar",
                         detail: "Meetings from your secondary calendars are copied into it.",
-                        actionTitle: "Open Settings", action: showSettings)
+                        actionTitle: "Open Settings") { showSettings(at: .general) }
         case .mainCalendarMissing:
             ProblemCard(title: "Your main calendar is gone",
                         detail: "It's no longer in Calendar.app. Choose another one in Settings.",
-                        actionTitle: "Open Settings", action: showSettings)
+                        actionTitle: "Open Settings") { showSettings(at: .general) }
         }
     }
 
@@ -164,7 +164,7 @@ struct MenuView: View {
 
     private var footer: some View {
         HStack(spacing: 2) {
-            SyncStatusPill()
+            SyncStatusPill { showSettings(at: .calendars) }
             Spacer()
             IconButton("arrow.triangle.2.circlepath", help: "Sync now (⌘R)", shortcut: "r") {
                 Task { await controller.syncNow() }
@@ -213,6 +213,12 @@ struct MenuView: View {
     /// front, so the window could open behind other windows, or stay there if it was already
     /// open: either way, nothing seemed to happen.
     private func showSettings() {
+        showSettings(at: nil)
+    }
+
+    /// Opens Settings at `pane`, or at the pane it was left on.
+    private func showSettings(at pane: SettingsPane?) {
+        if let pane { UserDefaults.standard.set(pane.rawValue, forKey: SettingsPane.defaultsKey) }
         NSApp.activate(ignoringOtherApps: true)
         #if compiler(>=6.0)
         openSettings()
@@ -312,13 +318,29 @@ private struct UpNextCard: View {
 
 /// The last sync at a glance: a green dot when it went fine, an orange one with the number
 /// of problems when it didn't, spinning arrows while syncing, and a check for a moment when a
-/// sync finishes. The summary is in the tooltip.
+/// sync finishes. The summary is in the tooltip. With problems, a click opens them in Settings.
 private struct SyncStatusPill: View {
+    let showProblems: () -> Void
     @EnvironmentObject private var controller: SyncController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var justSynced = false
+    @State private var hovering = false
+
+    private var hasProblems: Bool { !controller.isSyncing && !controller.problems.isEmpty }
 
     var body: some View {
+        if hasProblems {
+            Button(action: showProblems) { pill }
+                .buttonStyle(PressableStyle())
+                .onHover { hovering = $0 }
+                .pointingHandCursor()
+                .help("\(controller.lastSummary). Click to see the problems in Settings › Secondary Calendars.")
+        } else {
+            pill.help(controller.lastSummary)
+        }
+    }
+
+    private var pill: some View {
         TimelineView(.everyMinute) { context in
             HStack(spacing: 6) {
                 icon
@@ -326,7 +348,7 @@ private struct SyncStatusPill: View {
                     .transition(.scale.combined(with: .opacity))
                 Text(text(now: context.date))
                     .contentTransition(.opacity)
-                if !controller.isSyncing, !controller.problems.isEmpty {
+                if hasProblems {
                     Text("\(controller.problems.count)")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
@@ -340,9 +362,8 @@ private struct SyncStatusPill: View {
             .padding(.leading, 7)
             .padding(.trailing, 9)
             .padding(.vertical, 3)
-            .background(Color.primary.opacity(0.05), in: Capsule())
+            .background(Color.primary.opacity(hasProblems && hovering ? 0.11 : 0.05), in: Capsule())
         }
-        .help(controller.lastSummary)
         .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: controller.isSyncing)
         .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: justSynced)
         .onChange(of: controller.lastSync) { _, _ in

@@ -26,9 +26,11 @@ final class EventAlertController: ObservableObject {
     /// every 20 seconds.
     private var lastReadFailure: String?
 
-    init(settings: SettingsStore, eventKit: EventKitBridge) {
+    /// Without `checks`, no alert is ever shown: the demo's meetings sit around the current time.
+    init(settings: SettingsStore, eventKit: EventKitBridge, checks: Bool = true) {
         self.settings = settings
         self.eventKit = eventKit
+        guard checks else { return }
         // On the main run loop, so the block runs on the main actor; in the common modes, so
         // it keeps checking while the menu is open.
         let timer = Timer(timeInterval: 20, repeats: true) { [weak self] _ in
@@ -185,9 +187,11 @@ private final class AlertPanel: NSPanel {
     }
 }
 
-private struct EventAlertView: View {
+struct EventAlertView: View {
     let event: SourceEvent
     let origin: EventOrigin?
+    /// Off for screenshots, which draw a blurred desktop of their own.
+    var blursDesktop = true
     let dismiss: () -> Void
     let snooze: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -209,12 +213,14 @@ private struct EventAlertView: View {
 
     var body: some View {
         ZStack {
-            ZStack {
-                VisualEffectBackground()
-                Color.black.opacity(0.28)
+            if blursDesktop {
+                ZStack {
+                    VisualEffectBackground()
+                    Color.black.opacity(0.28)
+                }
+                .ignoresSafeArea()
+                .opacity(shown ? 1 : 0)
             }
-            .ignoresSafeArea()
-            .opacity(shown ? 1 : 0)
 
             card
                 .frame(maxWidth: 620)

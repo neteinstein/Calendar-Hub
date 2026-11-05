@@ -6,7 +6,7 @@ struct CalendarSyncApp: App {
     @StateObject private var settings: SettingsStore
     @StateObject private var controller: SyncController
     @StateObject private var alerts: EventAlertController
-    @StateObject private var updates = UpdateChecker()
+    @StateObject private var updates: UpdateChecker
     @StateObject private var clock = Clock()
     @StateObject private var menuBarItem = MenuBarItem.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -15,13 +15,26 @@ struct CalendarSyncApp: App {
     private static var instanceLock: InstanceLock?
 
     init() {
-        Self.quitIfAlreadyRunning()
-        Self.linkIntoApplicationsOnce()
-        let settings = SettingsStore()
-        let controller = SyncController(settings: settings)
+        // The demo (sample calendars, for screenshots) runs next to the real app and leaves
+        // Calendar.app, the Applications folder and the real settings alone.
+        let demo = DemoCalendars.isRequested ? DemoCalendars() : nil
+        if demo == nil {
+            Self.quitIfAlreadyRunning()
+            Self.linkIntoApplicationsOnce()
+        }
+        let settings = demo?.makeSettings() ?? SettingsStore()
+        let controller = SyncController(settings: settings, demo: demo)
+        let updates = UpdateChecker()
         _settings = StateObject(wrappedValue: settings)
         _controller = StateObject(wrappedValue: controller)
-        _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit))
+        _updates = StateObject(wrappedValue: updates)
+        _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
+                                                                 checks: demo == nil))
+        if let demo, Snapshots.folder != nil {
+            Snapshots.context = .init(settings: settings, controller: controller, updates: updates, defaults: demo.defaults)
+            // Screenshots need no menu bar icon of their own.
+            MenuBarItem.shared.isInserted = false
+        }
     }
 
     /// A copy already running would sync the same calendars: an "Open at login" item next to
@@ -76,7 +89,7 @@ struct CalendarSyncApp: App {
     /// sync with problems; menu bar labels are drawn in one color, so it's part of the symbol.
     /// `Clock` keeps the date and the minutes right as the minutes pass. Not a TimelineView: in a
     /// menu bar label it re-renders the button in an endless loop and the app hangs at launch.
-    private struct MenuBarLabel: View {
+    struct MenuBarLabel: View {
         @ObservedObject var settings: SettingsStore
         @ObservedObject var controller: SyncController
         @ObservedObject var clock: Clock
@@ -173,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Snapshots.runIfRequested()
         DistributedNotificationCenter.default().addObserver(
             forName: Self.showMenuBarItem, object: nil, queue: .main
         ) { _ in
