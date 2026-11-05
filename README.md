@@ -194,7 +194,7 @@ That's it. It syncs every 15 minutes, and calendars in Calendar.app within secon
 brew update && brew upgrade calendar-sync
 ```
 
-Then restart it with `brew services restart calendar-sync`, or quit it and open it again. Settings tells you when a new version is out. More in [Install and update](docs/install.md), including building from source.
+Then restart it with `brew services restart calendar-sync`, or quit it and open it again. Or let the app do it: it checks for a new version once a day, and when there is one, a blue **update** button appears next to **Sync now** in the menu. Click it and Terminal runs these commands and restarts the app. More in [Install and update](docs/install.md), including building from source.
 
 ## Feedback and issues
 

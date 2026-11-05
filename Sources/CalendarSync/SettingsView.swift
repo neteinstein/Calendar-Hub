@@ -1104,36 +1104,18 @@ private struct UpdateStatus: View {
 }
 
 /// How to update: Calendar Sync is built from source, so the "update" is a pull and a rebuild.
+/// The commands to run by hand, or Terminal runs them.
 private struct UpdateInstructionsSheet: View {
     let latest: UpdateCheck.Latest
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @State private var updateError: String?
 
-    /// Running from Homebrew's cellar means it was installed with `brew`. `brew services` starts it
-    /// through the opt symlink, which the bundle path keeps, so resolve that first.
-    private var cellarPath: String? {
-        let path = Bundle.main.bundleURL.resolvingSymlinksInPath().path
-        guard let range = path.range(of: "/Cellar/") else { return nil }
-        return String(path[..<range.upperBound])
-    }
-
-    private var isHomebrewInstall: Bool { cellarPath != nil }
-
-    /// The account that owns Homebrew when it isn't the one running the app: Homebrew installed
-    /// from a separate admin account. Only that account can run `brew update` and `brew upgrade`.
-    private var brewOwner: String? {
-        guard let cellarPath,
-              let owner = try? FileManager.default.attributesOfItem(atPath: cellarPath)[.ownerAccountName] as? String,
-              owner != NSUserName()
-        else { return nil }
-        return owner
-    }
-
-    /// launchd sets XPC_SERVICE_NAME to the job's label: sh.brew.calendar-sync under `brew services`
-    /// (homebrew.mxcl.calendar-sync in older Homebrew). `brew upgrade` doesn't restart services.
-    private var isBrewService: Bool {
-        ProcessInfo.processInfo.environment["XPC_SERVICE_NAME"]?.hasSuffix(".calendar-sync") == true
-    }
+    private var homebrew: UpdateCheck.Homebrew? { UpdateChecker.installation.homebrew }
+    private var isHomebrewInstall: Bool { homebrew != nil }
+    private var brewOwner: String? { homebrew?.owner }
+    /// `brew upgrade` doesn't restart services.
+    private var isBrewService: Bool { homebrew?.serviceLabel != nil }
 
     private let upgradeCommands = "brew update\nbrew upgrade calendar-sync"
     private let restartCommand = "brew services restart calendar-sync"
@@ -1167,16 +1149,36 @@ private struct UpdateInstructionsSheet: View {
                 CommandBox(commands: upgradeCommands + (isBrewService ? "\n" + restartCommand : ""))
                 note("Homebrew in a separate admin account? Run “brew update” and “brew upgrade calendar-sync” from the admin account, and “\(restartCommand)” from the account that runs the app. Your settings are kept. The build is ad-hoc signed, so macOS asks for calendar access again after the upgrade.")
             }
+            if let updateError {
+                Label(updateError, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
             HStack {
                 if let url = latest.url {
                     Button("What's new on GitHub") { openURL(url) }
                 }
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                if UpdateChecker.canUpdateInTerminal {
+                    Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button("Update in Terminal", action: updateInTerminal).keyboardShortcut(.defaultAction)
+                } else {
+                    Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                }
             }
         }
         .padding(20)
         .frame(width: 480)
+    }
+
+    /// Runs the commands above in Terminal, then restarts the app.
+    private func updateInTerminal() {
+        Task {
+            do {
+                try await UpdateChecker.updateInTerminal()
+                dismiss()
+            } catch {
+                updateError = "Couldn't open Terminal: \(error.localizedDescription)"
+            }
+        }
     }
 
     private func instruction(_ text: String) -> some View {

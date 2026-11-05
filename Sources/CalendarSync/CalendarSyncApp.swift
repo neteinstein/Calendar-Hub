@@ -26,7 +26,7 @@ struct CalendarSyncApp: App {
         }
         let settings = demo?.makeSettings() ?? SettingsStore()
         let controller = SyncController(settings: settings, demo: demo)
-        let updates = UpdateChecker()
+        let updates = UpdateChecker(defaults: demo?.defaults ?? .standard)
         let tasks = TaskStore(settings: settings, controller: controller)
         _settings = StateObject(wrappedValue: settings)
         _controller = StateObject(wrappedValue: controller)
@@ -139,6 +139,7 @@ struct CalendarSyncApp: App {
             MenuView()
                 .environmentObject(settings)
                 .environmentObject(controller)
+                .environmentObject(updates)
                 .environmentObject(tasks)
                 .environment(\.openTaskNotes, OpenTaskNotesAction { [taskNotes] in taskNotes.show($0) })
         } label: {

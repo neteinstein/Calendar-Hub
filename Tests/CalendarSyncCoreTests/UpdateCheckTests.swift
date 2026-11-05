@@ -47,3 +47,120 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertNil(UpdateCheck.version(fromInfoPlist: Data("junk".utf8)))
     }
 }
+
+final class UpdateCheckFormulaAndScheduleTests: XCTestCase {
+    func testReadsTheVersionFromAFormula() {
+        let formula = """
+            class CalendarSync < Formula
+              desc "Menu bar app that copies secondary-calendar meetings into your main calendar"
+              url "https://github.com/neteinstein/Calendar-Sync/archive/bfb7da4.tar.gz"
+              version "2.0.1"
+              sha256 "ca3a079c"
+
+              def caveats
+                <<~EOS
+                  brew upgrade doesn't restart a running Calendar Sync: it keeps
+                  running the old version until it quits.
+                EOS
+              end
+            end
+            """
+        XCTAssertEqual(UpdateCheck.version(fromFormula: formula), "2.0.1")
+        XCTAssertNil(UpdateCheck.version(fromFormula: "class CalendarSync < Formula\nend\n"))
+        XCTAssertNil(UpdateCheck.version(fromFormula: #"  version """#), "an empty version is no version")
+        XCTAssertNil(UpdateCheck.version(fromFormula: "404: Not Found"))
+    }
+
+    func testDueOnceADay() {
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        XCTAssertTrue(UpdateCheck.isDue(lastChecked: nil, now: now), "never checked")
+        XCTAssertFalse(UpdateCheck.isDue(lastChecked: now.addingTimeInterval(-3600), now: now))
+        XCTAssertFalse(UpdateCheck.isDue(lastChecked: now.addingTimeInterval(-23.9 * 3600), now: now))
+        XCTAssertTrue(UpdateCheck.isDue(lastChecked: now.addingTimeInterval(-24 * 3600), now: now))
+        XCTAssertTrue(UpdateCheck.isDue(lastChecked: now.addingTimeInterval(-5 * 24 * 3600), now: now),
+                      "a Mac that slept for days checks as soon as it wakes")
+        XCTAssertTrue(UpdateCheck.isDue(lastChecked: now.addingTimeInterval(3600), now: now),
+                      "a check dated in the future means the clock was set back")
+    }
+}
+
+final class UpdateScriptTests: XCTestCase {
+    private let prefix = URL(fileURLWithPath: "/opt/homebrew")
+
+    func testFindsTheHomebrewPrefixAndTheClone() {
+        XCTAssertEqual(UpdateCheck.homebrewPrefix(forResolvedBundle: URL(fileURLWithPath:
+            "/opt/homebrew/Cellar/calendar-sync/2.0.1/Calendar Sync.app"))?.path, "/opt/homebrew")
+        XCTAssertEqual(UpdateCheck.homebrewPrefix(forResolvedBundle: URL(fileURLWithPath:
+            "/usr/local/Cellar/calendar-sync/2.0.1/Calendar Sync.app"))?.path, "/usr/local")
+        XCTAssertNil(UpdateCheck.homebrewPrefix(forResolvedBundle: URL(fileURLWithPath:
+            "/Users/me/Calendar-Sync/build/Calendar Sync.app")))
+
+        XCTAssertEqual(UpdateCheck.sourceClone(forResolvedBundle: URL(fileURLWithPath:
+            "/Users/me/Calendar-Sync/build/Calendar Sync.app"))?.path, "/Users/me/Calendar-Sync")
+        XCTAssertNil(UpdateCheck.sourceClone(forResolvedBundle: URL(fileURLWithPath:
+            "/Applications/Calendar Sync.app")), "a build copied out of its clone")
+    }
+
+    func testHomebrewUpgradeThenReopen() throws {
+        let script = try XCTUnwrap(UpdateCheck.updateScript(for: .homebrew(.init(prefix: prefix))))
+        XCTAssertTrue(script.hasPrefix("#!/bin/bash\n"))
+        XCTAssertTrue(script.contains("set -euo pipefail\n"), "stops at the first failure")
+        assertInOrder(script, [
+            "'/opt/homebrew/bin/brew' update\n",
+            "'/opt/homebrew/bin/brew' upgrade calendar-sync\n",
+            "pkill -x CalendarSync || true\n",
+            "sleep 1\n",
+            "open '/opt/homebrew/opt/calendar-sync/Calendar Sync.app'\n",
+        ])
+        XCTAssertFalse(script.contains("su "))
+        XCTAssertFalse(script.contains("launchctl"))
+    }
+
+    func testHomebrewServiceIsRestartedByLaunchd() throws {
+        let script = try XCTUnwrap(UpdateCheck.updateScript(for: .homebrew(.init(
+            prefix: prefix, serviceLabel: "sh.brew.calendar-sync"))))
+        assertInOrder(script, [
+            "'/opt/homebrew/bin/brew' upgrade calendar-sync\n",
+            #"launchctl kickstart -k "gui/$(id -u)/"'sh.brew.calendar-sync'"# + "\n",
+        ])
+        XCTAssertFalse(script.contains("pkill"), "launchd restarts the job itself")
+    }
+
+    func testHomebrewFromAnAdminAccountUpgradesAsThatAccount() throws {
+        let script = try XCTUnwrap(UpdateCheck.updateScript(for: .homebrew(.init(
+            prefix: prefix, owner: "admin.me", serviceLabel: "sh.brew.calendar-sync"))))
+        assertInOrder(script, [
+            "su - 'admin.me' -c ''\\''/opt/homebrew/bin/brew'\\'' update && '\\''/opt/homebrew/bin/brew'\\'' upgrade calendar-sync'\n",
+            // The restart runs as the account logged in to the desktop, not the admin one.
+            #"launchctl kickstart -k "gui/$(id -u)/"'sh.brew.calendar-sync'"#,
+        ])
+        XCTAssertFalse(script.contains("\n'/opt/homebrew/bin/brew' upgrade"), "never upgrades as this account")
+    }
+
+    func testSourceBuildPullsRebuildsAndReopens() throws {
+        let script = try XCTUnwrap(UpdateCheck.updateScript(for: .source(clone: URL(fileURLWithPath: "/Users/me/Pedro's Code/Calendar-Sync"))))
+        assertInOrder(script, [
+            "cd '/Users/me/Pedro'\\''s Code/Calendar-Sync'\n",
+            "git pull --ff-only\n",
+            "scripts/build-app.sh\n",
+            "pkill -x CalendarSync || true\n",
+            "open 'build/Calendar Sync.app'\n",
+        ])
+        XCTAssertNil(UpdateCheck.updateScript(for: .source(clone: nil)), "nowhere to pull into")
+    }
+
+    func testQuotesForTheShell() {
+        XCTAssertEqual(UpdateCheck.quoted("plain"), "'plain'")
+        XCTAssertEqual(UpdateCheck.quoted("it's $HOME"), #"'it'\''s $HOME'"#)
+    }
+
+    private func assertInOrder(_ text: String, _ parts: [String], file: StaticString = #filePath, line: UInt = #line) {
+        var rest = text[...]
+        for part in parts {
+            guard let range = rest.range(of: part) else {
+                return XCTFail("missing or out of order: \(part)\nin:\n\(text)", file: file, line: line)
+            }
+            rest = rest[range.upperBound...]
+        }
+    }
+}
