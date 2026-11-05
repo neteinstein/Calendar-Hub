@@ -5,6 +5,7 @@ import SwiftUI
 struct MenuView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    @EnvironmentObject private var updates: UpdateChecker
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if compiler(>=6.0)
     // Not in the SDK of Xcode 15 and older toolchains, which build with the SettingsLink below.
@@ -166,6 +167,11 @@ struct MenuView: View {
         HStack(spacing: 2) {
             SyncStatusPill { showSettings(at: .calendars) }
             Spacer()
+            if let latest = updates.available {
+                IconButton("arrow.down.circle.fill", help: "Update to version \(latest.version)", tint: .accentColor) {
+                    confirmUpdate(to: latest)
+                }
+            }
             IconButton("arrow.triangle.2.circlepath", help: "Sync now (⌘R)", shortcut: "r") {
                 Task { await controller.syncNow() }
             }
@@ -204,6 +210,29 @@ struct MenuView: View {
             alert.addButton(withTitle: "Cancel")
             if alert.runModal() == .alertFirstButtonReturn {
                 NSApp.terminate(nil)
+            }
+        }
+    }
+
+    /// Asks first, like Quit, then runs the update in Terminal. A source build moved out of its
+    /// clone can't update by itself, so Settings shows how instead.
+    private func confirmUpdate(to latest: UpdateCheck.Latest) {
+        guard UpdateChecker.canUpdateInTerminal else { return showSettings(at: .general) }
+        let current = updates.currentVersion
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Update Calendar Sync to version \(latest.version)?"
+            alert.informativeText = "You have version \(current). " + UpdateChecker.updateSummary
+            alert.addButton(withTitle: "Update")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            Task { @MainActor in
+                do {
+                    try await UpdateChecker.updateInTerminal()
+                } catch {
+                    NSAlert(error: error).runModal()
+                }
             }
         }
     }

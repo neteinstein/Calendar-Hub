@@ -69,7 +69,9 @@ Only timed meetings in your main calendar count: all-day, declined and out-of-of
 
 ## Updates
 
-Settings' **About** pane shows the app **version** and checks GitHub once a day for a newer one (the newest release, or the version on `main` while there are no releases). When there is one, a warning appears with an **Update** button that shows the commands to run.
+The app checks GitHub for a newer version **once a day**, counting the day across sleep and restarts, and Settings' **About** pane can check now. A Homebrew install compares with the version the [tap](https://github.com/neteinstein/homebrew-tap) serves, since that's what `brew upgrade` installs and it can trail `main` for a while; a source build compares with the newest release, or the version on `main` while there are no releases.
+
+When there is one, a blue **update** button appears next to **Sync now** in the menu. Click it, confirm, and Terminal opens and runs the update: `brew update` and `brew upgrade calendar-sync` (as the account that owns Homebrew, if that's a separate admin account, so Terminal asks for its password), or `git pull` and `scripts/build-app.sh` for a source build. Then it restarts the app, through `brew services` if that started it. It stops at the first error and leaves the running copy alone, and the Terminal window shows what went wrong. Settings shows a warning too, with an **Update** button that shows the commands to run by hand and can run them in Terminal the same way. A source build moved out of its clone can't update by itself: its button opens those instructions.
 
 ## Known limits
 
