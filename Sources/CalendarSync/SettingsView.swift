@@ -589,7 +589,7 @@ private struct TwoWaySyncTab: View {
                         Task { await controller.sync() }
                     }
             } footer: {
-                Text("Your main calendar's events are also added to your secondary calendars as “Busy”, with nothing else: no title, link, location or attendees. Their description is “Busy” too, so you can tell what was added automatically. Copies of a calendar's own meetings aren't added back to it.")
+                Text("Your main calendar's events are also added to your secondary calendars as “Busy”, with nothing else: no title, link, location, attendees or alerts. Their description is “Busy” too, so you can tell what was added automatically. Copies of a calendar's own meetings aren't added back to it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
