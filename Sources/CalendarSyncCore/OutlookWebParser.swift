@@ -149,7 +149,8 @@ public enum OutlookWebParser {
 
     /// Parses the description Outlook on the web gives each meeting on screen (its
     /// accessibility label), e.g. "Team stand-up, 10:15 AM to 10:30 AM, Monday, October 26,
-    /// 2026, Microsoft Teams Meeting, By Alex Morgan, Busy, Recurring event".
+    /// 2026, Microsoft Teams Meeting, By Alex Morgan, Busy, Recurring event": an icon's name if
+    /// the event has one, title and times, location, organizer, how it shows, and more.
     ///
     /// Used when a week's data can't be captured. All-day events, meetings spanning several
     /// days and labels in other languages are skipped. Teams links aren't in the label, so
@@ -184,6 +185,9 @@ public enum OutlookWebParser {
             else { continue }
             if end < start { end = end.addingTimeInterval(86400) } // ends after midnight
             let rest = Range(m.range(at: 5), in: label).map { String(label[$0]) } ?? ""
+            // The rest has how the event shows, untranslated: "Busy", "Tentative", "Free",
+            // "WorkingElsewhere", or "OOF" for out of office.
+            let isOutOfOffice = rest.split(separator: ",").contains { $0.trimmingCharacters(in: .whitespaces) == "OOF" }
 
             let lowered = title.lowercased()
             let key = screenKey(title: title, start: start)
@@ -194,6 +198,7 @@ public enum OutlookWebParser {
                 start: start,
                 end: end,
                 isCancelled: lowered.hasPrefix("canceled:") || lowered.hasPrefix("cancelled:"),
+                isOutOfOffice: isOutOfOffice,
                 meetingURL: MeetingLink.firstMeetingLink(in: rest)
             ))
         }
@@ -201,9 +206,10 @@ public enum OutlookWebParser {
     }
 
     /// "<title>, <h:mm AM> to <h:mm PM>, <Weekday>, <Month d, yyyy><, rest>", or with 24-hour
-    /// times: "<title>, <HH:mm> to <HH:mm>, ...".
+    /// times: "<title>, <HH:mm> to <HH:mm>, ...". An event Outlook gave an icon starts with
+    /// it ("Class icon, <title>, ..."), which isn't part of the title.
     private static let screenLabelRegex = try! NSRegularExpression(
-        pattern: #"^(.+?), (\d{1,2}:\d{2}(?: [AP]M)?) to (\d{1,2}:\d{2}(?: [AP]M)?), (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), ([A-Z][a-z]+ \d{1,2}, \d{4})(.*)$"#)
+        pattern: #"^(?:[A-Za-z]+(?: [A-Za-z]+){0,2} icon, )?(.+?), (\d{1,2}:\d{2}(?: [AP]M)?) to (\d{1,2}:\d{2}(?: [AP]M)?), (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), ([A-Z][a-z]+ \d{1,2}, \d{4})(.*)$"#)
 
     // MARK: - One event
 
