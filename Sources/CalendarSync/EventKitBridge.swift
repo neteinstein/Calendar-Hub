@@ -128,7 +128,8 @@ final class EventKitBridge {
                 isAllDay: event.isAllDay,
                 url: event.url,
                 notes: Self.storedNotes(event),
-                location: event.location
+                location: event.location,
+                hasAlerts: event.hasAlarms
             )
         }
     }
@@ -192,6 +193,9 @@ final class EventKitBridge {
         event.url = spec.url
         event.notes = spec.notes
         event.location = spec.location
+        // A Busy event stands in for a main-calendar event that alerts already, so it has no
+        // alerts of its own, and any the calendar added are taken off.
+        if spec.marker == nil { event.alarms = nil }
         if spec.isOutOfOffice, calendar.supportedEventAvailabilities.contains(.unavailable) {
             event.availability = .unavailable
         } else if calendar.supportedEventAvailabilities.contains(.busy) {

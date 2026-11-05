@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, and a nudge when it starts.
 
-[![Version 2.0.0](https://img.shields.io/badge/version-2.0.0-2563EB)](Support/Info.plist)
+[![Version 2.0.1](https://img.shields.io/badge/version-2.0.1-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -67,7 +67,7 @@ When your meetings live in a secondary calendar (another company's account, a se
   <img src="docs/screenshots/alert-light.webp" width="860" alt="The full-screen meeting alert: Design review starts in 0:59, with Join call, Go to Room 2.04, Ignore and Remind me in 1 minute">
 </picture>
 
-The screen blurs and a card counts down to the start, with **Join call** (⏎), **Go to** the room, **Ignore** (esc) or **Remind me in 1 minute**. It's on unless you turn it off, and each meeting alerts once.
+The screen blurs and a card counts down to the start, with **Join call** (⏎), **Go to** the room, **Ignore** (esc) or **Remind me in 1 minute**. Any other key, or a click anywhere but the buttons, ignores it too. It's on unless you turn it off, and each meeting alerts once.
 
 ### In the menu bar
 
@@ -128,7 +128,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
 - **Reads calendars your Mac can't add:** sign in to **Outlook on the web** once in the app, or subscribe to a published **.ics** link.
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`, link included.
-- **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it.
+- **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## Install
