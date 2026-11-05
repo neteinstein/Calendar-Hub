@@ -9,6 +9,14 @@ public enum CopyFormatter {
         return calendar.isEmpty ? meeting : "[\(calendar)] \(meeting)"
     }
 
+    /// A copy's title without the "[Calendar A] " prefix `title(for:source:)` adds, for places
+    /// that show the calendar some other way. Titles without a prefix come back as they are.
+    public static func originalTitle(_ copyTitle: String) -> String {
+        guard copyTitle.hasPrefix("["), let close = copyTitle.firstIndex(of: "]") else { return copyTitle }
+        let rest = copyTitle[copyTitle.index(after: close)...].trimmingCharacters(in: .whitespaces)
+        return rest.isEmpty ? copyTitle : rest
+    }
+
     /// The meeting link (if any) goes first so it's visible and clickable in Calendar, then the
     /// meeting's description when the source copies details; the hidden marker goes last.
     public static func notes(meetingURL: URL?, details: String? = nil, marker: CopyMarker) -> String {

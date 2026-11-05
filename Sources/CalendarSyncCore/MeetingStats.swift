@@ -45,7 +45,8 @@ public enum MeetingStats {
         public var meetingsLastWeek: Int
         public var backToBackLastWeek: Int
         /// The longest stretch without meetings left today within working hours, if any is left.
-        public var longestFreeToday: TimeInterval?
+        public var freeBlockToday: DateInterval?
+        public var longestFreeToday: TimeInterval? { freeBlockToday?.duration }
         /// Out of office within the working hours of this week's weekdays, and those hours.
         public var outOfOfficeThisWeek: Double
         public var workingHoursThisWeek: Double
@@ -201,7 +202,7 @@ public enum MeetingStats {
             busiestWeekdayHours: (busiest?.value ?? 0) / Double(averageDays / 7),
             meetingsLastWeek: lastWeekMeetings.count,
             backToBackLastWeek: backToBack,
-            longestFreeToday: longestFree(in: events, now: now, calendar: calendar, workingHours: workingHours),
+            freeBlockToday: longestFree(in: events, now: now, calendar: calendar, workingHours: workingHours),
             outOfOfficeThisWeek: outOfOffice.hours,
             workingHoursThisWeek: workingDaysThisWeek.reduce(0) { $0 + $1.duration } / 3600
         )
@@ -212,21 +213,26 @@ public enum MeetingStats {
         isOutOfOffice(event) && !event.isDeclined && !event.isCancelled && event.end > event.start
     }
 
-    /// The longest gap between meetings from now until the end of today's working hours.
+    /// The longest gap between meetings from now until the end of today's working hours. The
+    /// earliest one when two are as long.
     static func longestFree(in events: [SourceEvent], now: Date, calendar: Calendar,
-                            workingHours: WorkingHours) -> TimeInterval? {
+                            workingHours: WorkingHours) -> DateInterval? {
         guard let day = workingHours.interval(on: now, calendar: calendar),
               max(now, day.start) < day.end else { return nil }
         let (dayStart, dayEnd) = (day.start, day.end)
         var cursor = max(now, dayStart)
-        var longest: TimeInterval = 0
+        var longest: DateInterval?
+        func consider(_ end: Date) {
+            guard end > cursor, end.timeIntervalSince(cursor) > (longest?.duration ?? 0) else { return }
+            longest = DateInterval(start: cursor, end: end)
+        }
         for meeting in events.filter(counts).sorted(by: { $0.start < $1.start }) where meeting.end > cursor {
             guard meeting.start < dayEnd else { break }
-            longest = max(longest, meeting.start.timeIntervalSince(cursor))
+            consider(meeting.start)
             cursor = max(cursor, meeting.end)
         }
-        longest = max(longest, dayEnd.timeIntervalSince(cursor))
-        return longest > 0 ? longest : nil
+        if cursor < dayEnd { consider(dayEnd) }
+        return longest
     }
 
     /// How last week compared with the week before: "+25%", "−10%", or nil when there's
@@ -261,19 +267,33 @@ public enum MeetingStats {
         [format(hours.hours), overlapNote(hours)].compactMap { $0 }.joined(separator: " ")
     }
 
-    /// Something else that takes about as long, nonstop. Sorted by hours.
-    static let comparisons: [(hours: Double, what: String)] = [
-        (13, "swim across the English Channel"),
-        (22, "fly from Lisbon to Sydney"),
-        (50, "drive from Lisbon to Moscow"),
-        (76, "fly from the Earth to the Moon on Apollo 11"),
-        (112, "walk from Porto to Madrid"),
-        (156, "walk the Camino de Santiago from the Pyrenees"),
-        (350, "walk from Lisbon to Paris"),
-        (900, "walk from Lisbon to Moscow"),
-        (1920, "go around the world in 80 days"),
-        (8015, "walk around the Earth along the equator"),
+    /// Something else that takes about as long, nonstop, with where it starts and ends for the
+    /// ones that go somewhere. Sorted by hours.
+    static let comparisons: [(hours: Double, what: String, route: Route?)] = [
+        (13, "swim across the English Channel", Route(from: "Dover", to: "Calais")),
+        (22, "fly from Lisbon to Sydney", Route(from: "Lisbon", to: "Sydney")),
+        (50, "drive from Lisbon to Moscow", Route(from: "Lisbon", to: "Moscow")),
+        (76, "fly from the Earth to the Moon on Apollo 11", Route(from: "Earth", to: "Moon")),
+        (112, "walk from Porto to Madrid", Route(from: "Porto", to: "Madrid")),
+        (156, "walk the Camino de Santiago from the Pyrenees", Route(from: "Pyrenees", to: "Santiago")),
+        (350, "walk from Lisbon to Paris", Route(from: "Lisbon", to: "Paris")),
+        (900, "walk from Lisbon to Moscow", Route(from: "Lisbon", to: "Moscow")),
+        (1920, "go around the world in 80 days", nil),
+        (8015, "walk around the Earth along the equator", nil),
     ]
+
+    /// The two ends of a journey in `comparisons`, for drawing it.
+    public struct Route: Hashable, Sendable {
+        public var from: String
+        public var to: String
+    }
+
+    /// The journey `comparison(forYearlyHours:)` pictures a year as, when it goes from one
+    /// place to another.
+    public static func route(forYearlyHours hours: Double) -> Route? {
+        guard hours >= 1 else { return nil }
+        return comparisons.last(where: { $0.hours <= hours })?.route
+    }
 
     /// A fun way to picture a year of meetings: "15 days nonstop — about as long as it takes
     /// to walk from Lisbon to Paris."

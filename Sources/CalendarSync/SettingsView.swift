@@ -3,18 +3,91 @@ import EventKit
 import ServiceManagement
 import SwiftUI
 
+/// Settings, one pane per part of the app, picked from a sidebar.
 struct SettingsView: View {
+    @EnvironmentObject private var controller: SyncController
+    @State private var pane: SettingsPane? = .general
+
     var body: some View {
-        TabView {
-            GeneralTab().tabItem { Label("General", systemImage: "gearshape") }
-            SourcesTab().tabItem { Label("Secondary Calendars", systemImage: "calendar") }
-            TwoWaySyncTab().tabItem { Label("Two way sync", systemImage: "arrow.left.arrow.right") }
-            PreviewTab().tabItem { Label("Preview", systemImage: "eye") }
-            AboutTab().tabItem { Label("About", systemImage: "info.circle") }
+        NavigationSplitView {
+            List(SettingsPane.allCases, selection: $pane) { pane in
+                Label {
+                    Text(pane.title)
+                } icon: {
+                    Image(systemName: pane.symbol)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(pane.color.gradient, in: RoundedRectangle(cornerRadius: 5))
+                }
+                // The secondary calendars the last sync couldn't read.
+                .badge(pane == .calendars ? controller.unreadSources.count : 0)
+                .tag(pane)
+            }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 200, max: 230)
+            .toolbar(removing: .sidebarToggle)
+        } detail: {
+            let shown = pane ?? .general
+            shown.content
+                .navigationTitle(shown.title)
         }
-        .frame(width: 620, height: 460)
+        .frame(width: 780, height: 540)
         .toggleStyle(AccentSwitchStyle())
         .onAppear { NSApp.activate(ignoringOtherApps: true) }
+    }
+}
+
+private enum SettingsPane: String, CaseIterable, Identifiable {
+    case general, calendars, twoWaySync, menuBar, alerts, preview, about
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .calendars: "Secondary Calendars"
+        case .twoWaySync: "Two way sync"
+        case .menuBar: "Menu bar"
+        case .alerts: "Meeting alerts"
+        case .preview: "Preview"
+        case .about: "About"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape.fill"
+        case .calendars: "calendar"
+        case .twoWaySync: "arrow.left.arrow.right"
+        case .menuBar: "menubar.rectangle"
+        case .alerts: "bell.fill"
+        case .preview: "eye.fill"
+        case .about: "info"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .general, .about: .gray
+        case .calendars: .blue
+        case .twoWaySync: .teal
+        case .menuBar: .purple
+        case .alerts: .red
+        case .preview: .orange
+        }
+    }
+
+    @MainActor @ViewBuilder
+    var content: some View {
+        switch self {
+        case .general: GeneralTab()
+        case .calendars: SourcesTab()
+        case .twoWaySync: TwoWaySyncTab()
+        case .menuBar: MenuBarTab()
+        case .alerts: AlertsTab()
+        case .preview: PreviewTab()
+        case .about: AboutTab()
+        }
     }
 }
 
@@ -55,7 +128,7 @@ private struct GeneralTab: View {
             } header: {
                 Text("Syncing")
             } footer: {
-                Text("Each secondary calendar can use its own interval instead (Secondary Calendars tab). Calendar.app calendars also sync about 10 seconds after a change.")
+                Text("Each secondary calendar can use its own interval instead (Secondary Calendars). Calendar.app calendars also sync about 10 seconds after a change.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -65,15 +138,38 @@ private struct GeneralTab: View {
                 Toggle("Skip out-of-office events", isOn: $settings.options.skipOutOfOffice)
             }
 
+            Section("Startup") {
+                Toggle("Open at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, enabled in
+                        do {
+                            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                        } catch {
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                        }
+                    }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Menu bar
+
+private struct MenuBarTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    var body: some View {
+        Form {
             Section {
                 Toggle("Show a calendar in the menu", isOn: $settings.menuCalendarEnabled)
                 if settings.menuCalendarEnabled {
                     Toggle("Show the week day in the menu bar", isOn: $settings.menuBar.showsWeekday)
                 }
+                Toggle("Show the next meeting in the menu bar", isOn: $settings.menuBar.showsNextMeeting)
             } header: {
                 Text("Menu bar")
             } footer: {
-                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day next to it when that's on.")
+                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day next to it when that's on. With the next meeting on, from 15 minutes before a meeting until it ends, its title and the minutes left take the date's place.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -109,32 +205,6 @@ private struct GeneralTab: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-
-            Section {
-                Toggle("Show a full-screen alert when an event starts", isOn: $settings.alerts.enabled)
-                if settings.alerts.enabled {
-                    Stepper(settings.alerts.leadMinutes == 0
-                            ? "Show it when the event starts"
-                            : "Show it \(settings.alerts.leadMinutes) \(settings.alerts.leadMinutes == 1 ? "minute" : "minutes") before the start",
-                            value: $settings.alerts.leadMinutes, in: 0...15)
-                }
-            } header: {
-                Text("Meeting alerts")
-            } footer: {
-                Text("Covers the screen when a meeting in your main calendar begins, with buttons to join the call, go to the room, or ignore it. Each meeting alerts once; a meeting already under way alerts until it ends.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-
-            Section("Startup") {
-                Toggle("Open at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, enabled in
-                        do {
-                            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-                        } catch {
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
-                        }
-                    }
-            }
         }
         .formStyle(.grouped)
     }
@@ -148,6 +218,72 @@ private struct GeneralTab: View {
         }
         .labelsHidden()
         .fixedSize()
+    }
+}
+
+// MARK: - Meeting alerts
+
+private struct AlertsTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show a full-screen alert when an event starts", isOn: $settings.alerts.enabled)
+                if settings.alerts.enabled {
+                    Stepper(settings.alerts.leadMinutes == 0
+                            ? "Show it when the event starts"
+                            : "Show it \(settings.alerts.leadMinutes) \(settings.alerts.leadMinutes == 1 ? "minute" : "minutes") before the start",
+                            value: $settings.alerts.leadMinutes, in: 0...15)
+                }
+            } footer: {
+                Text("Covers the screen when a meeting in your main calendar begins, with buttons to join the call, go to the room, ignore it, or be reminded a minute later. Each meeting alerts once; a meeting already under way alerts until it ends.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if settings.alerts.enabled {
+                Section("What it looks like") {
+                    AlertSketch(leadMinutes: settings.alerts.leadMinutes)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// A small drawing of the full-screen alert: the card over a blurred desktop.
+private struct AlertSketch: View {
+    let leadMinutes: Int
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [.indigo.opacity(0.5), .teal.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text("Main calendar").font(.system(size: 9, weight: .semibold)).foregroundStyle(Color.accentColor)
+                    Spacer()
+                    Text(leadMinutes == 0 ? "Starting now" : "Starts in \(leadMinutes):00")
+                        .font(.system(size: 9, weight: .semibold)).monospacedDigit()
+                }
+                Text("Meeting name").font(.system(size: 15, weight: .bold))
+                Text("10:00 – 10:30 · Room").font(.system(size: 9)).foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Capsule().fill(Color.accentColor).frame(width: 64, height: 16)
+                        .overlay(Text("Join call").font(.system(size: 8, weight: .semibold)).foregroundStyle(.white))
+                    Capsule().fill(.primary.opacity(0.1)).frame(width: 58, height: 16)
+                    Spacer()
+                    Text("Ignore").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
+                }
+                .padding(.top, 3)
+            }
+            .padding(12)
+            .frame(width: 250)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.25), radius: 10, y: 5)
+        }
+        .frame(height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityHidden(true)
     }
 }
 
@@ -246,6 +382,7 @@ private struct SourceRow: View {
 
     var body: some View {
         Section {
+            health
             if source.kind == .outlookWeb {
                 // Bordered and named after what it changes: as a plain form row it read as a fixed value.
                 TextField("Prefix for copies", text: $source.calendarName, prompt: Text("e.g. Work"))
@@ -316,6 +453,38 @@ private struct SourceRow: View {
         }
     }
 
+    /// How the last sync went for this calendar: when it was read and how many copies it has,
+    /// or why it wasn't read, with the fix for a signed-out Outlook calendar.
+    @ViewBuilder
+    private var health: some View {
+        let unread = controller.unreadSources.first { $0.id == source.id }
+        let status = controller.sourceStatus[source.id]
+        HStack(spacing: 6) {
+            if !source.isEnabled {
+                Circle().fill(.secondary).frame(width: 6, height: 6)
+                Text("Not syncing").foregroundStyle(.secondary)
+            } else if let unread {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                Text(unread.reason).foregroundStyle(.orange).lineLimit(2)
+                Spacer()
+                if source.kind == .outlookWeb {
+                    Button("Open Outlook") { controller.showOutlookWindow(for: source) }
+                        .controlSize(.small)
+                }
+            } else if let lastRead = status?.lastRead {
+                Circle().fill(.green).frame(width: 6, height: 6)
+                (Text("Synced ") + Text(lastRead, format: .relative(presentation: .named))
+                    + Text(" · \(status?.copies ?? 0) \(status?.copies == 1 ? "copy" : "copies")"))
+                    .foregroundStyle(.secondary)
+                    .help("Copies in your main calendar from today to the end of the days synced ahead")
+            } else {
+                Circle().fill(.secondary).frame(width: 6, height: 6)
+                Text("Not read yet").foregroundStyle(.secondary)
+            }
+        }
+        .font(.callout)
+    }
+
     /// "Sainsbury's – Outlook on the web": the name given when it was added, then the kind of
     /// calendar. "N/A" for calendars added before names were asked for.
     private var outlookTitle: String {
@@ -359,7 +528,7 @@ private struct TwoWaySyncTab: View {
             if settings.twoWaySync {
                 if settings.sources.isEmpty {
                     Section {
-                        Text("Add a secondary calendar in the Secondary Calendars tab first.")
+                        Text("Add a secondary calendar in Secondary Calendars first.")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -721,7 +890,7 @@ private struct AboutTab: View {
 
 // MARK: - Updates
 
-/// A warning row shown in the General tab while a newer version is published.
+/// A warning row shown in General while a newer version is published.
 private struct UpdateBanner: View {
     @EnvironmentObject private var updates: UpdateChecker
     @State private var showingInstructions = false
@@ -742,7 +911,7 @@ private struct UpdateBanner: View {
     }
 }
 
-/// The update line in the About tab: the warning when a newer version is out, otherwise a
+/// The update line in About: the warning when a newer version is out, otherwise a
 /// manual check.
 private struct UpdateStatus: View {
     @EnvironmentObject private var updates: UpdateChecker
