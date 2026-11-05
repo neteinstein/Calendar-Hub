@@ -122,7 +122,8 @@ final class EventAlertController: ObservableObject {
         // Panels hide while their app isn't active by default, and this one must show over
         // whatever app is.
         panel.hidesOnDeactivate = false
-        panel.ignoresKeysUntil = Date().addingTimeInterval(1.5)
+        panel.ignoresInputUntil = Date().addingTimeInterval(1.5)
+        panel.ignored = { [weak self] in self?.dismiss() }
         panel.contentView = NSHostingView(rootView: EventAlertView(
             event: event,
             origin: EventOrigin.of(event, settings: settings, eventKit: eventKit),
@@ -171,19 +172,40 @@ final class EventAlertController: ObservableObject {
 /// Borderless windows can't become key by default, but the alert's buttons need the keyboard
 /// (Return joins, Escape ignores).
 private final class AlertPanel: NSPanel {
-    /// Return or Escape typed into another app just as the alert appears would otherwise
-    /// dismiss it before it was seen.
-    var ignoresKeysUntil = Date.distantPast
+    /// A key or click meant for another app just as the alert appears would otherwise dismiss
+    /// it before it was seen.
+    var ignoresInputUntil = Date.distantPast
+    /// A key or click the buttons don't take, which ignores the alert the way Escape does.
+    var ignored: () -> Void = {}
+    /// A mouse button went down on the alert, so its release is a click on it.
+    private var pressed = false
+
+    private static let presses: Set<NSEvent.EventType> = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+    private static let releases: Set<NSEvent.EventType> = [.leftMouseUp, .rightMouseUp, .otherMouseUp]
 
     override var canBecomeKey: Bool { true }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        Date() < ignoresKeysUntil || super.performKeyEquivalent(with: event)
+        Date() < ignoresInputUntil || super.performKeyEquivalent(with: event)
     }
 
     override func sendEvent(_ event: NSEvent) {
-        if [.keyDown, .keyUp].contains(event.type), Date() < ignoresKeysUntil { return }
+        let isInput = [.keyDown, .keyUp].contains(event.type) || Self.presses.contains(event.type)
+            || Self.releases.contains(event.type)
+        if isInput, Date() < ignoresInputUntil { return }
+        if Self.presses.contains(event.type) { pressed = true }
         super.sendEvent(event)
+        // Every button closes the alert, so a click it's still up after wasn't on one.
+        if Self.releases.contains(event.type), pressed {
+            pressed = false
+            if isVisible { ignored() }
+        }
+    }
+
+    /// Reached by the keys nothing in the alert took. Return and Escape get here too, and
+    /// are tried as the buttons' shortcuts, the way the window would.
+    override func keyDown(with event: NSEvent) {
+        if !performKeyEquivalent(with: event) { ignored() }
     }
 }
 

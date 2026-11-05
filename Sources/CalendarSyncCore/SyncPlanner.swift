@@ -69,12 +69,16 @@ public enum SyncPlanner {
     ///   - source: the secondary calendar to write into.
     ///   - mainEvents: the main calendar's events for the sync window.
     ///   - existing: the Busy events currently in the secondary calendar.
+    ///   - clearingAlerts: whether Busy events that have alerts are rewritten, which takes the
+    ///     alerts off. Done once, for Busy events saved by older versions: a calendar that adds
+    ///     its default alerts back would otherwise have them rewritten on every sync.
     ///   - calendar: whose days all-day events are compared by.
     public static func planBusy(
         for source: SourceConfig,
         mainEvents: SourceFetchResult,
         existing: [ExistingCopy],
         options: SyncOptions,
+        clearingAlerts: Bool = false,
         calendar: Calendar = .current
     ) -> SyncPlan {
         let events: [SourceEvent]
@@ -106,7 +110,7 @@ public enum SyncPlanner {
                 continue
             }
             let spec = desired.remove(at: index)
-            if needsBusyUpdate(busy, to: spec) {
+            if needsBusyUpdate(busy, to: spec) || (clearingAlerts && busy.hasAlerts) {
                 actions.append(.update(eventID: busy.eventID, spec))
             } else {
                 unchanged += 1

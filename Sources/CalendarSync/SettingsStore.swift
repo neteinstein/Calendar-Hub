@@ -29,6 +29,11 @@ final class SettingsStore: ObservableObject {
     var busyCalendarIDs: Set<String> {
         didSet { if busyCalendarIDs != oldValue { defaults.set(busyCalendarIDs.sorted(), forKey: "busyCalendarIDs") } }
     }
+    /// Not a setting: whether the alerts on Busy events saved by older versions were taken off.
+    /// Done once, so a calendar that adds its default alerts back isn't rewritten on every sync.
+    var busyAlertsCleared: Bool {
+        didSet { if busyAlertsCleared != oldValue { defaults.set(busyAlertsCleared, forKey: "busyAlertsCleared") } }
+    }
 
     private let defaults: UserDefaults
 
@@ -48,6 +53,7 @@ final class SettingsStore: ObservableObject {
         twoWaySync = defaults.object(forKey: "twoWaySync") as? Bool ?? sources.contains(where: \.showBusyInSecondary)
         twoWaySyncOutlookWeb = defaults.bool(forKey: "twoWaySyncOutlookWeb")
         busyCalendarIDs = Set(defaults.stringArray(forKey: "busyCalendarIDs") ?? [])
+        busyAlertsCleared = defaults.bool(forKey: "busyAlertsCleared")
     }
 
     /// How an Outlook on the web calendar is kept in `busyCalendarIDs`.

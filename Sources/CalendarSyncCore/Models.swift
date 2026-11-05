@@ -321,9 +321,12 @@ public struct ExistingCopy: Hashable, Sendable {
     public var url: URL?
     public var notes: String
     public var location: String?
+    /// Whether it has alerts. Busy events are saved without any, but a calendar may have added
+    /// its default alerts to ones saved by older versions.
+    public var hasAlerts: Bool
 
     public init(eventID: String, marker: CopyMarker?, title: String, start: Date, end: Date,
-                isAllDay: Bool, url: URL?, notes: String, location: String? = nil) {
+                isAllDay: Bool, url: URL?, notes: String, location: String? = nil, hasAlerts: Bool = false) {
         self.eventID = eventID
         self.marker = marker
         self.title = title
@@ -333,6 +336,7 @@ public struct ExistingCopy: Hashable, Sendable {
         self.url = url
         self.notes = notes
         self.location = location
+        self.hasAlerts = hasAlerts
     }
 }
 

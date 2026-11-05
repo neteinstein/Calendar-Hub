@@ -156,6 +156,25 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertTrue(plan.isEmpty)
     }
 
+    func testAlertsAreClearedOnlyWhenAsked() {
+        let alerting = ExistingCopy(eventID: "e", marker: nil, title: "Busy", start: base + 3600, end: base + 2 * 3600,
+                                    isAllDay: false, url: nil, notes: "Busy", hasAlerts: true)
+        let main: SourceFetchResult = .success([event("m1", "A", at: 1)])
+        // Left alone on a normal sync, so a calendar that adds its alerts back isn't rewritten every time.
+        XCTAssertTrue(SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [alerting], options: SyncOptions()).isEmpty)
+
+        let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [alerting], options: SyncOptions(),
+                                        clearingAlerts: true)
+        XCTAssertEqual(plan.actions.count, 1)
+        guard case .update(let id, _) = plan.actions[0] else { return XCTFail() }
+        XCTAssertEqual(id, "e")
+
+        var quiet = alerting
+        quiet.hasAlerts = false
+        XCTAssertTrue(SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [quiet], options: SyncOptions(),
+                                           clearingAlerts: true).isEmpty)
+    }
+
     func testSecondRunIsNoOpAndChangesFollow() {
         let main = [event("m1", "A", at: 1), event("m2", "B", at: 3)]
         let first = SyncPlanner.planBusy(for: secondaryA, mainEvents: .success(main), existing: [], options: SyncOptions())

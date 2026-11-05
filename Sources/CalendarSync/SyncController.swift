@@ -252,7 +252,8 @@ final class SyncController: ObservableObject {
                     for: source,
                     mainEvents: eventKit.sourceEvents(calendarID: targetID, from: start, to: end),
                     existing: existingBusy,
-                    options: settings.options)
+                    options: settings.options,
+                    clearingAlerts: !settings.busyAlertsCleared)
                 : SyncPlanner.planBusyRemoval(
                     existing: existingBusy, addedHere: settings.busyCalendarIDs.contains(calendarID))
             problems += busy.failedSources.values.map { "\(calendar.title) (Busy): \($0)" }
@@ -273,6 +274,8 @@ final class SyncController: ObservableObject {
                 busyPlans.append(BusyPreview(id: source.id, calendarName: calendar.title, plan: busy))
             }
         }
+        // Busy events are saved without alerts from now on, so older ones need clearing only once.
+        if apply { settings.busyAlertsCleared = true }
 
         // Outlook on the web calendars, when that's turned on too. Only the ones read just now:
         // their Busy events are found while reading, and written through the page that read them.
