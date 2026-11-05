@@ -49,8 +49,8 @@ struct MenuView: View {
         // window background, nearly opaque, keeps it readable while still hinting at the desktop.
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.92).ignoresSafeArea())
         .background(WindowTopAnchor())
-        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: controller.problems)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: controller.isSyncing)
+        // No animation on changes that resize the menu (problems coming and going, the Up next
+        // card): the window must not resize inside one (see `WindowTopAnchor`).
         .onAppear(perform: reloadToday)
         .onChange(of: controller.lastSync) { _, _ in reloadToday() }
         .onChange(of: settings.targetCalendarID) { _, _ in reloadToday() }
@@ -454,6 +454,7 @@ private struct WebCalendarChip: View {
         }
         .buttonStyle(PressableStyle())
         .onHover { hovering = $0 }
+        .pointingHandCursor()
         .help(needsAttention ? "Open the Outlook window for \(name) to sign in again" : "Open the Outlook window for \(name)")
     }
 }

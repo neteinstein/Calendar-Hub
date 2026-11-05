@@ -35,6 +35,16 @@ struct IconButton: View {
     }
 }
 
+extension View {
+    /// Shows the pointing hand while the pointer is over the view, for buttons drawn as chips
+    /// and capsules rather than as system buttons.
+    func pointingHandCursor() -> some View {
+        onHover { inside in
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+    }
+}
+
 /// Shrinks a little while pressed.
 struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -76,11 +86,40 @@ struct JoinButton: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
+        .pointingHandCursor()
         .help(MeetingLink.serviceName(of: url).map { "Join on \($0)" } ?? "Join the call")
     }
 }
 
-/// Picks one of a few views, with a highlight that slides to the picked one.
+/// Join for a meeting that's further away: a gray capsule shown while the pointer is over its
+/// row, darker under the pointer, so it reads as a button before it's clicked.
+struct QuietJoinButton: View {
+    let url: URL
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            Label("Join", systemImage: "video.fill")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(hovering ? .primary : .secondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3.5)
+                .background(Color.primary.opacity(hovering ? 0.16 : 0.09), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .onHover { hovering = $0 }
+        .pointingHandCursor()
+        .help(MeetingLink.serviceName(of: url).map { "Join on \($0)" } ?? "Join the call")
+    }
+}
+
+/// Picks one of a few views, with a highlight that slides to the picked one. Only the highlight
+/// animates: the views it switches between have different heights, and the menu window
+/// mustn't resize inside an animation (see `WindowTopAnchor`).
 struct SlidingSegments<Value: Hashable>: View {
     let options: [(value: Value, title: String)]
     @Binding var selection: Value
@@ -92,7 +131,7 @@ struct SlidingSegments<Value: Hashable>: View {
             ForEach(options, id: \.value) { option in
                 let isSelected = option.value == selection
                 Button {
-                    withAnimation(.snappy(duration: 0.3)) { selection = option.value }
+                    selection = option.value
                 } label: {
                     Text(option.title)
                         .font(.system(size: 12, weight: .medium))
@@ -115,6 +154,7 @@ struct SlidingSegments<Value: Hashable>: View {
         }
         .padding(2)
         .background(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06), in: RoundedRectangle(cornerRadius: 8))
+        .animation(.snappy(duration: 0.3), value: selection)
     }
 }
 
