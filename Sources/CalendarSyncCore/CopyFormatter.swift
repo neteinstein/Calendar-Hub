@@ -44,21 +44,20 @@ public enum CopyFormatter {
     }
 
     /// A main-calendar event shown in a secondary calendar: the time and "Busy" (or "Out of
-    /// office"), nothing else about the event. The description says "Busy" and carries a
-    /// marker, so the app recognises its own Busy events for sure and never takes an event the
-    /// user made for one, and so anyone reading the secondary calendar can see what wrote
-    /// them. The marker's key is made from the times only, nothing from the original event.
+    /// office"), nothing else about the event. The description says "Busy" and carries the
+    /// calendar's token (`busyToken`), so the app recognises its own Busy events for sure and
+    /// never takes an event the user made for one. The token is an opaque code: nothing in a
+    /// Busy event names the app or the event it stands for.
     public static func busySpec(for event: SourceEvent, source: SourceConfig) -> CopySpec {
-        let marker = busyMarker(sourceID: source.id, start: event.start, end: event.end, isAllDay: event.isAllDay)
-        return CopySpec(
-            marker: marker,
+        CopySpec(
+            marker: busyMarker(sourceID: source.id),
             title: source.busyStyle.title,
             start: event.start,
             end: event.end,
             isAllDay: event.isAllDay,
             timeZone: event.isAllDay ? nil : event.timeZone,
             url: nil,
-            notes: busyNotes(marker: marker),
+            notes: busyNotes(sourceID: source.id),
             isOutOfOffice: source.busyStyle == .outOfOffice
         )
     }
@@ -66,27 +65,53 @@ public enum CopyFormatter {
     /// The first line of every Busy event's description.
     public static let busyNotes = "Busy"
 
-    /// A Busy event's whole description: "Busy", then its marker.
-    public static func busyNotes(marker: CopyMarker) -> String {
-        busyNotes + "\n\n" + marker.encoded
+    /// A Busy event's whole description: "Busy", then the calendar's token.
+    public static func busyNotes(sourceID: UUID) -> String {
+        busyNotes + "\n\n" + busyToken(sourceID: sourceID)
     }
 
-    /// The marker of a Busy event, keyed by its times: a Busy event stands for whatever the
-    /// main calendar has at that time, not for one event in it.
-    static func busyMarker(sourceID: UUID, start: Date, end: Date, isAllDay: Bool) -> CopyMarker {
-        let key = "\(start.timeIntervalSince1970)|\(end.timeIntervalSince1970)|\(isAllDay)"
-        return CopyMarker(sourceID: sourceID, key: busyKeyPrefix + CopyMarker.hashKey(key, sourceID: sourceID))
+    /// The code every Busy event in the calendar of `sourceID` carries: a hash of the source
+    /// id, the same for the whole calendar, so it tells the app's Busy events from any other
+    /// event titled Busy without saying what made them.
+    public static func busyToken(sourceID: UUID) -> String {
+        CopyMarker.hashKey("busy", sourceID: sourceID)
     }
 
-    /// Whether an event in a secondary calendar is a Busy event: carrying a Busy marker, or,
-    /// as versions 2.0.0 to 2.0.5 made them, titled like one with "Busy" as its whole
-    /// description.
-    public static func isBusyEvent(title: String?, notes: String?) -> Bool {
-        if let marker = CopyMarker.find(in: notes) { return marker.key.hasPrefix(busyKeyPrefix) }
+    /// How a Busy event carrying the token is known in a plan: a marker in the form the
+    /// Busy events of 1.x had. It is never written to the event; `busyNotes(sourceID:)` is.
+    public static func busyMarker(sourceID: UUID) -> CopyMarker {
+        CopyMarker(sourceID: sourceID, key: busyKeyPrefix + busyToken(sourceID: sourceID))
+    }
+
+    /// Whether `spec` is a Busy event rather than a copy.
+    public static func isBusy(_ spec: CopySpec) -> Bool {
+        spec.marker?.key.hasPrefix(busyKeyPrefix) ?? true
+    }
+
+    /// What a Busy event in the calendar of `sourceID` was made by.
+    public enum BusyMatch: Equatable {
+        /// Carries the calendar's token (2.0.6 on) or a Busy marker (1.x): the app's for sure.
+        case tagged(CopyMarker)
+        /// As versions 2.0.0 to 2.0.5 made them, with "Busy" as the whole description: the
+        /// app's, or an event that happens to look just like one.
+        case untagged
+    }
+
+    /// Whether an event in the calendar of `sourceID` is a Busy event, and how surely.
+    public static func busyMatch(title: String?, notes: String?, sourceID: UUID) -> BusyMatch? {
+        if let marker = CopyMarker.find(in: notes) {
+            return marker.key.hasPrefix(busyKeyPrefix) ? .tagged(marker) : nil
+        }
         let title = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        // Calendar servers can hand the description back as HTML.
-        return BusyStyle.allCases.contains { $0.title == title }
-            && HTMLText.plainText(from: notes ?? "") == busyNotes
+        guard BusyStyle.allCases.contains(where: { $0.title == title }) else { return nil }
+        // Calendar servers can hand the description back as HTML, with line breaks of their own.
+        let words = HTMLText.words(of: HTMLText.plainText(from: notes ?? ""))
+        if words == [busyNotes[...], busyToken(sourceID: sourceID)[...]] { return .tagged(busyMarker(sourceID: sourceID)) }
+        return words == [busyNotes[...]] ? .untagged : nil
+    }
+
+    public static func isBusyEvent(title: String?, notes: String?, sourceID: UUID) -> Bool {
+        busyMatch(title: title, notes: notes, sourceID: sourceID) != nil
     }
 
     /// Starts the marker key of every Busy event.

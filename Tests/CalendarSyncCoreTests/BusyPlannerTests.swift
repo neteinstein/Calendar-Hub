@@ -33,23 +33,26 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(spec.title, "Busy")
         XCTAssertNil(spec.url)
         XCTAssertNil(spec.location)
-        let marker = try XCTUnwrap(spec.marker, "a marker, so the app knows its own Busy events for sure")
-        XCTAssertEqual(spec.notes, "Busy\n\n" + marker.encoded, "the description says Busy and names the app")
-        XCTAssertEqual(CopyMarker.find(in: spec.notes), marker)
-        XCTAssertTrue(marker.key.hasPrefix("busy-"))
+        let token = CopyFormatter.busyToken(sourceID: secondaryA.id)
+        XCTAssertEqual(spec.notes, "Busy\n\n" + token, "the description says Busy and carries the calendar's code")
+        XCTAssertEqual(token.count, 32)
+        XCTAssertTrue(token.allSatisfy { "0123456789abcdef".contains($0) }, "an opaque code")
+        XCTAssertNil(CopyMarker.find(in: spec.notes), "no marker written")
+        XCTAssertFalse(spec.notes.localizedCaseInsensitiveContains("calsync"), "nothing names the app")
+        XCTAssertFalse(spec.notes.localizedCaseInsensitiveContains("Calendar Sync"))
         XCTAssertFalse(spec.notes.contains("Salary"), "nothing of the meeting")
         XCTAssertFalse(spec.notes.contains("m1"), "not even its key")
+        XCTAssertEqual(spec.marker, CopyFormatter.busyMarker(sourceID: secondaryA.id), "known in the plan as a Busy event")
+        XCTAssertTrue(CopyFormatter.isBusy(spec))
         XCTAssertEqual(spec.start, base + 2 * 3600)
     }
 
-    func testBusyMarkerDependsOnTimesOnly() {
-        let plan = { (events: [SourceEvent]) in
-            SyncPlanner.planBusy(for: self.secondaryA, mainEvents: .success(events), existing: [], options: SyncOptions())
-        }
-        let a = plan([event("m1", "A", at: 2)]), b = plan([event("m2", "B", at: 2)]), c = plan([event("m1", "A", at: 3)])
-        let markers = [a, b, c].map { p -> CopyMarker? in if case .create(let s) = p.actions[0] { s.marker } else { nil } }
-        XCTAssertEqual(markers[0], markers[1], "a Busy event stands for the time, whatever the meeting")
-        XCTAssertNotEqual(markers[0], markers[2])
+    func testTokenIsPerCalendar() {
+        XCTAssertEqual(CopyFormatter.busyToken(sourceID: secondaryA.id), CopyFormatter.busyToken(sourceID: secondaryA.id))
+        XCTAssertNotEqual(CopyFormatter.busyToken(sourceID: secondaryA.id), CopyFormatter.busyToken(sourceID: secondaryB.id))
+        // Another calendar's token isn't this calendar's Busy event.
+        let other = CopyFormatter.busyNotes(sourceID: secondaryB.id)
+        XCTAssertNil(CopyFormatter.busyMatch(title: "Busy", notes: other, sourceID: secondaryA.id))
     }
 
     func testOutOfOfficeStyleCarriesNoDetailsEither() {
@@ -62,8 +65,8 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(spec.title, "Out of office")
         XCTAssertTrue(spec.isOutOfOffice)
         XCTAssertNil(spec.url)
-        XCTAssertTrue(spec.notes.hasPrefix("Busy\n\n"))
-        XCTAssertNotNil(spec.marker)
+        XCTAssertEqual(spec.notes, CopyFormatter.busyNotes(sourceID: secondaryA.id))
+        XCTAssertTrue(CopyFormatter.isBusy(spec))
     }
 
     func testAllDayEventsStayAllDayAndTimedOnesKeepTheirZone() {
@@ -118,28 +121,35 @@ final class BusyPlannerTests: XCTestCase {
     }
 
     func testRecognisesBusyEvents() {
+        let id = secondaryA.id
+        func match(_ title: String, _ notes: String?) -> CopyFormatter.BusyMatch? {
+            CopyFormatter.busyMatch(title: title, notes: notes, sourceID: id)
+        }
         // As they're made now, also when a server hands the description back as HTML.
-        let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: .success([event("m1", "A", at: 1)]),
-                                        existing: [], options: SyncOptions())
-        guard case .create(let spec) = plan.actions[0] else { return XCTFail() }
-        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: spec.notes))
-        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Out of office", notes: spec.notes))
-        XCTAssertTrue(CopyFormatter.isBusyEvent(
-            title: "Busy", notes: "<div>Busy</div><div><br></div><div>\(spec.marker!.encoded)</div>"))
+        let notes = CopyFormatter.busyNotes(sourceID: id), tagged = CopyFormatter.BusyMatch.tagged(CopyFormatter.busyMarker(sourceID: id))
+        let token = CopyFormatter.busyToken(sourceID: id)
+        XCTAssertEqual(match("Busy", notes), tagged)
+        XCTAssertEqual(match("Out of office", notes), tagged)
+        XCTAssertEqual(match("Busy", "<div>Busy</div><div><br></div><div>\(token)</div>"), tagged)
+        XCTAssertEqual(match("Busy", "<p>Busy</p>\r\n<p>&nbsp;</p>\r\n<p>\(token)</p>"), tagged)
         // As versions 2.0.0 to 2.0.5 made them: "Busy" and nothing else.
-        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: "Busy"))
-        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Out of office", notes: "Busy\n"))
-        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: "<html><body><p>Busy</p></body></html>"))
-        // Made by an older version, with a hidden marker.
-        let legacy = CopyMarker(sourceID: secondaryA.id, key: "busy-1a2b").encoded
-        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: legacy))
+        XCTAssertEqual(match("Busy", "Busy"), .untagged)
+        XCTAssertEqual(match("Out of office", "Busy\n"), .untagged)
+        XCTAssertEqual(match("Busy", "<html><body><p>Busy</p></body></html>"), .untagged)
+        // Made by 1.x, with a hidden marker.
+        let legacy = CopyMarker(sourceID: id, key: "busy-1a2b")
+        XCTAssertEqual(match("Busy", legacy.encoded), .tagged(legacy))
         // The secondary calendar's own events.
-        XCTAssertFalse(CopyFormatter.isBusyEvent(title: "Busy", notes: nil))
-        XCTAssertFalse(CopyFormatter.isBusyEvent(title: "Busy", notes: "Busy with the release"))
-        XCTAssertFalse(CopyFormatter.isBusyEvent(title: "Focus time", notes: "Busy"))
+        XCTAssertNil(match("Busy", nil))
+        XCTAssertNil(match("Busy", "Busy with the release"))
+        XCTAssertNil(match("Busy", "Busy " + token + " x"))
+        XCTAssertNil(match("Focus time", "Busy"))
+        XCTAssertNil(match("Focus time", notes))
         // A copy in the main calendar isn't a Busy event.
-        let copy = "Copied by Calendar Sync.\n\n" + CopyMarker(sourceID: secondaryA.id, key: "m1").encoded
-        XCTAssertFalse(CopyFormatter.isBusyEvent(title: "Busy", notes: copy))
+        let copy = "Copied by Calendar Sync.\n\n" + CopyMarker(sourceID: id, key: "m1").encoded
+        XCTAssertNil(match("Busy", copy))
+        XCTAssertFalse(CopyFormatter.isBusyEvent(title: "Busy", notes: copy, sourceID: id))
+        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: notes, sourceID: id))
     }
 
     func testOneBusyEventPerTime() {
@@ -156,7 +166,7 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(next.unchangedCount, 2)
     }
 
-    func testBusyEventsFromOlderVersionsGetTheMarkerOnce() {
+    func testBusyEventsFromOlderVersionsGetTheTokenOnce() {
         let main: SourceFetchResult = .success([event("m1", "A", at: 1)])
         // 1.x marked them with a key of their own; 2.0.0 to 2.0.5 wrote "Busy" and nothing else.
         let marker = CopyMarker(sourceID: secondaryA.id, key: "busy-1a2b")
@@ -169,7 +179,7 @@ final class BusyPlannerTests: XCTestCase {
             XCTAssertEqual(plan.actions.count, 1)
             guard case .update(let id, let spec) = plan.actions[0] else { return XCTFail() }
             XCTAssertEqual(id, legacy.eventID)
-            XCTAssertEqual(spec.notes, CopyFormatter.busyNotes(marker: spec.marker!))
+            XCTAssertEqual(spec.notes, CopyFormatter.busyNotes(sourceID: secondaryA.id))
             // Once rewritten, it's left alone.
             let rewritten = ExistingCopy(eventID: id, marker: spec.marker, title: spec.title, start: spec.start,
                                          end: spec.end, isAllDay: false, url: nil, notes: spec.notes)
@@ -182,10 +192,11 @@ final class BusyPlannerTests: XCTestCase {
         let first = SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [], options: SyncOptions())
         guard case .create(let spec) = first.actions[0] else { return XCTFail() }
         // Servers store the description as HTML, each with its own idea of a blank line.
-        for html in ["<p>Busy</p><p>\(spec.marker!.encoded)</p>",
-                     "<div>Busy</div><div><br></div><div>\(spec.marker!.encoded)</div>",
-                     "<html><body>Busy<br><br>\(spec.marker!.encoded)<br></body></html>",
-                     "Busy\r\n\r\n\r\n\(spec.marker!.encoded)\r\n"] {
+        let token = CopyFormatter.busyToken(sourceID: secondaryA.id)
+        for html in ["<p>Busy</p><p>\(token)</p>",
+                     "<div>Busy</div><div><br></div><div>\(token)</div>",
+                     "<html><body>Busy<br><br>\(token)<br></body></html>",
+                     "Busy\r\n\r\n\r\n\(token)\r\n"] {
             let stored = ExistingCopy(eventID: "e", marker: spec.marker, title: "Busy", start: base + 3600, end: base + 2 * 3600,
                                       isAllDay: false, url: nil, notes: html)
             XCTAssertTrue(SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [stored], options: SyncOptions()).isEmpty, html)

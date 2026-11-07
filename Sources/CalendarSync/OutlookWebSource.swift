@@ -281,7 +281,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             busyProblem = "Outlook's calendar data couldn't be read in full, so Busy events weren't changed."
         } else if !itemIDs.isEmpty && details.isEmpty {
             busyProblem = "Outlook didn't let the app load meetings in full, so Busy events weren't changed."
-        } else if let found = OutlookWebParser.busyEvents(fromPayloads: captured, details: details) {
+        } else if let found = OutlookWebParser.busyEvents(fromPayloads: captured, details: details, sourceID: sourceID) {
             busyEvents = found.filter { $0.end > start && $0.start < end }
             busyProblem = nil
         } else {

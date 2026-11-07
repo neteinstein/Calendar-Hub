@@ -164,7 +164,7 @@ Copying a meeting from one calendar into another puts data from one organization
 | The meeting's name | Same | Unless **Hide meeting names** is on for that calendar. It's on from the start for Outlook on the web calendars. |
 | The join link (Teams, Zoom, Google Meet, Webex) | Same | Unless **Copy the meeting link** is off for that calendar. A Teams link names the organization and the organizer, and a Zoom link can carry the passcode. |
 | The meeting's location and description | Same | Only with **Copy location and description** on, and never while names are hidden. |
-| A **Busy** block with the time, a description that says "Busy" and a tag naming Calendar Sync | Each secondary calendar you chose | Only with **Two way sync** on. No title, link, location, attendees or alerts. |
+| A **Busy** block with the time and a description that says "Busy" plus an opaque code | Each secondary calendar you chose | Only with **Two way sync** on. No title, link, location, attendees or alerts, and nothing that names the app. |
 | A task's title and notes, and the name and start of the meeting it's for | Your Reminders account (iCloud, say) | Only for tasks you make in the Tasks view. |
 | Your Outlook on the web sign-in | The app's own WebKit folder in your Library, on this Mac | Only for Outlook on the web calendars. See [Outlook on the web](docs/outlook-on-the-web.md). |
 | One request for the newest version number | GitHub, over HTTPS | Once a day, and when you check in Settings › About. GitHub sees your IP address, nothing else. |
