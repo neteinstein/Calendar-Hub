@@ -41,8 +41,9 @@ public enum OutlookWebParser {
         return ids
     }
 
-    /// The Busy events two way sync wrote to the calendar (see `CopyFormatter.isBusyEvent`),
-    /// with Outlook's item id as their `eventID`, so they can be changed or deleted.
+    /// The Busy events two way sync wrote to the calendar of `sourceID` (see
+    /// `CopyFormatter.busyMatch`), with Outlook's item id as their `eventID`, so they can be
+    /// changed or deleted.
     ///
     /// Busy events are told apart from the calendar's own events by their description, which
     /// the week view leaves out, so this needs the meetings loaded in full (`details`). Returns
@@ -51,7 +52,7 @@ public enum OutlookWebParser {
     ///
     /// - Parameter timeZone: this Mac's time zone, whose days all-day events are placed on.
     public static func busyEvents(fromPayloads payloads: [Data], details detailPayloads: [Data] = [],
-                                  timeZone: TimeZone = .current) -> [ExistingCopy]? {
+                                  sourceID: UUID, timeZone: TimeZone = .current) -> [ExistingCopy]? {
         let details = self.details(fromPayloads: detailPayloads)
         var seen: Set<String> = []
         var result: [ExistingCopy] = []
@@ -71,9 +72,10 @@ public enum OutlookWebParser {
                 unsure = true
                 return
             }
-            guard CopyFormatter.isBusyEvent(title: title, notes: notes) else { return }
+            guard let match = CopyFormatter.busyMatch(title: title, notes: notes, sourceID: sourceID) else { return }
+            let marker: CopyMarker? = if case .tagged(let marker) = match { marker } else { nil }
             result.append(ExistingCopy(
-                eventID: id, marker: CopyMarker.find(in: notes), title: title, start: event.start, end: event.end,
+                eventID: id, marker: marker, title: title, start: event.start, end: event.end,
                 isAllDay: event.isAllDay, url: event.meetingURL, notes: notes, location: event.location))
         }
         return unsure ? nil : result.sorted { $0.start < $1.start }
