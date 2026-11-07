@@ -307,7 +307,17 @@ public struct PINProtocolOne {
 
     /// The PIN as the key checks it: the first 16 bytes of its SHA-256, encrypted.
     public func pinHashEnc(pin: String) throws -> Data {
-        try encrypt(Data(SHA256.hash(data: Data(pin.utf8)).prefix(16)))
+        try pinHashEnc(pinHash: Self.pinHash(pin))
+    }
+
+    /// `pinHashEnc(pin:)` from the hash alone, so the PIN itself needn't be kept around.
+    public func pinHashEnc(pinHash: Data) throws -> Data {
+        try encrypt(pinHash)
+    }
+
+    /// The first 16 bytes of the PIN's SHA-256: all the key ever needs of it.
+    public static func pinHash(_ pin: String) -> Data {
+        Data(SHA256.hash(data: Data(pin.utf8)).prefix(16))
     }
 
     public func encrypt(_ data: Data) throws -> Data { try Self.aesCBC(CCOperation(kCCEncrypt), key: sharedSecret, data: data) }

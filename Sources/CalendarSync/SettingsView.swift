@@ -432,8 +432,10 @@ private struct SourcesTab: View {
                 message: "What do you call this calendar? It's also the prefix for its copies, like “[Work] Standup”, which you can change later.",
                 confirm: "Continue"
             ) { name in
+                // Names hidden from the start: a browser-only work calendar is the one whose
+                // organization is least likely to expect its meeting names on another server.
                 let source = SourceConfig(
-                    kind: .outlookWeb, calendarName: name, name: name,
+                    kind: .outlookWeb, calendarName: name, name: name, hideMeetingName: true,
                     showBusyInSecondary: settings.twoWaySync && settings.twoWaySyncOutlookWeb)
                 settings.sources.append(source)
                 controller.showOutlookWindow(for: source)
@@ -541,6 +543,7 @@ private struct SourceRow: View {
                     .onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
             }
             Toggle("Hide meeting names (copy as “\(copyTitle("Busy"))”)", isOn: $source.hideMeetingName)
+            Toggle("Copy the meeting link (Join from the main calendar)", isOn: $source.copyMeetingLink)
             Toggle("Copy location and description", isOn: $source.copyDetails)
                 .disabled(source.hideMeetingName)
             Toggle("Copy meetings I haven't accepted", isOn: $source.copyUnaccepted)
@@ -641,7 +644,10 @@ private struct SourceRow: View {
     }
 
     private var footer: String {
-        var text = "Copies are titled “\(copyTitle(source.hideMeetingName ? "Busy" : "Meeting name"))” and include the meeting link when there is one."
+        var text = "Copies are titled “\(copyTitle(source.hideMeetingName ? "Busy" : "Meeting name"))”"
+        text += source.copyMeetingLink
+            ? " and include the meeting link when there is one."
+            : " without the meeting link, so Join isn't offered for them. A Teams link names the organization and the organizer, and a Zoom link can carry the passcode."
         if source.copyDetails {
             text += source.hideMeetingName
                 ? " Location and description aren't copied while meeting names are hidden."
@@ -673,7 +679,7 @@ private struct TwoWaySyncTab: View {
                         Task { await controller.sync() }
                     }
             } footer: {
-                Text("Your main calendar's events are also added to your secondary calendars as “Busy”, with nothing else: no title, link, location, attendees or alerts. Their description is “Busy” too, so you can tell what was added automatically. Copies of a calendar's own meetings aren't added back to it.")
+                Text("Your main calendar's events are also added to your secondary calendars as “Busy”, with nothing else: no title, link, location, attendees or alerts. Their description says “Busy” and carries a tag naming Calendar Sync, so you and anyone reading the calendar can tell what added them, and the app never mistakes an event you made for one of its own. Copies of a calendar's own meetings aren't added back to it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
