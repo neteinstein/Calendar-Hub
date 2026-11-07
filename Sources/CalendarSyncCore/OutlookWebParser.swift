@@ -73,7 +73,7 @@ public enum OutlookWebParser {
             }
             guard CopyFormatter.isBusyEvent(title: title, notes: notes) else { return }
             result.append(ExistingCopy(
-                eventID: id, marker: nil, title: title, start: event.start, end: event.end,
+                eventID: id, marker: CopyMarker.find(in: notes), title: title, start: event.start, end: event.end,
                 isAllDay: event.isAllDay, url: event.meetingURL, notes: notes, location: event.location))
         }
         return unsure ? nil : result.sorted { $0.start < $1.start }

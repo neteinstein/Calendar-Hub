@@ -134,14 +134,20 @@ public enum SyncPlanner {
         return SyncPlan(actions: actions, failedSources: [:], unchangedCount: 0)
     }
 
-    /// For a Busy event already matched by time. The description is compared as text, so one
-    /// a calendar server stored as HTML isn't rewritten on every sync, while the marker of a
-    /// Busy event made by an older version is replaced.
+    /// For a Busy event already matched by time. The description is compared word by word,
+    /// so one a calendar server stored as HTML, with its own idea of line breaks and paragraph
+    /// spacing, isn't rewritten on every sync, while a Busy event made by an older version
+    /// gets its marker (or its new one) written.
     static func needsBusyUpdate(_ busy: ExistingCopy, to spec: CopySpec) -> Bool {
         busy.title != spec.title
-            || HTMLText.plainText(from: busy.notes) != spec.notes
+            || words(of: HTMLText.plainText(from: busy.notes)) != words(of: spec.notes)
             || busy.url != nil
             || !(busy.location ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// `text` split on whitespace and line breaks.
+    static func words(of text: String) -> [Substring] {
+        text.split { $0.isWhitespace || $0.isNewline }
     }
 
     static func shouldShowBusy(_ event: SourceEvent, in source: SourceConfig, options: SyncOptions) -> Bool {
@@ -168,8 +174,11 @@ public enum SyncPlanner {
         var unchanged = 0
 
         for copy in existing.sorted(by: { $0.start < $1.start }) {
-            guard let marker = copy.marker, owners.contains(marker.sourceID) else { continue }
+            guard var marker = copy.marker, owners.contains(marker.sourceID) else { continue }
 
+            // A copy made before markers were hashed matches by its hashed key, and the
+            // rewrite that follows (its notes differ) gives it the hashed marker.
+            if desired[marker] == nil, desired[marker.hashedIfLegacy] != nil { marker = marker.hashedIfLegacy }
             guard let spec = desired[marker], !matched.contains(marker) else {
                 // Source occurrence is gone (cancelled, declined, deleted) or this is a duplicate.
                 actions.append(.delete(eventID: copy.eventID, title: copy.title, start: copy.start))

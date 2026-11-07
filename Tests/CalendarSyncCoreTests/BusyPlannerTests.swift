@@ -25,7 +25,7 @@ final class BusyPlannerTests: XCTestCase {
         }
     }
 
-    func testBusyEventsCarryNoDetails() {
+    func testBusyEventsCarryNoDetails() throws {
         let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: .success([event("m1", "Salary review with HR", at: 2)]),
                                         existing: [], options: SyncOptions())
         XCTAssertEqual(plan.creates, 1)
@@ -33,12 +33,23 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(spec.title, "Busy")
         XCTAssertNil(spec.url)
         XCTAssertNil(spec.location)
-        XCTAssertEqual(spec.notes, "Busy", "the description is just Busy")
-        XCTAssertNil(spec.marker, "no hidden marker")
-        XCTAssertNil(CopyMarker.find(in: spec.notes))
-        XCTAssertFalse(spec.notes.localizedCaseInsensitiveContains("calsync"))
-        XCTAssertFalse(spec.notes.localizedCaseInsensitiveContains("Calendar Sync"))
+        let marker = try XCTUnwrap(spec.marker, "a marker, so the app knows its own Busy events for sure")
+        XCTAssertEqual(spec.notes, "Busy\n\n" + marker.encoded, "the description says Busy and names the app")
+        XCTAssertEqual(CopyMarker.find(in: spec.notes), marker)
+        XCTAssertTrue(marker.key.hasPrefix("busy-"))
+        XCTAssertFalse(spec.notes.contains("Salary"), "nothing of the meeting")
+        XCTAssertFalse(spec.notes.contains("m1"), "not even its key")
         XCTAssertEqual(spec.start, base + 2 * 3600)
+    }
+
+    func testBusyMarkerDependsOnTimesOnly() {
+        let plan = { (events: [SourceEvent]) in
+            SyncPlanner.planBusy(for: self.secondaryA, mainEvents: .success(events), existing: [], options: SyncOptions())
+        }
+        let a = plan([event("m1", "A", at: 2)]), b = plan([event("m2", "B", at: 2)]), c = plan([event("m1", "A", at: 3)])
+        let markers = [a, b, c].map { p -> CopyMarker? in if case .create(let s) = p.actions[0] { s.marker } else { nil } }
+        XCTAssertEqual(markers[0], markers[1], "a Busy event stands for the time, whatever the meeting")
+        XCTAssertNotEqual(markers[0], markers[2])
     }
 
     func testOutOfOfficeStyleCarriesNoDetailsEither() {
@@ -51,8 +62,8 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(spec.title, "Out of office")
         XCTAssertTrue(spec.isOutOfOffice)
         XCTAssertNil(spec.url)
-        XCTAssertEqual(spec.notes, "Busy")
-        XCTAssertNil(spec.marker)
+        XCTAssertTrue(spec.notes.hasPrefix("Busy\n\n"))
+        XCTAssertNotNil(spec.marker)
     }
 
     func testAllDayEventsStayAllDayAndTimedOnesKeepTheirZone() {
@@ -107,6 +118,15 @@ final class BusyPlannerTests: XCTestCase {
     }
 
     func testRecognisesBusyEvents() {
+        // As they're made now, also when a server hands the description back as HTML.
+        let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: .success([event("m1", "A", at: 1)]),
+                                        existing: [], options: SyncOptions())
+        guard case .create(let spec) = plan.actions[0] else { return XCTFail() }
+        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: spec.notes))
+        XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Out of office", notes: spec.notes))
+        XCTAssertTrue(CopyFormatter.isBusyEvent(
+            title: "Busy", notes: "<div>Busy</div><div><br></div><div>\(spec.marker!.encoded)</div>"))
+        // As versions 2.0.0 to 2.0.5 made them: "Busy" and nothing else.
         XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: "Busy"))
         XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Out of office", notes: "Busy\n"))
         XCTAssertTrue(CopyFormatter.isBusyEvent(title: "Busy", notes: "<html><body><p>Busy</p></body></html>"))
@@ -136,30 +156,47 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(next.unchangedCount, 2)
     }
 
-    func testBusyEventsFromOlderVersionsLoseTheirMarker() {
+    func testBusyEventsFromOlderVersionsGetTheMarkerOnce() {
+        let main: SourceFetchResult = .success([event("m1", "A", at: 1)])
+        // 1.x marked them with a key of their own; 2.0.0 to 2.0.5 wrote "Busy" and nothing else.
         let marker = CopyMarker(sourceID: secondaryA.id, key: "busy-1a2b")
-        let legacy = ExistingCopy(eventID: "old", marker: marker, title: "Busy", start: base + 3600, end: base + 2 * 3600,
+        let marked = ExistingCopy(eventID: "old", marker: marker, title: "Busy", start: base + 3600, end: base + 2 * 3600,
                                   isAllDay: false, url: nil, notes: marker.encoded)
-        let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: .success([event("m1", "A", at: 1)]),
-                                        existing: [legacy], options: SyncOptions())
-        XCTAssertEqual(plan.actions.count, 1)
-        guard case .update(let id, let spec) = plan.actions[0] else { return XCTFail() }
-        XCTAssertEqual(id, "old")
-        XCTAssertEqual(spec.notes, "Busy")
+        let bare = ExistingCopy(eventID: "bare", marker: nil, title: "Busy", start: base + 3600, end: base + 2 * 3600,
+                                isAllDay: false, url: nil, notes: "<p>Busy</p>")
+        for legacy in [marked, bare] {
+            let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [legacy], options: SyncOptions())
+            XCTAssertEqual(plan.actions.count, 1)
+            guard case .update(let id, let spec) = plan.actions[0] else { return XCTFail() }
+            XCTAssertEqual(id, legacy.eventID)
+            XCTAssertEqual(spec.notes, CopyFormatter.busyNotes(marker: spec.marker!))
+            // Once rewritten, it's left alone.
+            let rewritten = ExistingCopy(eventID: id, marker: spec.marker, title: spec.title, start: spec.start,
+                                         end: spec.end, isAllDay: false, url: nil, notes: spec.notes)
+            XCTAssertTrue(SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [rewritten], options: SyncOptions()).isEmpty)
+        }
     }
 
     func testHTMLDescriptionIsNotRewrittenEverySync() {
-        let stored = ExistingCopy(eventID: "e", marker: nil, title: "Busy", start: base + 3600, end: base + 2 * 3600,
-                                  isAllDay: false, url: nil, notes: "<p>Busy</p>")
-        let plan = SyncPlanner.planBusy(for: secondaryA, mainEvents: .success([event("m1", "A", at: 1)]),
-                                        existing: [stored], options: SyncOptions())
-        XCTAssertTrue(plan.isEmpty)
+        let main: SourceFetchResult = .success([event("m1", "A", at: 1)])
+        let first = SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [], options: SyncOptions())
+        guard case .create(let spec) = first.actions[0] else { return XCTFail() }
+        // Servers store the description as HTML, each with its own idea of a blank line.
+        for html in ["<p>Busy</p><p>\(spec.marker!.encoded)</p>",
+                     "<div>Busy</div><div><br></div><div>\(spec.marker!.encoded)</div>",
+                     "<html><body>Busy<br><br>\(spec.marker!.encoded)<br></body></html>",
+                     "Busy\r\n\r\n\r\n\(spec.marker!.encoded)\r\n"] {
+            let stored = ExistingCopy(eventID: "e", marker: spec.marker, title: "Busy", start: base + 3600, end: base + 2 * 3600,
+                                      isAllDay: false, url: nil, notes: html)
+            XCTAssertTrue(SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [stored], options: SyncOptions()).isEmpty, html)
+        }
     }
 
     func testAlertsAreClearedOnlyWhenAsked() {
-        let alerting = ExistingCopy(eventID: "e", marker: nil, title: "Busy", start: base + 3600, end: base + 2 * 3600,
-                                    isAllDay: false, url: nil, notes: "Busy", hasAlerts: true)
         let main: SourceFetchResult = .success([event("m1", "A", at: 1)])
+        var alerting = copies(from: SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [], options: SyncOptions()))[0]
+        alerting.eventID = "e"
+        alerting.hasAlerts = true
         // Left alone on a normal sync, so a calendar that adds its alerts back isn't rewritten every time.
         XCTAssertTrue(SyncPlanner.planBusy(for: secondaryA, mainEvents: main, existing: [alerting], options: SyncOptions()).isEmpty)
 
@@ -211,10 +248,13 @@ final class BusyPlannerTests: XCTestCase {
         XCTAssertEqual(Set(deleted), ["busy-0", "busy-1", "legacy"])
         XCTAssertTrue(SyncPlanner.planBusyRemoval(existing: [], addedHere: true).isEmpty)
 
-        // In a calendar no Busy events were added to, look-alikes are the user's own: only the
-        // ones an older version marked are taken back.
+        // In a calendar no Busy events were added to since 2.0.0, a look-alike without a marker
+        // is the user's own: only the marked ones are taken back.
+        existing.append(ExistingCopy(eventID: "lookalike", marker: nil, title: "Busy", start: base + 7200, end: base + 3 * 3600,
+                                     isAllDay: false, url: nil, notes: "Busy"))
         let untouched = SyncPlanner.planBusyRemoval(existing: existing, addedHere: false)
-        XCTAssertEqual(untouched.actions.compactMap { if case .delete(let id, _, _) = $0 { id } else { nil } }, ["legacy"])
+        XCTAssertEqual(Set(untouched.actions.compactMap { if case .delete(let id, _, _) = $0 { id } else { nil } }),
+                       ["busy-0", "busy-1", "legacy"])
     }
 
     func testFiltersFollowOptions() {

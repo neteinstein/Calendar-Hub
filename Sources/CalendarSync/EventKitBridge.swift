@@ -83,12 +83,15 @@ final class EventKitBridge {
         )
     }
 
-    /// Copies this app made in the target calendar (recognised by the marker in their notes).
+    /// Copies this app made in the target calendar: recognised by the marker in their notes,
+    /// and by having no attendees and no organizer but the user, as the app saves them. So
+    /// an invitation from someone else can't pass for a copy, however its description reads,
+    /// and get removed by a sync.
     func existingCopies(targetID: String, from start: Date, to end: Date) -> [ExistingCopy]? {
         guard let calendar = store.calendar(withIdentifier: targetID) else { return nil }
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [calendar])
         return store.events(matching: predicate).compactMap { event in
-            guard let marker = CopyMarker.find(in: event.notes), let eventID = event.eventIdentifier,
+            guard Self.isOwn(event), let marker = CopyMarker.find(in: event.notes), let eventID = event.eventIdentifier,
                   let start = event.startDate as Date?, let end = event.endDate as Date?
             else { return nil }
             // Exchange and Google may drop the event URL. Read it the way we wrote it, so
@@ -114,9 +117,9 @@ final class EventKitBridge {
         guard let calendar = store.calendar(withIdentifier: calendarID) else { return nil }
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [calendar])
         return store.events(matching: predicate).compactMap { event in
-            // Busy events never have attendees or repeat, so a secondary-calendar meeting that only looks
-            // like one is left alone.
-            guard !event.hasAttendees, !event.hasRecurrenceRules,
+            // Busy events never have attendees, an organizer or repeat, so a secondary-calendar
+            // meeting that only looks like one is left alone.
+            guard Self.isOwn(event), !event.hasRecurrenceRules,
                   CopyFormatter.isBusyEvent(title: event.title, notes: event.notes),
                   let eventID = event.eventIdentifier,
                   let start = event.startDate as Date?, let end = event.endDate as Date?
@@ -134,6 +137,14 @@ final class EventKitBridge {
                 hasAlerts: event.hasAlarms
             )
         }
+    }
+
+    /// Whether `event` could have been saved by this app: no attendees, and no organizer other
+    /// than the user (a server can name the user as organizer of their own events).
+    static func isOwn(_ event: EKEvent) -> Bool {
+        guard !event.hasAttendees else { return false }
+        guard let organizer = event.organizer else { return true }
+        return organizer.isCurrentUser
     }
 
     /// Exchange and Google may change line endings. Read notes the way we wrote them, so
