@@ -179,19 +179,27 @@ final class SecurityKeySignIn {
         var note: String?
         while true {
             try checkCancelled()
-            guard let pin = await askPIN(note: note, on: window) else { throw CTAP2.Status.keepaliveCancel }
-            guard pin.count >= 4 else {
+            // The key only ever checks the PIN's hash, so that's all that's kept of it, and
+            // it's wiped once the key has answered. (The field's own copy is cleared as it is
+            // read; Swift strings can't be wiped, so the text typed may linger in freed memory.)
+            var pinHash: Data
+            switch await askPIN(note: note, on: window) {
+            case .cancelled: throw CTAP2.Status.keepaliveCancel
+            case .tooShort:
                 note = "The PIN has at least 4 characters."
                 continue
+            case .entered(let hash): pinHash = hash
             }
+            defer { pinHash.resetBytes(in: 0..<pinHash.count) }
             do {
+                // The closure shares the variable, so the wipe above reaches the bytes it used.
                 return try await Self.background {
                     // A fresh key agreement each time: the key changes its own after a wrong PIN.
                     guard let agreement = try key.send(CTAP2.ClientPIN.getKeyAgreement(protocol: PINProtocolOne.version))?[1] else {
                         throw CTAP2.ResponseError.missing("keyAgreement")
                     }
                     let pinProtocol = try PINProtocolOne(authenticatorKey: agreement)
-                    let pinHashEnc = try pinProtocol.pinHashEnc(pin: pin)
+                    let pinHashEnc = try pinProtocol.pinHashEnc(pinHash: pinHash)
                     let response = try key.send(scoped
                         ? CTAP2.ClientPIN.getPinUvAuthTokenUsingPin(
                             protocol: PINProtocolOne.version, keyAgreement: pinProtocol.platformKey,
@@ -261,7 +269,14 @@ final class SecurityKeySignIn {
         ["error": name, "message": message]
     }
 
-    private func askPIN(note: String?, on window: NSWindow) async -> String? {
+    private enum PINEntry {
+        case cancelled
+        case tooShort
+        /// The PIN's hash (`PINProtocolOne.pinHash`), the PIN itself being needed for nothing else.
+        case entered(Data)
+    }
+
+    private func askPIN(note: String?, on window: NSWindow) async -> PINEntry {
         let alert = NSAlert()
         alert.messageText = "Enter your security key's PIN"
         alert.informativeText = note ?? "Microsoft asks for your security key to sign in."
@@ -274,7 +289,10 @@ final class SecurityKeySignIn {
         let response = await withCheckedContinuation { continuation in
             alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }
         }
-        return response == .alertFirstButtonReturn ? field.stringValue : nil
+        let pin = field.stringValue
+        field.stringValue = ""
+        guard response == .alertFirstButtonReturn else { return .cancelled }
+        return pin.count >= 4 ? .entered(PINProtocolOne.pinHash(pin)) : .tooShort
     }
 
     private static func show(_ message: String, on window: NSWindow) {

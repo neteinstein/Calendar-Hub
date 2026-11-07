@@ -170,7 +170,24 @@ final class OutlookWebSource: NSObject, ObservableObject {
         }
         isFetching = true
         defer { isFetching = false }
+        let result = await read(from: start, to: end)
+        await clearCaches()
+        return result
+    }
 
+    /// Takes the web view's HTTP caches off the disk: what Outlook downloaded on this read,
+    /// the meetings included, would otherwise stay in the app's WebKit folder in the user's
+    /// Library, which any app running as the user can read. The sign-in (cookies and site
+    /// data) stays, so the next read needs no signing in.
+    private func clearCaches() async {
+        let types: Set<String> = [
+            WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache, WKWebsiteDataTypeOfflineWebApplicationCache,
+            WKWebsiteDataTypeFetchCache,
+        ]
+        await webView.configuration.websiteDataStore.removeData(ofTypes: types, modifiedSince: .distantPast)
+    }
+
+    private func read(from start: Date, to end: Date) async -> SourceFetchResult {
         captured = []
         var onScreen: [SourceEvent] = []
         var calendar = Calendar.current
@@ -230,7 +247,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
             }
             if !loaded {
                 let weekName = weekFrom.formatted(.dateTime.day().month())
-                NSLog("Calendar Sync: Outlook week of \(weekName) not read: \(captured.count - before) responses, page \(webView.url?.absoluteString ?? "none")")
+                // The page's host only: its path and query are the account's own business.
+                NSLog("Calendar Sync: Outlook week of \(weekName) not read: \(captured.count - before) responses, page on \(webView.url?.host ?? "none")")
                 return .failure("Couldn't read the Outlook calendar for the week of \(weekName) (no calendar data loaded).")
             }
         }

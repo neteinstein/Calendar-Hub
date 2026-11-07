@@ -3,7 +3,10 @@ import Foundation
 /// Hidden tag written at the end of every copy's notes. It ties a copy to the exact source
 /// occurrence it came from, so matching never depends on title or start time.
 ///
-/// Format: `calsync:v1:<source UUID>:<percent-encoded occurrence key>`
+/// Format: `calsync:v1:<source UUID>:<percent-encoded key>`. The key is a hash of the
+/// occurrence's own key (see `hashed(sourceID:key:)`), so the marker says nothing about the
+/// meeting: an Outlook on the web key holds the meeting's title, and the marker sits on the
+/// main calendar's server, where "Hide meeting names" is meant to keep the title from going.
 public struct CopyMarker: Hashable, Sendable {
     public static let prefix = "calsync:v1:"
 
@@ -13,6 +16,25 @@ public struct CopyMarker: Hashable, Sendable {
     public init(sourceID: UUID, key: String) {
         self.sourceID = sourceID
         self.key = key
+    }
+
+    /// The marker for the occurrence `key` of `sourceID`, with the key hashed. The source id
+    /// goes into the hash too, so the same meeting gets different markers under different
+    /// sources, and a title can't be checked against a marker without knowing the source.
+    public static func hashed(sourceID: UUID, key: String) -> CopyMarker {
+        CopyMarker(sourceID: sourceID, key: hashKey(key, sourceID: sourceID))
+    }
+
+    /// The first 128 bits of SHA-256 over the source id and the key, as hex.
+    public static func hashKey(_ key: String, sourceID: UUID) -> String {
+        Hashing.hex(Hashing.sha256(sourceID.uuidString + ":" + key).prefix(16))
+    }
+
+    /// This marker as versions before 2.0.6 wrote it, with the key in the clear, turned into
+    /// the hashed one. For copies made by those versions, which are matched and rewritten
+    /// rather than deleted and made again.
+    public var hashedIfLegacy: CopyMarker {
+        Self.hashed(sourceID: sourceID, key: key)
     }
 
     private static let keyAllowed: CharacterSet = {

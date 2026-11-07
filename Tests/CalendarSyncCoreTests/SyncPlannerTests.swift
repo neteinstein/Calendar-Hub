@@ -29,7 +29,81 @@ final class SyncPlannerTests: XCTestCase {
         XCTAssertEqual(spec.title, "[Calendar A] Sprint planning")
         XCTAssertEqual(spec.url, link)
         XCTAssertTrue(spec.notes.hasPrefix("Join: https://teams.microsoft.com/l/meetup-join/abc"))
-        XCTAssertEqual(CopyMarker.find(in: spec.notes), CopyMarker(sourceID: source.id, key: "1"))
+        XCTAssertEqual(CopyMarker.find(in: spec.notes), CopyMarker.hashed(sourceID: source.id, key: "1"))
+        XCTAssertFalse(spec.notes.contains(":1\n"), "the key goes in hashed")
+    }
+
+    func testHiddenMeetingNameIsNotInTheMarkerEither() {
+        var hidden = source
+        hidden.hideMeetingName = true
+        // Outlook on the web meetings are keyed by their title and start.
+        let key = OutlookWebParser.screenKey(title: "Secret project", start: base + 3600)
+        let plan = SyncPlanner.plan(
+            sources: [(hidden, .success([event(key, "Secret project", at: 1)]))], existing: [], options: SyncOptions())
+        guard case .create(let spec) = plan.actions[0] else { return XCTFail() }
+        XCTAssertEqual(spec.title, "[Calendar A] Busy")
+        XCTAssertFalse(spec.notes.localizedCaseInsensitiveContains("secret"))
+        XCTAssertFalse(spec.notes.contains("Secret".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!))
+        XCTAssertFalse(spec.notes.contains("outlook"))
+        XCTAssertEqual(CopyMarker.find(in: spec.notes), CopyMarker.hashed(sourceID: hidden.id, key: key))
+    }
+
+    func testMeetingLinkCanBeLeftOut() {
+        var noLink = source
+        noLink.copyMeetingLink = false
+        let link = URL(string: "https://teams.microsoft.com/l/meetup-join/abc")!
+        let plan = SyncPlanner.plan(
+            sources: [(noLink, .success([event("1", "Sprint planning", at: 1, url: link)]))],
+            existing: [], options: SyncOptions())
+        guard case .create(let spec) = plan.actions[0] else { return XCTFail() }
+        XCTAssertEqual(spec.title, "[Calendar A] Sprint planning")
+        XCTAssertNil(spec.url)
+        XCTAssertFalse(spec.notes.contains("teams.microsoft.com"))
+        XCTAssertFalse(spec.notes.contains("Join"))
+        // Turning it back on updates the copy.
+        let withLink = SyncPlanner.plan(
+            sources: [(source, .success([event("1", "Sprint planning", at: 1, url: link)]))],
+            existing: copies(from: plan), options: SyncOptions())
+        XCTAssertEqual(withLink.updates, 1)
+        XCTAssertEqual(withLink.creates, 0)
+    }
+
+    func testCopiesMadeBeforeHashedMarkersAreRewrittenNotReplaced() {
+        let events = [event("1", "A", at: 1), event("2", "B", at: 3)]
+        // As 2.0.5 and before wrote them: the key in the clear.
+        let legacy = events.enumerated().map { i, e -> ExistingCopy in
+            let marker = CopyMarker(sourceID: source.id, key: e.key)
+            return ExistingCopy(eventID: "old-\(i)", marker: marker, title: "[Calendar A] \(e.title)", start: e.start, end: e.end,
+                                isAllDay: false, url: nil, notes: CopyFormatter.notes(meetingURL: nil, marker: marker))
+        }
+        let plan = SyncPlanner.plan(sources: [(source, .success(events))], existing: legacy, options: SyncOptions())
+        XCTAssertEqual(plan.updates, 2)
+        XCTAssertEqual(plan.creates, 0)
+        XCTAssertEqual(plan.deletes, 0)
+        guard case .update(let id, let spec) = plan.actions[0] else { return XCTFail() }
+        XCTAssertEqual(id, "old-0")
+        XCTAssertEqual(spec.marker, CopyMarker.hashed(sourceID: source.id, key: "1"))
+        // Once rewritten, nothing more to do; a meeting gone from the source still goes.
+        let rewritten = plan.actions.compactMap { action -> ExistingCopy? in
+            guard case .update(let id, let s) = action else { return nil }
+            return ExistingCopy(eventID: id, marker: s.marker, title: s.title, start: s.start, end: s.end,
+                                isAllDay: s.isAllDay, url: s.url, notes: s.notes, location: s.location)
+        }
+        XCTAssertTrue(SyncPlanner.plan(sources: [(source, .success(events))], existing: rewritten, options: SyncOptions()).isEmpty)
+        let next = SyncPlanner.plan(sources: [(source, .success([events[0]]))], existing: rewritten, options: SyncOptions())
+        XCTAssertEqual(next.deletes, 1)
+        XCTAssertEqual(next.unchangedCount, 1)
+    }
+
+    func testSettingsSavedByOlderVersionsCopyTheLink() throws {
+        let json = #"{"id":"6F1F0B8C-7B3F-4E0A-9D3B-2B4C6A1E5F10","kind":{"eventKit":{"calendarID":"c"}},"calendarName":"A"}"#
+        let source = try JSONDecoder().decode(SourceConfig.self, from: Data(json.utf8))
+        XCTAssertTrue(source.copyMeetingLink)
+        XCTAssertFalse(source.hideMeetingName)
+        var off = source
+        off.copyMeetingLink = false
+        let back = try JSONDecoder().decode(SourceConfig.self, from: JSONEncoder().encode(off))
+        XCTAssertFalse(back.copyMeetingLink)
     }
 
     func testHideMeetingNameKeepsLink() {
@@ -181,7 +255,7 @@ final class SyncPlannerTests: XCTestCase {
         guard case .create(let spec) = plan.actions[0] else { return XCTFail() }
         XCTAssertEqual(spec.location, "Room 4.1")
         XCTAssertTrue(spec.notes.hasPrefix("Join: https://zoom.us/j/1\n\nAgenda:\n- demo\n\nBring laptops\n\nCopied by Calendar Sync."))
-        XCTAssertEqual(CopyMarker.find(in: spec.notes)?.key, "1")
+        XCTAssertEqual(CopyMarker.find(in: spec.notes), CopyMarker.hashed(sourceID: detailed.id, key: "1"))
 
         // Off by default, and never while meeting names are hidden.
         guard case .create(let plain) = SyncPlanner.plan(sources: [(source, .success([e]))], existing: [], options: SyncOptions()).actions[0]
@@ -258,6 +332,19 @@ final class SyncPlannerTests: XCTestCase {
 }
 
 final class CopyMarkerTests: XCTestCase {
+    func testHashedKeyIsHexOfSourceAndKey() {
+        let sourceID = UUID(uuidString: "6F1F0B8C-7B3F-4E0A-9D3B-2B4C6A1E5F10")!
+        let marker = CopyMarker.hashed(sourceID: sourceID, key: "outlook:Standup|2026-10-23T09:00:00Z")
+        XCTAssertEqual(marker.key.count, 32)
+        XCTAssertTrue(marker.key.allSatisfy { "0123456789abcdef".contains($0) })
+        XCTAssertEqual(marker.key, Hashing.hex(Hashing.sha256(sourceID.uuidString + ":outlook:Standup|2026-10-23T09:00:00Z").prefix(16)))
+        XCTAssertEqual(CopyMarker.find(in: "x\n\n" + marker.encoded), marker)
+        // The same meeting under another source gets another marker.
+        XCTAssertNotEqual(CopyMarker.hashed(sourceID: UUID(), key: "outlook:Standup|2026-10-23T09:00:00Z").key, marker.key)
+        // Hashing a hashed key gives something else, so a legacy lookup can't match a hashed one by mistake.
+        XCTAssertNotEqual(marker.hashedIfLegacy, marker)
+    }
+
     func testRoundTripWithAwkwardKey() {
         let marker = CopyMarker(sourceID: UUID(), key: "AAMkAD/x+y==|2026-10-23T09:00:00Z with space")
         let notes = "Join: https://zoom.us/j/1\n\nsome text\n\n" + marker.encoded
