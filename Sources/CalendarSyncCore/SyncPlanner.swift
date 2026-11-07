@@ -140,14 +140,9 @@ public enum SyncPlanner {
     /// gets its marker (or its new one) written.
     static func needsBusyUpdate(_ busy: ExistingCopy, to spec: CopySpec) -> Bool {
         busy.title != spec.title
-            || words(of: HTMLText.plainText(from: busy.notes)) != words(of: spec.notes)
+            || HTMLText.words(of: HTMLText.plainText(from: busy.notes)) != HTMLText.words(of: spec.notes)
             || busy.url != nil
             || !(busy.location ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    /// `text` split on whitespace and line breaks.
-    static func words(of text: String) -> [Substring] {
-        text.split { $0.isWhitespace || $0.isNewline }
     }
 
     static func shouldShowBusy(_ event: SourceEvent, in source: SourceConfig, options: SyncOptions) -> Bool {
@@ -205,7 +200,7 @@ public enum SyncPlanner {
         if options.skipAllDay && event.isAllDay { return false }
         if options.skipOutOfOffice && event.isOutOfOffice { return false }
         // Never copy our own copies or Busy events back (two-way setups would loop forever).
-        if CopyMarker.isCopy(event.notes) || CopyFormatter.isBusyEvent(title: event.title, notes: event.notes) {
+        if CopyMarker.isCopy(event.notes) || CopyFormatter.isBusyEvent(title: event.title, notes: event.notes, sourceID: source.id) {
             return false
         }
         return event.end >= event.start

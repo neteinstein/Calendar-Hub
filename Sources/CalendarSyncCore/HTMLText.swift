@@ -42,6 +42,11 @@ public enum HTMLText {
         return out.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// `text` split on whitespace and line breaks.
+    public static func words(of text: String) -> [Substring] {
+        text.split { $0.isWhitespace || $0.isNewline }
+    }
+
     static func decodeEntities(_ text: String) -> String {
         guard text.contains("&") else { return text }
         var result = ""
