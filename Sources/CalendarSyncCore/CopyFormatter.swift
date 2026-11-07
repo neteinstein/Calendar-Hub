@@ -44,28 +44,43 @@ public enum CopyFormatter {
     }
 
     /// A main-calendar event shown in a secondary calendar: the time and "Busy" (or "Out of
-    /// office"), nothing else. The description says "Busy" too, and there is no hidden marker,
-    /// so nothing in the secondary calendar points back to the original event or to this app.
+    /// office"), nothing else about the event. The description says "Busy" and carries a
+    /// marker, so the app recognises its own Busy events for sure and never takes an event the
+    /// user made for one, and so anyone reading the secondary calendar can see what wrote
+    /// them. The marker's key is made from the times only, nothing from the original event.
     public static func busySpec(for event: SourceEvent, source: SourceConfig) -> CopySpec {
-        CopySpec(
-            marker: nil,
+        let marker = busyMarker(sourceID: source.id, start: event.start, end: event.end, isAllDay: event.isAllDay)
+        return CopySpec(
+            marker: marker,
             title: source.busyStyle.title,
             start: event.start,
             end: event.end,
             isAllDay: event.isAllDay,
             timeZone: event.isAllDay ? nil : event.timeZone,
             url: nil,
-            notes: busyNotes,
+            notes: busyNotes(marker: marker),
             isOutOfOffice: source.busyStyle == .outOfOffice
         )
     }
 
-    /// The whole description of every Busy event. It's how they are told apart from the
-    /// secondary calendar's own events.
+    /// The first line of every Busy event's description.
     public static let busyNotes = "Busy"
 
-    /// Whether an event in a secondary calendar is a Busy event: titled like one with "Busy" as
-    /// its description, or carrying the hidden marker older versions gave them.
+    /// A Busy event's whole description: "Busy", then its marker.
+    public static func busyNotes(marker: CopyMarker) -> String {
+        busyNotes + "\n\n" + marker.encoded
+    }
+
+    /// The marker of a Busy event, keyed by its times: a Busy event stands for whatever the
+    /// main calendar has at that time, not for one event in it.
+    static func busyMarker(sourceID: UUID, start: Date, end: Date, isAllDay: Bool) -> CopyMarker {
+        let key = "\(start.timeIntervalSince1970)|\(end.timeIntervalSince1970)|\(isAllDay)"
+        return CopyMarker(sourceID: sourceID, key: busyKeyPrefix + CopyMarker.hashKey(key, sourceID: sourceID))
+    }
+
+    /// Whether an event in a secondary calendar is a Busy event: carrying a Busy marker, or,
+    /// as versions 2.0.0 to 2.0.5 made them, titled like one with "Busy" as its whole
+    /// description.
     public static func isBusyEvent(title: String?, notes: String?) -> Bool {
         if let marker = CopyMarker.find(in: notes) { return marker.key.hasPrefix(busyKeyPrefix) }
         let title = (title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -74,12 +89,15 @@ public enum CopyFormatter {
             && HTMLText.plainText(from: notes ?? "") == busyNotes
     }
 
-    /// Starts the marker key of the Busy events older versions made.
+    /// Starts the marker key of every Busy event.
     static let busyKeyPrefix = "busy-"
 
     public static func spec(for event: SourceEvent, source: SourceConfig) -> CopySpec {
-        let marker = CopyMarker(sourceID: source.id, key: event.key)
+        let marker = CopyMarker.hashed(sourceID: source.id, key: event.key)
         let details = details(for: event, source: source)
+        // A Teams link names the organization and the organizer, a Zoom link can carry the
+        // passcode: the link goes along only when the source says so.
+        let meetingURL = source.copyMeetingLink ? event.meetingURL : nil
         return CopySpec(
             marker: marker,
             title: title(for: event, source: source),
@@ -87,8 +105,8 @@ public enum CopyFormatter {
             end: event.end,
             isAllDay: event.isAllDay,
             timeZone: event.isAllDay ? nil : event.timeZone,
-            url: event.meetingURL,
-            notes: notes(meetingURL: event.meetingURL, details: details.notes, marker: marker),
+            url: meetingURL,
+            notes: notes(meetingURL: meetingURL, details: details.notes, marker: marker),
             location: details.location,
             // Kept when out-of-office events are copied, so the copy isn't taken for a meeting.
             isOutOfOffice: event.isOutOfOffice

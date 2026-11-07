@@ -72,7 +72,7 @@ final class EventAlertController: ObservableObject {
                 keepOnScreen()
                 return
             }
-            NSLog("Calendar Sync: closing the alert for “\(current.title)”, which has ended")
+            NSLog("Calendar Sync: closing the alert for the meeting at \(current.start), which has ended")
             window.orderOut(nil)
             self.window = nil
             self.current = nil
@@ -136,7 +136,7 @@ final class EventAlertController: ObservableObject {
         window = panel
         current = event
         bringForward(panel)
-        NSLog("Calendar Sync: showing the alert for “\(event.title)” at \(event.start)")
+        NSLog("Calendar Sync: showing the alert for the meeting at \(event.start)")
         return true
     }
 

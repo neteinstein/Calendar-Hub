@@ -47,6 +47,11 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     /// When on, copies also get the meeting's location and description. Ignored while
     /// `hideMeetingName` is on, so hidden meetings don't leak through their details.
     public var copyDetails: Bool
+    /// When on, copies get the meeting's join link (Teams, Zoom, …), so Join works from the main
+    /// calendar. Off, nothing but the calendar's name and the time reaches the main calendar
+    /// when meeting names are hidden too: a Teams link names the organization and the
+    /// organizer, and a Zoom link can carry the passcode.
+    public var copyMeetingLink: Bool
     /// When off, only meetings you accepted are copied (see `SourceEvent.isAccepted`), not ones
     /// you haven't answered, accepted tentatively or declined.
     public var copyUnaccepted: Bool
@@ -57,7 +62,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, kind, calendarName, name, hideMeetingName, isEnabled
         case showBusyInSecondary = "showBusyInClient"
-        case busyStyle, copyDetails, copyUnaccepted, intervalMinutes
+        case busyStyle, copyDetails, copyMeetingLink, copyUnaccepted, intervalMinutes
     }
 
     public init(
@@ -70,6 +75,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         showBusyInSecondary: Bool = false,
         busyStyle: BusyStyle = .busy,
         copyDetails: Bool = false,
+        copyMeetingLink: Bool = true,
         copyUnaccepted: Bool = true,
         intervalMinutes: Int? = nil
     ) {
@@ -82,6 +88,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         self.showBusyInSecondary = showBusyInSecondary
         self.busyStyle = busyStyle
         self.copyDetails = copyDetails
+        self.copyMeetingLink = copyMeetingLink
         self.copyUnaccepted = copyUnaccepted
         self.intervalMinutes = intervalMinutes
     }
@@ -98,6 +105,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         showBusyInSecondary = try c.decodeIfPresent(Bool.self, forKey: .showBusyInSecondary) ?? false
         busyStyle = try c.decodeIfPresent(BusyStyle.self, forKey: .busyStyle) ?? .busy
         copyDetails = try c.decodeIfPresent(Bool.self, forKey: .copyDetails) ?? false
+        copyMeetingLink = try c.decodeIfPresent(Bool.self, forKey: .copyMeetingLink) ?? true
         copyUnaccepted = try c.decodeIfPresent(Bool.self, forKey: .copyUnaccepted) ?? true
         intervalMinutes = try c.decodeIfPresent(Int.self, forKey: .intervalMinutes)
     }

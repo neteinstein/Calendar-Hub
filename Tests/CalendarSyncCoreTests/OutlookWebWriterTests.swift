@@ -32,7 +32,9 @@ final class OutlookWebWriterTests: XCTestCase {
 
         let item = try item(requests[0])
         XCTAssertEqual(item["Subject"] as? String, "Busy")
-        XCTAssertEqual((item["Body"] as? [String: Any])?["Value"] as? String, "Busy")
+        let description = try XCTUnwrap((item["Body"] as? [String: Any])?["Value"] as? String)
+        XCTAssertTrue(description.hasPrefix("Busy\n\n"), "says Busy")
+        XCTAssertEqual(CopyMarker.find(in: description), spec.marker, "and names the app")
         XCTAssertEqual(item["Start"] as? String, "2026-11-04T10:00:00Z")
         XCTAssertEqual(item["End"] as? String, "2026-11-04T11:00:00Z")
         XCTAssertEqual(item["LegacyFreeBusyStatus"] as? String, "Busy")
@@ -147,11 +149,25 @@ final class OutlookWebWriterTests: XCTestCase {
         XCTAssertEqual(busy[0].start, date("2026-11-04T10:00:00Z"))
         XCTAssertNil(busy[0].marker)
 
-        // Matched by time, a Busy event that's still wanted is left alone.
+        // Matched by time, a Busy event that's still wanted is kept. Made by a version before
+        // 2.0.6, its description is just "Busy", so it's rewritten once to carry the marker.
         let main = SourceEvent(key: "m1", title: "Planning", start: date("2026-11-04T10:00:00Z"), end: date("2026-11-04T11:00:00Z"))
         let plan = SyncPlanner.planBusy(for: outlook, mainEvents: .success([main]), existing: busy, options: SyncOptions())
-        XCTAssertTrue(plan.isEmpty)
-        XCTAssertEqual(plan.unchangedCount, 1)
+        XCTAssertEqual(plan.updates, 1)
+        XCTAssertEqual(plan.creates, 0)
+        guard case .update(let id, let spec) = plan.actions[0] else { return XCTFail() }
+        XCTAssertEqual(id, "busy1")
+        // Read back with the marker in its body (as HTML, the way Outlook stores it), it's left alone.
+        let week2 = #"{"Items":[{"ItemId":{"Id":"busy2"},"Subject":"Busy","Start":"2026-11-04T10:00:00Z","End":"2026-11-04T11:00:00Z"}]}"#
+        let details2 = """
+        {"Items":[{"ItemId":{"Id":"busy2"},"Body":{"BodyType":"HTML","Value":"<div>Busy</div><div><br></div><div>\(spec.marker!.encoded)</div>"}}]}
+        """
+        let marked = try XCTUnwrap(OutlookWebParser.busyEvents(fromPayloads: [Data(week2.utf8)], details: [Data(details2.utf8)]))
+        XCTAssertEqual(marked.map(\.eventID), ["busy2"])
+        XCTAssertEqual(marked[0].marker, spec.marker)
+        let again = SyncPlanner.planBusy(for: outlook, mainEvents: .success([main]), existing: marked, options: SyncOptions())
+        XCTAssertTrue(again.isEmpty)
+        XCTAssertEqual(again.unchangedCount, 1)
 
         // And they're never copied into the main calendar.
         let events = OutlookWebParser.events(fromPayloads: [Data(week.utf8)], details: [Data(details.utf8)])

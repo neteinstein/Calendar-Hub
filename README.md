@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.5](https://img.shields.io/badge/version-2.0.5-2563EB)](Support/Info.plist)
+[![Version 2.0.6](https://img.shields.io/badge/version-2.0.6-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -149,10 +149,27 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Copies your meetings across**, titled by the calendar they came from, with the Teams, Zoom, Google Meet or Webex link, so **Join** works from your main calendar.
 - **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
 - **Reads calendars your Mac can't add:** sign in to **Outlook on the web** once in the app, or subscribe to a published **.ics** link.
-- **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`, link included.
+- **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
+
+## What leaves your Mac, and where it ends up
+
+Copying a meeting from one calendar into another puts data from one organization on another's server, so here is exactly what moves. Nothing goes anywhere else: the app has no server, no analytics and no crash reporting.
+
+| What | Where it ends up | When |
+|---|---|---|
+| The secondary calendar's name, the meeting's start and end, and a hashed tag | Your main calendar's server (Exchange, Google, iCloud, …) | Every copy. The tag is a hash, so it says nothing about the meeting. |
+| The meeting's name | Same | Unless **Hide meeting names** is on for that calendar. It's on from the start for Outlook on the web calendars. |
+| The join link (Teams, Zoom, Google Meet, Webex) | Same | Unless **Copy the meeting link** is off for that calendar. A Teams link names the organization and the organizer, and a Zoom link can carry the passcode. |
+| The meeting's location and description | Same | Only with **Copy location and description** on, and never while names are hidden. |
+| A **Busy** block with the time, a description that says "Busy" and a tag naming Calendar Sync | Each secondary calendar you chose | Only with **Two way sync** on. No title, link, location, attendees or alerts. |
+| A task's title and notes, and the name and start of the meeting it's for | Your Reminders account (iCloud, say) | Only for tasks you make in the Tasks view. |
+| Your Outlook on the web sign-in | The app's own WebKit folder in your Library, on this Mac | Only for Outlook on the web calendars. See [Outlook on the web](docs/outlook-on-the-web.md). |
+| One request for the newest version number | GitHub, over HTTPS | Once a day, and when you check in Settings › About. GitHub sees your IP address, nothing else. |
+
+Nothing identifies a meeting in the system log: the app logs counts and times, not names.
 
 ## Install
 
