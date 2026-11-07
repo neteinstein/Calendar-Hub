@@ -300,7 +300,8 @@ public struct SourceEvent: Hashable, Sendable {
 
 /// What a copy in the target calendar, or a Busy event in a secondary calendar, should look like.
 public struct CopySpec: Hashable, Sendable {
-    /// The hidden tag at the end of the notes. Nil for a Busy event, which carries none.
+    /// The hidden tag at the end of a copy's notes. A Busy event has `CopyFormatter.busyMarker`
+    /// instead, which stands for the token in its description and isn't written itself.
     public var marker: CopyMarker?
     public var title: String
     public var start: Date

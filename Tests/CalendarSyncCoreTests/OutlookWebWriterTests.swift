@@ -33,8 +33,8 @@ final class OutlookWebWriterTests: XCTestCase {
         let item = try item(requests[0])
         XCTAssertEqual(item["Subject"] as? String, "Busy")
         let description = try XCTUnwrap((item["Body"] as? [String: Any])?["Value"] as? String)
-        XCTAssertTrue(description.hasPrefix("Busy\n\n"), "says Busy")
-        XCTAssertEqual(CopyMarker.find(in: description), spec.marker, "and names the app")
+        XCTAssertEqual(description, "Busy\n\n" + CopyFormatter.busyToken(sourceID: outlook.id), "says Busy, plus the calendar's code")
+        XCTAssertFalse(description.localizedCaseInsensitiveContains("calsync"), "nothing names the app")
         XCTAssertEqual(item["Start"] as? String, "2026-11-04T10:00:00Z")
         XCTAssertEqual(item["End"] as? String, "2026-11-04T11:00:00Z")
         XCTAssertEqual(item["LegacyFreeBusyStatus"] as? String, "Busy")
@@ -143,7 +143,7 @@ final class OutlookWebWriterTests: XCTestCase {
           {"ItemId":{"Id":"standup"},"Body":{"BodyType":"Text","Value":"Daily"}}
         ]}]}}}
         """
-        let busy = try XCTUnwrap(OutlookWebParser.busyEvents(fromPayloads: [Data(week.utf8)], details: [Data(details.utf8)]))
+        let busy = try XCTUnwrap(OutlookWebParser.busyEvents(fromPayloads: [Data(week.utf8)], details: [Data(details.utf8)], sourceID: outlook.id))
         XCTAssertEqual(busy.map(\.eventID), ["busy1"])
         XCTAssertEqual(busy[0].title, "Busy")
         XCTAssertEqual(busy[0].start, date("2026-11-04T10:00:00Z"))
@@ -160,9 +160,9 @@ final class OutlookWebWriterTests: XCTestCase {
         // Read back with the marker in its body (as HTML, the way Outlook stores it), it's left alone.
         let week2 = #"{"Items":[{"ItemId":{"Id":"busy2"},"Subject":"Busy","Start":"2026-11-04T10:00:00Z","End":"2026-11-04T11:00:00Z"}]}"#
         let details2 = """
-        {"Items":[{"ItemId":{"Id":"busy2"},"Body":{"BodyType":"HTML","Value":"<div>Busy</div><div><br></div><div>\(spec.marker!.encoded)</div>"}}]}
+        {"Items":[{"ItemId":{"Id":"busy2"},"Body":{"BodyType":"HTML","Value":"<div>Busy</div><div><br></div><div>\(CopyFormatter.busyToken(sourceID: outlook.id))</div>"}}]}
         """
-        let marked = try XCTUnwrap(OutlookWebParser.busyEvents(fromPayloads: [Data(week2.utf8)], details: [Data(details2.utf8)]))
+        let marked = try XCTUnwrap(OutlookWebParser.busyEvents(fromPayloads: [Data(week2.utf8)], details: [Data(details2.utf8)], sourceID: outlook.id))
         XCTAssertEqual(marked.map(\.eventID), ["busy2"])
         XCTAssertEqual(marked[0].marker, spec.marker)
         let again = SyncPlanner.planBusy(for: outlook, mainEvents: .success([main]), existing: marked, options: SyncOptions())
@@ -178,10 +178,10 @@ final class OutlookWebWriterTests: XCTestCase {
     func testCantTellWithoutTheDescription() {
         // The week view has no body, and the meeting couldn't be loaded in full.
         let week = #"{"Items":[{"ItemId":{"Id":"busy1"},"Subject":"Busy","Start":"2026-11-04T10:00:00Z","End":"2026-11-04T11:00:00Z"}]}"#
-        XCTAssertNil(OutlookWebParser.busyEvents(fromPayloads: [Data(week.utf8)]))
+        XCTAssertNil(OutlookWebParser.busyEvents(fromPayloads: [Data(week.utf8)], sourceID: outlook.id))
 
         // Other events without one don't matter.
         let other = #"{"Items":[{"ItemId":{"Id":"x"},"Subject":"Standup","Start":"2026-11-04T10:00:00Z","End":"2026-11-04T11:00:00Z"}]}"#
-        XCTAssertEqual(OutlookWebParser.busyEvents(fromPayloads: [Data(other.utf8)])?.count, 0)
+        XCTAssertEqual(OutlookWebParser.busyEvents(fromPayloads: [Data(other.utf8)], sourceID: outlook.id)?.count, 0)
     }
 }

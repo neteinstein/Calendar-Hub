@@ -246,7 +246,7 @@ final class SyncController: ObservableObject {
                 if showsBusy { problems.append("\(calendar.title): read-only, so Busy events can't be added.") }
                 continue
             }
-            let existingBusy = eventKit.busyEvents(calendarID: calendarID, from: start, to: end) ?? []
+            let existingBusy = eventKit.busyEvents(calendarID: calendarID, sourceID: source.id, from: start, to: end) ?? []
             let busy = showsBusy
                 ? SyncPlanner.planBusy(
                     for: source,
@@ -377,7 +377,7 @@ final class SyncController: ObservableObject {
                 mainEvents: eventKit.sourceEvents(calendarID: targetID, from: start, to: end),
                 existing: existingBusy,
                 options: settings.options)
-            // Busy events made before 2.0.6 carry no marker, and only ones added to this
+            // Busy events made by 2.0.0 to 2.0.5 carry no token, and only ones added to this
             // calendar are recognised at all.
             : SyncPlanner.planBusyRemoval(existing: existingBusy, addedHere: true)
         problems += busy.failedSources.values.map { "\(name) (Busy): \($0)" }
