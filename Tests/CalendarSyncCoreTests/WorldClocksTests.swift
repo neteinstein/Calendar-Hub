@@ -42,12 +42,53 @@ final class WorldClocksTests: XCTestCase {
     }
 
     func testOverlap() {
-        let overlap = WorldClocks.overlap(on: date(10, 12), of: [lisbon, newYork, berlin],
-                                          workingHours: WorkingHours(), calendar: local)
+        func schedules(_ timeZones: [TimeZone]) -> [WorldClocks.Schedule] {
+            timeZones.map { .init(timeZone: $0, workingHours: WorkingHours()) }
+        }
+        let overlap = WorldClocks.overlap(on: date(10, 12), of: schedules([lisbon, newYork, berlin]), calendar: local)
         XCTAssertEqual(overlap, [14 * 60..<16 * 60])
-        XCTAssertEqual(WorldClocks.overlap(on: date(10, 12), of: [newYork, kolkata],
-                                           workingHours: WorkingHours(), calendar: local), [])
-        XCTAssertEqual(WorldClocks.overlap(on: date(14, 12), of: [lisbon], workingHours: WorkingHours(), calendar: local), [])
+        XCTAssertEqual(WorldClocks.overlap(on: date(10, 12), of: schedules([newYork, kolkata]), calendar: local), [])
+        XCTAssertEqual(WorldClocks.overlap(on: date(14, 12), of: schedules([lisbon]), calendar: local), [])
+    }
+
+    func testOverlapUsesEachCityWorkingHours() {
+        // New York starts at 7:00 there (12:00 in Lisbon) and Berlin ends at 19:00 there (18:00 in Lisbon).
+        let overlap = WorldClocks.overlap(on: date(10, 12), of: [
+            .init(timeZone: lisbon, workingHours: WorkingHours()),
+            .init(timeZone: newYork, workingHours: WorkingHours(start: 7 * 60, end: 15 * 60)),
+            .init(timeZone: berlin, workingHours: WorkingHours(start: 11 * 60, end: 19 * 60)),
+        ], calendar: local)
+        XCTAssertEqual(overlap, [12 * 60..<17 * 60])
+        // Kolkata works late, so it meets New York: 19:00 to 23:00 there is 13:30 to 17:30 in Lisbon.
+        XCTAssertEqual(WorldClocks.overlap(on: date(10, 12), of: [
+            .init(timeZone: newYork, workingHours: WorkingHours()),
+            .init(timeZone: kolkata, workingHours: WorkingHours(start: 19 * 60, end: 23 * 60)),
+        ], calendar: local), [14 * 60..<17 * 60 + 30])
+        // Working hours win over the night.
+        XCTAssertEqual(WorldClocks.period(at: date(10, 17), in: kolkata,
+                                          workingHours: WorkingHours(start: 19 * 60, end: 23 * 60)), .working)
+    }
+
+    func testLocalName() {
+        var options = WorldClockOptions()
+        XCTAssertEqual(options.localName(in: lisbon), "Lisbon")
+        options.localNames[lisbon.identifier] = "Porto"
+        XCTAssertEqual(options.localName(in: lisbon), "Porto")
+        // The name stays with its time zone.
+        XCTAssertEqual(options.localName(in: newYork), "New York")
+        options.localNames[lisbon.identifier] = "  "
+        XCTAssertEqual(options.localName(in: lisbon), "Lisbon")
+    }
+
+    func testClocksSavedWithoutWorkingHoursDecode() throws {
+        let json = #"{"showsInMenu":true,"clocks":[{"id":"6F1B0C0E-6C55-4B8E-9E0B-0C7A4C0E2B11","name":"Berlin","timeZoneID":"Europe/Berlin"}]}"#
+        let options = try JSONDecoder().decode(WorldClockOptions.self, from: Data(json.utf8))
+        XCTAssertNil(options.clocks.first?.workingHours)
+        XCTAssertEqual(options.localNames, [:])
+        var clock = try XCTUnwrap(options.clocks.first)
+        clock.workingHours = WorkingHours(start: 8 * 60, end: 16 * 60)
+        let saved = try JSONDecoder().decode(WorldClock.self, from: JSONEncoder().encode(clock))
+        XCTAssertEqual(saved.workingHours, WorkingHours(start: 8 * 60, end: 16 * 60))
     }
 
     func testTexts() {

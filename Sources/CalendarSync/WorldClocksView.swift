@@ -12,13 +12,18 @@ struct WorldClocksView: View {
     /// Height of everything in the scroll view, so it shows all of it while it's short.
     @State private var contentHeight: CGFloat = 0
 
+    /// Our working hours, and those of every city that doesn't have its own.
     private var workingHours: WorkingHours { settings.menuCalendar.workingHours }
 
-    /// Here first, then the cities in Settings.
+    /// Here first, then the cities in Settings, each with its own working hours or ours.
     private var rows: [Row] {
         let local = TimeZone.current
-        return [Row(id: "here", name: WorldClocks.cityName(of: local.identifier), timeZone: local, isHere: true)]
-            + settings.worldClocks.clocks.map { Row(id: $0.id.uuidString, name: $0.name, timeZone: $0.timeZone, isHere: false) }
+        return [Row(id: "here", name: settings.worldClocks.localName(in: local), timeZone: local,
+                    workingHours: workingHours, isHere: true)]
+            + settings.worldClocks.clocks.map {
+                Row(id: $0.id.uuidString, name: $0.name, timeZone: $0.timeZone,
+                    workingHours: $0.workingHours ?? workingHours, isHere: false)
+            }
     }
 
     var body: some View {
@@ -37,7 +42,7 @@ struct WorldClocksView: View {
                     }
                     VStack(spacing: 6) {
                         ForEach(rows) { row in
-                            ClockCard(row: row, date: date, workingHours: workingHours)
+                            ClockCard(row: row, date: date)
                         }
                     }
                     if !settings.worldClocks.clocks.isEmpty {
@@ -93,7 +98,8 @@ struct WorldClocksView: View {
 
     private func overlapCard(date: Date) -> some View {
         let calendar = Calendar.current
-        let overlap = WorldClocks.overlap(on: date, of: rows.map(\.timeZone), workingHours: workingHours, calendar: calendar)
+        let overlap = WorldClocks.overlap(on: date, of: rows.map { .init(timeZone: $0.timeZone, workingHours: $0.workingHours) },
+                                          calendar: calendar)
         let total = overlap.reduce(0) { $0 + $1.count }
         let dayStart = calendar.startOfDay(for: date)
         let selected = Int(date.timeIntervalSince(dayStart) / 60)
@@ -110,7 +116,7 @@ struct WorldClocksView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            OverlapChart(rows: rows, overlap: overlap, date: date, selected: selected, workingHours: workingHours) { minute in
+            OverlapChart(rows: rows, overlap: overlap, date: date, selected: selected) { minute in
                 pinned = calendar.date(byAdding: .minute, value: minute, to: dayStart)
             }
             legend
@@ -153,6 +159,7 @@ struct WorldClocksView: View {
         let id: String
         let name: String
         let timeZone: TimeZone
+        let workingHours: WorkingHours
         let isHere: Bool
     }
 }
@@ -189,10 +196,9 @@ extension WorldClocks.Period {
 private struct ClockCard: View {
     let row: WorldClocksView.Row
     let date: Date
-    let workingHours: WorkingHours
 
     private var period: WorldClocks.Period {
-        WorldClocks.period(at: date, in: row.timeZone, workingHours: workingHours)
+        WorldClocks.period(at: date, in: row.timeZone, workingHours: row.workingHours)
     }
 
     private var status: String {
@@ -290,7 +296,6 @@ private struct OverlapChart: View {
     let overlap: [Range<Int>]
     let date: Date
     let selected: Int
-    let workingHours: WorkingHours
     let pick: (Int) -> Void
 
     private static let labelWidth: CGFloat = 74
@@ -302,7 +307,7 @@ private struct OverlapChart: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(rows) { row in
                 line(row.name, bold: row.isHere) { width in
-                    ForEach(WorldClocks.segments(on: date, for: row.timeZone, workingHours: workingHours, calendar: calendar),
+                    ForEach(WorldClocks.segments(on: date, for: row.timeZone, workingHours: row.workingHours, calendar: calendar),
                             id: \.start) { segment in
                         bar(segment.start, segment.end, width: width,
                             color: segment.period.color.opacity(segment.period.barOpacity))

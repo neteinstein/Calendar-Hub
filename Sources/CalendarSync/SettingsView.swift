@@ -422,13 +422,15 @@ private struct WorldClocksTab: View {
                     }
                 }
             } footer: {
-                Text("The same in every city, Monday to Friday, and the same as Meeting Stats uses.")
+                Text("Yours, Monday to Friday, and the same as Meeting Stats uses. Every city below works them too, in its own time, until you give it its own.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
+                HereRow(name: localName, timeZone: .current)
                 ForEach($settings.worldClocks.clocks) { $clock in
                     CityRow(clock: $clock,
+                            sharedHours: settings.menuCalendar.workingHours,
                             isFirst: clock.id == settings.worldClocks.clocks.first?.id,
                             isLast: clock.id == settings.worldClocks.clocks.last?.id,
                             move: { offset in move(clock.id, by: offset) },
@@ -457,11 +459,18 @@ private struct WorldClocksTab: View {
             } header: {
                 Text("Cities")
             } footer: {
-                Text("Each city has its time zone's name until you rename it: a city that shares a time zone, such as San Francisco with Los Angeles, can be added that way.")
+                Text("Each city has its time zone's name until you rename it: a city that shares a time zone, such as San Francisco with Los Angeles, can be added that way. Where you are can be renamed too, and keeps that name while your Mac is in that time zone.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// The name given to where we are in the current time zone; empty for its time zone's city.
+    private var localName: Binding<String> {
+        let id = TimeZone.current.identifier
+        return Binding(get: { settings.worldClocks.localNames[id] ?? "" },
+                       set: { settings.worldClocks.localNames[id] = $0.isEmpty ? nil : $0 })
     }
 
     /// The cities matching the search, less those already added.
@@ -478,16 +487,70 @@ private struct WorldClocksTab: View {
     }
 }
 
-/// A city in the World Clocks list: its name, which can be changed, its time zone and time, and
-/// buttons to move it and remove it.
+/// Where we are, first in the World Clocks list: its name, which can be changed, and its time zone
+/// and time.
+private struct HereRow: View {
+    @Binding var name: String
+    let timeZone: TimeZone
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "location.fill").foregroundStyle(.secondary)
+            TextField("Name of where you are", text: $name, prompt: Text(WorldClocks.cityName(of: timeZone.identifier)))
+                .labelsHidden()
+                .textFieldStyle(.plain)
+                .fontWeight(.medium)
+                .help("Click to rename where you are")
+            Text("\(timeZone.identifier.replacingOccurrences(of: "_", with: " ")) · Here")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(Date().formatted(Date.FormatStyle(date: .omitted, time: .shortened, timeZone: timeZone)))
+                .monospacedDigit()
+        }
+    }
+}
+
+/// A city in the World Clocks list: its name, which can be changed, its time zone and time,
+/// buttons to move it and remove it, and its working hours, ours or its own.
 private struct CityRow: View {
     @Binding var clock: WorldClock
+    /// Our working hours, which the city works until it has its own.
+    let sharedHours: WorkingHours
     let isFirst: Bool
     let isLast: Bool
     let move: (Int) -> Void
     let remove: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            nameLine
+            hoursLine
+        }
+    }
+
+    /// "Its own working hours", and what they are: ours, or the pickers to set them.
+    private var hoursLine: some View {
+        HStack(spacing: 4) {
+            Toggle("Its own working hours", isOn: Binding(
+                get: { clock.workingHours != nil },
+                set: { clock.workingHours = $0 ? sharedHours : nil }))
+                .toggleStyle(.checkbox)
+            Spacer(minLength: 8)
+            if clock.workingHours != nil {
+                WorkingHoursPicker(hours: Binding(get: { clock.workingHours ?? sharedHours },
+                                                  set: { clock.workingHours = $0 }))
+            } else {
+                Text("\(WorkingHours.text(sharedHours.start)) to \(WorkingHours.text(sharedHours.end)), the same as yours")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption)
+        .controlSize(.small)
+        .padding(.leading, 24)
+    }
+
+    private var nameLine: some View {
         HStack(spacing: 8) {
             Image(systemName: "globe").foregroundStyle(.secondary)
             TextField("Name", text: $clock.name)
