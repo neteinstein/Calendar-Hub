@@ -1330,7 +1330,10 @@ private struct UpdateInstructionsSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Update to version \(latest.version)").font(.headline)
-            if !isHomebrewInstall {
+            if UpdateChecker.isDownloadInstall {
+                instruction(UpdateChecker.downloadSummary)
+                note("Built Calendar Hub from source instead? Pull and rebuild it: “git pull && scripts/build-app.sh”. Installed with Homebrew? Run “brew update && brew upgrade calendar-hub”.")
+            } else if !isHomebrewInstall {
                 instruction("Calendar Hub is built from source. Quit the app, then run this in Terminal, from the folder you cloned it into:")
                 CommandBox(commands: sourceCommands)
                 note("That pulls the new version, rebuilds the app and opens it. Your settings are kept. Local builds are ad-hoc signed, so macOS asks for calendar access again after the rebuild. Installed with Homebrew instead? Run “brew update && brew upgrade calendar-hub”.")
@@ -1357,7 +1360,10 @@ private struct UpdateInstructionsSheet: View {
                     Button("What's new on GitHub") { openURL(url) }
                 }
                 Spacer()
-                if UpdateChecker.canUpdateInTerminal {
+                if UpdateChecker.isDownloadInstall {
+                    Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button("Download") { openURL(UpdateChecker.downloadDMG); dismiss() }.keyboardShortcut(.defaultAction)
+                } else if UpdateChecker.canUpdateInTerminal {
                     Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
                     Button("Update in Terminal", action: updateInTerminal).keyboardShortcut(.defaultAction)
                 } else {

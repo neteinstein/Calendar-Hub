@@ -2,7 +2,13 @@
 
 [← Back to the README](../README.md)
 
-You need **macOS 14 or later** and **Xcode 15+** (the command line tools are enough).
+You need **macOS 14 or later**. Homebrew and source builds also need **Xcode 15+** (the command line tools are enough); the download doesn't.
+
+## Download
+
+Every release has **Calendar-Hub.dmg** attached, built for Apple silicon and Intel. [Install Calendar Hub](download.md) is the step-by-step guide, with pictures, for installing, allowing and updating it.
+
+The disk image is ad-hoc signed, not signed by Apple, so macOS blocks it the first time until it's allowed with **Open Anyway** in System Settings › Privacy & Security, and again after each update. The app updates by downloading the new disk image: its **update** button opens the [latest one](https://github.com/neteinstein/Calendar-Hub/releases/latest/download/Calendar-Hub.dmg).
 
 ## With Homebrew
 
