@@ -15,15 +15,6 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 [![Homebrew installs in the last 365 days](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fformulae.brew.sh%2Fapi%2Fanalytics%2Finstall%2F365d.json&search=%22neteinstein%2Ftap%2Fcalendar-sync%22%2C%5Cs%2A%22count%22%3A%5Cs%2A%22%28%5B%5E%22%5D%2B%29%22&replace=%241&label=brew%20installs%20%28365d%29&logo=homebrew&logoColor=white&color=FBB040)](https://formulae.brew.sh/analytics/install/365d/)
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 
-**Install with [Homebrew](https://brew.sh/):**
-
-```bash
-brew install neteinstein/tap/calendar-sync
-brew services start neteinstein/tap/calendar-sync
-```
-
-<sub>macOS 14 or later · starts now and at every login · more in <a href="#install">Install</a></sub>
-
 <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">
   <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, and the main calendar shows up in Calendar A as Busy">
 </a>
@@ -33,6 +24,17 @@ brew services start neteinstein/tap/calendar-sync
 </div>
 
 ---
+
+## How to install
+
+With [Homebrew](https://brew.sh/):
+
+```bash
+brew install neteinstein/tap/calendar-sync
+brew services start neteinstein/tap/calendar-sync
+```
+
+The second command starts it now and at every login. It needs macOS 14 or later; more in [Install](#install).
 
 ## Why
 
