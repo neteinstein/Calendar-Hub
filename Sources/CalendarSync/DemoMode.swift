@@ -61,7 +61,8 @@ final class DemoCalendars {
         settings.menuCalendar.showsMeetingStats = true
         settings.worldClocks = WorldClockOptions(showsInMenu: true, clocks: [
             WorldClock(name: "New York", timeZoneID: "America/New_York"),
-            WorldClock(name: "São Paulo", timeZoneID: "America/Sao_Paulo"),
+            WorldClock(name: "São Paulo", timeZoneID: "America/Sao_Paulo",
+                       workingHours: WorkingHours(start: 10 * 60, end: 18 * 60)),
             WorldClock(name: "Berlin", timeZoneID: "Europe/Berlin"),
         ])
         settings.menuBar.showsNextMeeting = true
