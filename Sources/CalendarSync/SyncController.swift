@@ -224,9 +224,15 @@ final class SyncController: ObservableObject {
         setupProblem = nil
         let plan = SyncPlanner.plan(sources: results, existing: existing, options: settings.options)
 
-        let unread = plan.failedSources.map { id, reason in
+        var unread = plan.failedSources.map { id, reason in
             UnreadSource(id: id, name: settings.sources.first { $0.id == id }?.calendarName ?? "Source", reason: reason)
         }
+        // A calendar an earlier sync couldn't read, and this one didn't try (it read only the
+        // ones due, or only Calendar.app's after a change there), is still unread. Without
+        // this the menu said all was synced until that calendar's turn came round again.
+        let stillUnread = SyncSchedule.stillUnread(
+            unreadSources.map(\.id), read: Set(selected.map(\.id)), sources: settings.sources)
+        unread += unreadSources.filter { stillUnread.contains($0.id) }
         var problems = unread.map(\.problem)
         if apply {
             ignoreStoreChangesUntil = .now + .seconds(5)
