@@ -436,7 +436,7 @@ private struct WorldClocksTab: View {
                             move: { offset in move(clock.id, by: offset) },
                             remove: { settings.worldClocks.clocks.removeAll { $0.id == clock.id } })
                 }
-                TextField("Add a city", text: $query, prompt: Text("Search for a city or a time zone, such as Tokyo or PST"))
+                TextField("Add a city", text: $query, prompt: Text("Search for a city, a country or a time zone, such as Tokyo, Brazil or PST"))
                 ForEach(results, id: \.timeZoneID) { place in
                     Button {
                         settings.worldClocks.clocks.append(WorldClock(name: place.city, timeZoneID: place.timeZoneID))
@@ -445,7 +445,7 @@ private struct WorldClocksTab: View {
                         HStack {
                             Image(systemName: "plus.circle.fill").foregroundStyle(Color.accentColor)
                             Text(place.city)
-                            Text(place.region).foregroundStyle(.secondary)
+                            Text(place.countryName()).foregroundStyle(.secondary)
                             Spacer()
                             Text(Date().formatted(Date.FormatStyle(date: .omitted, time: .shortened,
                                                                    timeZone: TimeZone(identifier: place.timeZoneID) ?? .current)))
@@ -459,7 +459,7 @@ private struct WorldClocksTab: View {
             } header: {
                 Text("Cities")
             } footer: {
-                Text("Each city has its time zone's name until you rename it: a city that shares a time zone, such as San Francisco with Los Angeles, can be added that way. Where you are can be renamed too, and keeps that name while your Mac is in that time zone.")
+                Text("A country gives a city for each of its time zones. Each city has its time zone's name until you rename it: a city that shares a time zone, such as San Francisco with Los Angeles, can be added that way. Where you are can be renamed too, and keeps that name while your Mac is in that time zone.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -476,7 +476,7 @@ private struct WorldClocksTab: View {
     /// The cities matching the search, less those already added.
     private var results: [WorldClocks.Place] {
         let added = Set(settings.worldClocks.clocks.map(\.timeZoneID))
-        return WorldClocks.search(query, limit: 12).filter { !added.contains($0.timeZoneID) }.prefix(6).map { $0 }
+        return WorldClocks.search(query, limit: 20).filter { !added.contains($0.timeZoneID) }.prefix(8).map { $0 }
     }
 
     private func move(_ id: UUID, by offset: Int) {

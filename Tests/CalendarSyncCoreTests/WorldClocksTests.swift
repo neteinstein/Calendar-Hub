@@ -111,6 +111,42 @@ final class WorldClocksTests: XCTestCase {
         XCTAssertEqual(WorldClocks.cityName(of: "America/Argentina/Buenos_Aires"), "Buenos Aires")
     }
 
+    func testSearchByCountry() {
+        let english = Locale(identifier: "en_US")
+        func ids(_ query: String, locale: Locale = english) -> [String] {
+            WorldClocks.search(query, limit: 20, locale: locale, at: date(10, 12)).map(\.timeZoneID)
+        }
+        // One time zone, one city.
+        XCTAssertEqual(ids("Germany").first, "Europe/Berlin")
+        XCTAssertEqual(ids("japan"), ["Asia/Tokyo"])
+        // A city for each time the country keeps, the main one first, and no more.
+        XCTAssertEqual(Array(ids("Portugal").prefix(2)), ["Europe/Lisbon", "Atlantic/Azores"])
+        XCTAssertFalse(ids("Portugal").contains("Atlantic/Madeira"))
+        let states = ids("United States")
+        XCTAssertEqual(Array(states.prefix(3)), ["America/New_York", "America/Chicago", "America/Denver"])
+        XCTAssertTrue(states.contains("America/Phoenix"))
+        XCTAssertTrue(states.contains("America/Los_Angeles"))
+        XCTAssertTrue(states.contains("Pacific/Honolulu"))
+        XCTAssertFalse(states.contains("America/Detroit"))
+        // The start of a name, what people call it, and its name in the Mac's language.
+        XCTAssertEqual(ids("Portug").first, "Europe/Lisbon")
+        XCTAssertEqual(ids("uk").first, "Europe/London")
+        XCTAssertEqual(ids("usa").first, "America/New_York")
+        XCTAssertEqual(ids("Alemanha", locale: Locale(identifier: "pt_PT")).first, "Europe/Berlin")
+        XCTAssertEqual(ids("Germany", locale: Locale(identifier: "pt_PT")).first, "Europe/Berlin")
+        // A country named in full comes before the cities that start the same way.
+        XCTAssertEqual(ids("India").first, "Asia/Calcutta")
+        // Cities still come by their own name.
+        XCTAssertEqual(ids("Detroit").first, "America/Detroit")
+        XCTAssertEqual(WorldClocks.search("Lisbon", locale: english).first?.countryName(locale: english), "Portugal")
+    }
+
+    func testEveryCityWithACountryIsKnown() {
+        // The table covers the time zones macOS lists, less the ones without a country.
+        let without = WorldClocks.places.filter { $0.countryCode == nil }.map(\.timeZoneID)
+        XCTAssertEqual(without, [], "no country for \(without)")
+    }
+
     func testOptionsDecodeWhenEmpty() throws {
         let options = try JSONDecoder().decode(WorldClockOptions.self, from: Data("{}".utf8))
         XCTAssertFalse(options.showsInMenu)
