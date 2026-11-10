@@ -139,6 +139,9 @@ struct SlidingSegments<Value: Hashable>: View {
                 } label: {
                     Text(option.title)
                         .font(.system(size: 12, weight: .medium))
+                        // A longer title, such as World Clocks, shrinks a little to fit.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .foregroundStyle(isSelected ? .primary : .secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)

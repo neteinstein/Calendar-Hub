@@ -16,7 +16,7 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 
 <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">
-  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: meetings from a secondary calendar are copied into the main calendar as [Calendar A] meeting name, with the Teams link">
+  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, and the main calendar shows up in Calendar A as Busy">
 </a>
 
 <sub>▶ <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">Watch with sound</a> · 21 seconds</sub>
@@ -62,10 +62,21 @@ When your meetings live in a secondary calendar (another company's account, a se
 </td>
 <td width="50%" valign="top">
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-clocks-dark.webp">
+  <img src="docs/screenshots/menu-clocks-light.webp" alt="World Clocks: the time in Lisbon, New York, São Paulo and Berlin, each colored by working time, off work or night, above a chart of the day showing everyone works 14:00 to 16:00">
+</picture>
+<b>World Clocks.</b> The time in the cities you work with, green while they're at work. Type a time, or drag across the chart, to see it on every clock, and see when everyone's working hours overlap.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-stats-dark.webp">
   <img src="docs/screenshots/menu-stats-light.webp" alt="Meeting Stats: hours in meetings per day, a chart of the last two weeks, insights and the year pictured as a walk from Lisbon to Paris">
 </picture>
 <b>Stats.</b> Where your week goes: hours in meetings, the last two weeks, your busiest day, the free time left today, and a year of it pictured as a trip.
+</td>
+<td width="50%" valign="top">
 </td>
 </tr>
 </table>
@@ -137,6 +148,10 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
   <img src="docs/screenshots/settings-tasks-light.webp" width="640" alt="Settings, Tasks: the Tasks view in the menu, the Reminders list tasks are kept in, and the nudges new tasks get">
 </picture>
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-worldClocks-dark.webp">
+  <img src="docs/screenshots/settings-worldClocks-light.webp" width="640" alt="Settings, World Clocks: the World Clocks view in the menu, the working hours, and the cities, each with its time zone and time">
+</picture>
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">
   <img src="docs/screenshots/settings-about-light.webp" width="640" alt="Settings, About: version, update check, feedback and donations">
 </picture>
@@ -153,6 +168,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
+- **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## What leaves your Mac, and where it ends up

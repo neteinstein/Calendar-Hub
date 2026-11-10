@@ -28,13 +28,14 @@ struct MenuCalendarView: View {
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
 
     enum Mode: String {
-        case month, list, tasks, stats
+        case month, list, tasks, clocks, stats
     }
 
-    /// The saved mode, or the list when Tasks or Stats was picked and is now off.
+    /// The saved mode, or the list when Tasks, World Clocks or Stats was picked and is now off.
     private var shownMode: Mode {
         switch mode {
-        case .tasks where !settings.taskOptions.showsInMenu, .stats where !settings.menuCalendar.showsMeetingStats: .list
+        case .tasks where !settings.taskOptions.showsInMenu, .clocks where !settings.worldClocks.showsInMenu,
+             .stats where !settings.menuCalendar.showsMeetingStats: .list
         default: mode
         }
     }
@@ -57,6 +58,8 @@ struct MenuCalendarView: View {
                     listView.transition(.opacity)
                 case .tasks:
                     TasksView(events: events, calendar: calendar).transition(.opacity)
+                case .clocks:
+                    WorldClocksView().transition(.opacity)
                 case .stats:
                     VStack(spacing: 8) {
                         if settings.sources.isEmpty == false {
@@ -82,6 +85,7 @@ struct MenuCalendarView: View {
     private var modes: [(value: Mode, title: String)] {
         [(.month, "Month"), (.list, "List")]
             + (settings.taskOptions.showsInMenu ? [(.tasks, "Tasks")] : [])
+            + (settings.worldClocks.showsInMenu ? [(.clocks, "World Clocks")] : [])
             + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
     }
 
@@ -109,6 +113,9 @@ struct MenuCalendarView: View {
             let today = calendar.startOfDay(for: Date())
             (from, to) = (calendar.date(byAdding: .day, value: -7, to: today)!,
                           calendar.date(byAdding: .day, value: 31, to: today)!)
+        case .clocks:
+            // Shows no events.
+            return
         case .stats:
             let window = MeetingStats.window(now: Date(), calendar: calendar)
             (from, to) = (window.start, window.end)

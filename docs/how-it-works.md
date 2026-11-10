@@ -62,6 +62,10 @@ The **Tasks** view sits between List and Stats (turn it off in Settings › Task
 - **On the calendar.** Month marks a day with open tasks with a ring after its dots, and a picked day lists its tasks above its meetings. In List, each day starts with its tasks, and today with the overdue ones too. Tick them off there, or click one to open it.
 - **Moves with the meeting.** After each sync, a task for a meeting that moved has its due date and nudges moved by as much, so an hour before stays an hour before. A meeting that's gone or cancelled is marked as removed, and its tasks stay as they are.
 
+## World Clocks
+
+Turn on **World Clocks** in Settings › World Clocks and add the cities you work with: search by city, region or a time zone abbreviation such as PST, and rename a city to one that shares its time zone (Los Angeles as San Francisco). The menu gains a **World Clocks** view, before Stats, with the time here and in each city, how far ahead or behind it is, and whether it's **working**, **off work** or **night** there (22:00 to 7:00). Working time uses the same working hours as Meeting Stats, in every city's own time, Monday to Friday. Below the clocks, a chart of today in your time shows each city's day and an **Everyone** row for when all of them are at work. Type a time, or click or drag across the chart, to see it on every clock; **Back to now** returns to the current time.
+
 ## Meeting Stats
 
 Turn on **Meeting Stats** and the menu gains a **Stats** view: hours in meetings **yesterday, today and tomorrow**, a chart of the **last two weeks**, **last week** (and how it compares with the week before) and **last month**, your **average per working day**, your **busiest weekday**, how many meetings ran **back to back**, the **longest free block** left today and when it is, how much of this week's working hours you're **out of office**, and a **prediction for the year**, pictured as a trip, like walking from Lisbon to Paris.
