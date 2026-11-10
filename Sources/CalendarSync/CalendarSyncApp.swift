@@ -46,20 +46,60 @@ struct CalendarSyncApp: App {
     /// A copy already running would sync the same calendars: an "Open at login" item next to
     /// a `brew services` one, or a source build next to a Homebrew one. Every copy shares the
     /// lock file, so a later one quits here, before it asks for calendar access, syncs or shows
-    /// anything. If the lock can't be taken at all, running beats not running.
+    /// anything. Unless the one running is an older version: then this copy has it quit and
+    /// carries on, so starting the app after an update is all it takes to run the new version.
+    /// If the lock can't be taken at all, running beats not running.
     private static func quitIfAlreadyRunning() {
         guard instanceLock == nil else { return }
         let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("org.neteinstein.calendarsync/instance.lock")
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         do {
-            guard let lock = try InstanceLock.acquire(at: url) else {
+            guard let lock = try InstanceLock.acquire(at: url) ?? takeOver(at: url, version: version) else {
                 NSLog("Calendar Sync is already running, so this copy quits.")
                 AppDelegate.askRunningCopyToShowMenuBarItem()
                 exit(0)
             }
+            // For the next copy to start, which takes over only from an older one.
+            lock.record(InstanceLock.Holder(pid: getpid(), version: version))
             instanceLock = lock
         } catch {
             NSLog("Calendar Sync couldn't check for another running copy, so it runs anyway: \(error)")
+        }
+    }
+
+    /// Has an older copy holding the lock quit, and takes the lock once it's gone. nil when
+    /// the running copy is as new as this one, can't be found, or won't go.
+    private static func takeOver(at url: URL, version: String) throws -> InstanceLock? {
+        let others = NSRunningApplication
+            .runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+            .filter { $0.processIdentifier != getpid() }
+        // The lock file outlives the copy that wrote it, so only a holder still running counts.
+        // Without one, the lock is held by a copy from before 2.0.15, which wrote nothing: any
+        // of the others, so all of them go.
+        let holder = InstanceLock.holder(at: url).flatMap { holder in
+            others.contains { $0.processIdentifier == holder.pid } ? holder : nil
+        }
+        guard InstanceLock.replaces(holder, version: version) else { return nil }
+        let old = holder.map { holder in others.filter { $0.processIdentifier == holder.pid } } ?? others
+        guard !old.isEmpty else { return nil }
+        NSLog("Calendar Sync \(version) takes over from the \(holder?.version ?? "older") copy that was running.")
+
+        // Asked to quit first, so it saves what's open; ended if it hasn't after a while (a
+        // dialog left open keeps it from quitting).
+        old.forEach { $0.terminate() }
+        if let lock = try acquire(at: url, within: 5) { return lock }
+        old.forEach { $0.forceTerminate() }
+        return try acquire(at: url, within: 3)
+    }
+
+    /// Tries for the lock until it's free or `seconds` have passed.
+    private static func acquire(at url: URL, within seconds: TimeInterval) throws -> InstanceLock? {
+        let deadline = Date().addingTimeInterval(seconds)
+        while true {
+            if let lock = try InstanceLock.acquire(at: url) { return lock }
+            guard Date() < deadline else { return nil }
+            Thread.sleep(forTimeInterval: 0.1)
         }
     }
 
