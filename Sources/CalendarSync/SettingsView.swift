@@ -45,7 +45,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, menuBar, alerts, tasks, preview, about
+    case general, calendars, twoWaySync, menuBar, alerts, tasks, worldClocks, preview, about
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -60,6 +60,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .menuBar: "Menu bar"
         case .alerts: "Meeting alerts"
         case .tasks: "Tasks"
+        case .worldClocks: "World Clocks"
         case .preview: "Preview"
         case .about: "About"
         }
@@ -73,6 +74,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .menuBar: "menubar.rectangle"
         case .alerts: "bell.fill"
         case .tasks: "checklist"
+        case .worldClocks: "globe"
         case .preview: "eye.fill"
         case .about: "info"
         }
@@ -86,6 +88,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .menuBar: .purple
         case .alerts: .red
         case .tasks: .green
+        case .worldClocks: .indigo
         case .preview: .orange
         }
     }
@@ -99,6 +102,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .menuBar: MenuBarTab()
         case .alerts: AlertsTab()
         case .tasks: TasksTab()
+        case .worldClocks: WorldClocksTab()
         case .preview: PreviewTab()
         case .about: AboutTab()
         }
@@ -205,10 +209,7 @@ private struct MenuBarTab: View {
                     if settings.menuCalendar.showsMeetingStats {
                         LabeledContent("Working hours") {
                             HStack(spacing: 4) {
-                                timePicker($settings.menuCalendar.workingHours.start, in: 0..<(settings.menuCalendar.workingHours.end))
-                                Text("to")
-                                timePicker($settings.menuCalendar.workingHours.end,
-                                           in: (settings.menuCalendar.workingHours.start + 30)..<(24 * 60 + 1))
+                                WorkingHoursPicker(hours: $settings.menuCalendar.workingHours)
                             }
                         }
                     }
@@ -221,6 +222,17 @@ private struct MenuBarTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// From and to, in half hours: the working day Meeting Stats and World Clocks use.
+private struct WorkingHoursPicker: View {
+    @Binding var hours: WorkingHours
+
+    var body: some View {
+        timePicker($hours.start, in: 0..<hours.end)
+        Text("to")
+        timePicker($hours.end, in: (hours.start + 30)..<(24 * 60 + 1))
     }
 
     /// A time of day in half hours, from the times in `range` (minutes after midnight).
@@ -373,6 +385,121 @@ private struct TasksTab: View {
             ForEach(Nudge.presets(anchorHasTime: true), id: \.self) { nudge in
                 Text(nudge.title(forEvent: forEvent) ?? "").tag(Optional(nudge))
             }
+        }
+    }
+}
+
+// MARK: - World Clocks
+
+private struct WorldClocksTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @State private var query = ""
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show World Clocks in the menu", isOn: $settings.worldClocks.showsInMenu)
+                if settings.worldClocks.showsInMenu && !settings.menuCalendarEnabled {
+                    Text("Turn on Show a calendar in the menu (Menu bar) to see it.")
+                        .foregroundStyle(.orange)
+                }
+            } footer: {
+                Text("Adds a World Clocks view to the menu, before Stats: the time here and in each city below, green while it's working time there, and a chart of today showing when everyone's at work. Type a time, or drag across the chart, to see it on every clock.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Working hours") {
+                    HStack(spacing: 4) {
+                        WorkingHoursPicker(hours: $settings.menuCalendar.workingHours)
+                    }
+                }
+            } footer: {
+                Text("The same in every city, Monday to Friday, and the same as Meeting Stats uses.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                ForEach($settings.worldClocks.clocks) { $clock in
+                    CityRow(clock: $clock,
+                            isFirst: clock.id == settings.worldClocks.clocks.first?.id,
+                            isLast: clock.id == settings.worldClocks.clocks.last?.id,
+                            move: { offset in move(clock.id, by: offset) },
+                            remove: { settings.worldClocks.clocks.removeAll { $0.id == clock.id } })
+                }
+                TextField("Add a city", text: $query, prompt: Text("Search for a city or a time zone, such as Tokyo or PST"))
+                ForEach(results, id: \.timeZoneID) { place in
+                    Button {
+                        settings.worldClocks.clocks.append(WorldClock(name: place.city, timeZoneID: place.timeZoneID))
+                        query = ""
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill").foregroundStyle(Color.accentColor)
+                            Text(place.city)
+                            Text(place.region).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Date().formatted(Date.FormatStyle(date: .omitted, time: .shortened,
+                                                                   timeZone: TimeZone(identifier: place.timeZoneID) ?? .current)))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("Cities")
+            } footer: {
+                Text("Each city has its time zone's name until you rename it: a city that shares a time zone, such as San Francisco with Los Angeles, can be added that way.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    /// The cities matching the search, less those already added.
+    private var results: [WorldClocks.Place] {
+        let added = Set(settings.worldClocks.clocks.map(\.timeZoneID))
+        return WorldClocks.search(query, limit: 12).filter { !added.contains($0.timeZoneID) }.prefix(6).map { $0 }
+    }
+
+    private func move(_ id: UUID, by offset: Int) {
+        var clocks = settings.worldClocks.clocks
+        guard let index = clocks.firstIndex(where: { $0.id == id }), clocks.indices.contains(index + offset) else { return }
+        clocks.swapAt(index, index + offset)
+        settings.worldClocks.clocks = clocks
+    }
+}
+
+/// A city in the World Clocks list: its name, which can be changed, its time zone and time, and
+/// buttons to move it and remove it.
+private struct CityRow: View {
+    @Binding var clock: WorldClock
+    let isFirst: Bool
+    let isLast: Bool
+    let move: (Int) -> Void
+    let remove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "globe").foregroundStyle(.secondary)
+            TextField("Name", text: $clock.name)
+                .labelsHidden()
+                .textFieldStyle(.plain)
+                .fontWeight(.medium)
+                .help("Click to rename")
+            Text("\(clock.timeZoneID.replacingOccurrences(of: "_", with: " ")) · \(WorldClocks.offsetText(clock.timeZone, from: .current, at: Date()))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Text(Date().formatted(Date.FormatStyle(date: .omitted, time: .shortened, timeZone: clock.timeZone)))
+                .monospacedDigit()
+            Button { move(-1) } label: { Image(systemName: "chevron.up") }
+                .buttonStyle(.borderless).disabled(isFirst).help("Move up")
+            Button { move(1) } label: { Image(systemName: "chevron.down") }
+                .buttonStyle(.borderless).disabled(isLast).help("Move down")
+            Button(action: remove) { Image(systemName: "minus.circle.fill").foregroundStyle(.red) }
+                .buttonStyle(.borderless).help("Remove \(clock.name)")
         }
     }
 }

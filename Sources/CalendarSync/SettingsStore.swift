@@ -15,6 +15,8 @@ final class SettingsStore: ObservableObject {
     @Published var menuCalendar: MenuCalendarOptions { didSet { save(menuCalendar, "menuCalendar") } }
     /// The menu's Tasks view, where tasks are kept, and the nudges new tasks get.
     @Published var taskOptions: TaskOptions { didSet { save(taskOptions, "taskOptions") } }
+    /// The menu's World Clocks view and its cities.
+    @Published var worldClocks: WorldClockOptions { didSet { save(worldClocks, "worldClocks") } }
     @Published var targetCalendarID: String? { didSet { defaults.set(targetCalendarID, forKey: "targetCalendarID") } }
     @Published var intervalMinutes: Int { didSet { defaults.set(intervalMinutes, forKey: "intervalMinutes") } }
     /// The main calendar is also shown as Busy in the secondary calendars, in each one whose
@@ -49,6 +51,7 @@ final class SettingsStore: ObservableObject {
         menuBar = Self.load(MenuBarOptions.self, "menuBar", defaults) ?? MenuBarOptions()
         menuCalendar = Self.load(MenuCalendarOptions.self, "menuCalendar", defaults) ?? MenuCalendarOptions()
         taskOptions = Self.load(TaskOptions.self, "taskOptions", defaults) ?? TaskOptions()
+        worldClocks = Self.load(WorldClockOptions.self, "worldClocks", defaults) ?? WorldClockOptions()
         targetCalendarID = defaults.string(forKey: "targetCalendarID")
         let interval = defaults.integer(forKey: "intervalMinutes")
         intervalMinutes = interval > 0 ? interval : 15
