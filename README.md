@@ -17,7 +17,7 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 [![Donate](https://img.shields.io/badge/donate-%E2%99%A5-EC4899)](https://www.pedrovicente.pt/donate)
 
 <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-hub.mp4">
-  <img src="docs/demo.webp" width="860" alt="Calendar Hub demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, and the main calendar shows up in Calendar A as Busy">
+  <img src="docs/demo.webp" width="860" alt="Calendar Hub demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, the main calendar shows up in Calendar A as Busy, and the menu with meeting alerts, tasks and world clocks">
 </a>
 
 <sub>▶ <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-hub.mp4">Watch with sound</a> · 21 seconds</sub>
