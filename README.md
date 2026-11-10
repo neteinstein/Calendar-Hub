@@ -16,7 +16,7 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 
 <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">
-  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: meetings from a secondary calendar are copied into the main calendar as [Calendar A] meeting name, with the Teams link">
+  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, and the main calendar shows up in Calendar A as Busy">
 </a>
 
 <sub>▶ <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">Watch with sound</a> · 21 seconds</sub>
