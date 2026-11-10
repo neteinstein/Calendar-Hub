@@ -7,22 +7,36 @@ You need **macOS 14 or later** and **Xcode 15+** (the command line tools are eno
 ## With Homebrew
 
 ```bash
-brew install neteinstein/tap/calendar-sync
+brew install neteinstein/tap/calendar-hub
 ```
 
-The formula lives in the [neteinstein/homebrew-tap](https://github.com/neteinstein/homebrew-tap) tap and builds the app from source on your Mac (that's why it needs the Xcode command line tools), so there's nothing to sign or notarize. `brew install --HEAD neteinstein/tap/calendar-sync` builds the latest `main` instead of the pinned version.
+The formula lives in the [neteinstein/homebrew-tap](https://github.com/neteinstein/homebrew-tap) tap and builds the app from source on your Mac (that's why it needs the Xcode command line tools), so there's nothing to sign or notarize. `brew install --HEAD neteinstein/tap/calendar-hub` builds the latest `main` instead of the pinned version.
 
 To run it once:
 
 ```bash
-open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"
+open "$(brew --prefix)/opt/calendar-hub/Calendar Hub.app"
 ```
 
-- **Updating:** `brew update && brew upgrade calendar-sync`. Or click the blue **update** button that appears next to **Sync now** in the menu when a newer version is out (the app checks once a day): Terminal opens, runs these commands and restarts the app. Settings also warns you, and its **Update** button shows these commands. If the app is running, it keeps running the old version until the new one starts, and `brew upgrade` prints how: `brew services restart calendar-sync` if you started it with `brew services`, otherwise `open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"`, or open it from your Applications folder. Either way the new version has the old copy quit and takes its place, however the old one was started.
-- **Open at login:** run `brew services start calendar-sync` (the full name, `brew services start neteinstein/tap/calendar-sync`, works too) and leave **Open at login** in Settings off. Only one copy runs at a time, so a second login item would just start and quit (a copy that starts takes over only from an older version). The service runs the app from Homebrew's `opt` path, so it keeps starting the newest version after upgrades. `brew upgrade` doesn't restart it: run `brew services restart calendar-sync` for that.
-- **In your Applications folder:** the first time it runs from Homebrew, the app puts a link to itself in `~/Applications`, unless `/Applications` already has one. Homebrew can't do that at install time, and your desktop account may not be allowed to write to `/Applications`, but it always owns `~/Applications`. The link goes through Homebrew's `opt` path, so it opens the newest version after upgrades. Finder and the Dock treat the link as the app; Spotlight and Launchpad don't list linked apps. Remove the link and it stays removed. Want it in `/Applications` instead? From an account that can write there, run `ln -s "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app" /Applications/`. `brew uninstall` leaves the link behind: remove it with `rm ~/Applications/"Calendar Sync.app"` (or `/Applications/"Calendar Sync.app"`).
-- **Homebrew in a separate admin account:** install and upgrade from the admin account as usual, but run `brew services` from the account you log in to the desktop with. The admin account has no desktop session to start the app in, so there it fails with `Domain does not support specified action`. If your own account then refuses to load the formula from an untrusted tap, run `brew trust --formula neteinstein/tap/calendar-sync` from it first. Don't start the app by hand from the admin account either (the hint `brew services` prints after a failure suggests it): that copy runs in the admin account, not in your desktop session, so it logs `Connection interrupted` errors and keeps running until you stop it with Ctrl-C or `pkill CalendarSync`.
+- **Updating:** `brew update && brew upgrade calendar-hub`. Or click the blue **update** button that appears next to **Sync now** in the menu when a newer version is out (the app checks once a day): Terminal opens, runs these commands and restarts the app. Settings also warns you, and its **Update** button shows these commands. If the app is running, it keeps running the old version until the new one starts, and `brew upgrade` prints how: `brew services restart calendar-hub` if you started it with `brew services`, otherwise `open "$(brew --prefix)/opt/calendar-hub/Calendar Hub.app"`, or open it from your Applications folder. Either way the new version has the old copy quit and takes its place, however the old one was started.
+- **Open at login:** run `brew services start calendar-hub` (the full name, `brew services start neteinstein/tap/calendar-hub`, works too) and leave **Open at login** in Settings off. Only one copy runs at a time, so a second login item would just start and quit (a copy that starts takes over only from an older version). The service runs the app from Homebrew's `opt` path, so it keeps starting the newest version after upgrades. `brew upgrade` doesn't restart it: run `brew services restart calendar-hub` for that.
+- **In your Applications folder:** the first time it runs from Homebrew, the app puts a link to itself in `~/Applications`, unless `/Applications` already has one. Homebrew can't do that at install time, and your desktop account may not be allowed to write to `/Applications`, but it always owns `~/Applications`. The link goes through Homebrew's `opt` path, so it opens the newest version after upgrades. Finder and the Dock treat the link as the app; Spotlight and Launchpad don't list linked apps. Remove the link and it stays removed. Want it in `/Applications` instead? From an account that can write there, run `ln -s "$(brew --prefix)/opt/calendar-hub/Calendar Hub.app" /Applications/`. `brew uninstall` leaves the link behind: remove it with `rm ~/Applications/"Calendar Hub.app"` (or `/Applications/"Calendar Hub.app"`).
+- **Homebrew in a separate admin account:** install and upgrade from the admin account as usual, but run `brew services` from the account you log in to the desktop with. The admin account has no desktop session to start the app in, so there it fails with `Domain does not support specified action`. If your own account then refuses to load the formula from an untrusted tap, run `brew trust --formula neteinstein/tap/calendar-hub` from it first. Don't start the app by hand from the admin account either (the hint `brew services` prints after a failure suggests it): that copy runs in the admin account, not in your desktop session, so it logs `Connection interrupted` errors and keeps running until you stop it with Ctrl-C or `pkill CalendarHub`.
 - Upgrades are ad-hoc signed builds, so macOS asks for calendar access (and Reminders access, once you open Tasks) again after each one. Your settings and tasks are kept.
+
+### Coming from Calendar Sync
+
+The app was called Calendar Sync, formula `calendar-sync`, up to 2.0.19. `brew update` tells Homebrew about the rename, and `brew upgrade` (or the app's **update** button) installs Calendar Hub in its place. The first time Calendar Hub runs, it has a running Calendar Sync quit and brings across its settings, tasks and Outlook sign-in. It replaces the `~/Applications` link with one named Calendar Hub. As a new app, it asks for calendar and Reminders access again. Two things don't move by themselves:
+
+- **`brew services`:** Homebrew doesn't move the old service. Start the new one and remove the old:
+
+  ```bash
+  brew services start calendar-hub
+  launchctl bootout gui/$(id -u)/homebrew.mxcl.calendar-sync
+  rm ~/Library/LaunchAgents/homebrew.mxcl.calendar-sync.plist
+  ```
+
+- **Open at login** in Settings: switch it on again if you used it.
 
 ## From source
 
@@ -30,7 +44,7 @@ open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"
 git clone https://github.com/neteinstein/Calendar-Sync
 cd Calendar-Sync
 scripts/build-app.sh
-open "build/Calendar Sync.app"
+open "build/Calendar Hub.app"
 ```
 
 To update later: quit the app, then `git pull && scripts/build-app.sh` and reopen it. While the app is still in the clone's `build` folder, the menu's **update** button does that for you in Terminal. Local builds are ad-hoc signed, so macOS asks for calendar access (and Reminders access, for Tasks) again after each rebuild.
@@ -47,4 +61,4 @@ Allow calendar access on first launch. Then open **Settings…** from the menu b
 
 ## No icon in the menu bar?
 
-If the icon is hidden, in System Settings › Menu Bar or by ⌘-dragging it out of the menu bar, Calendar Sync keeps running and syncing without it. Open the app again to bring the icon back. If it disappears again, turn Calendar Sync back on under **Allow in the Menu Bar** in System Settings › Menu Bar.
+If the icon is hidden, in System Settings › Menu Bar or by ⌘-dragging it out of the menu bar, Calendar Hub keeps running and syncing without it. Open the app again to bring the icon back. If it disappears again, turn Calendar Hub back on under **Allow in the Menu Bar** in System Settings › Menu Bar.

@@ -2,23 +2,23 @@
 import PackageDescription
 
 var products: [Product] = [
-    .library(name: "CalendarSyncCore", targets: ["CalendarSyncCore"]),
+    .library(name: "CalendarHubCore", targets: ["CalendarHubCore"]),
 ]
 
 var targets: [Target] = [
     // Pure Foundation: sync rules, formatting, parsing. Builds and tests on Linux too.
-    .target(name: "CalendarSyncCore"),
-    .testTarget(name: "CalendarSyncCoreTests", dependencies: ["CalendarSyncCore"]),
+    .target(name: "CalendarHubCore"),
+    .testTarget(name: "CalendarHubCoreTests", dependencies: ["CalendarHubCore"]),
 ]
 
 #if os(macOS)
 // The menu bar app itself (EventKit, SwiftUI, WebKit). macOS only.
-products.append(.executable(name: "CalendarSync", targets: ["CalendarSync"]))
-targets.append(.executableTarget(name: "CalendarSync", dependencies: ["CalendarSyncCore"]))
+products.append(.executable(name: "CalendarHub", targets: ["CalendarHub"]))
+targets.append(.executableTarget(name: "CalendarHub", dependencies: ["CalendarHubCore"]))
 #endif
 
 let package = Package(
-    name: "CalendarSync",
+    name: "CalendarHub",
     platforms: [.macOS(.v14)],
     products: products,
     targets: targets

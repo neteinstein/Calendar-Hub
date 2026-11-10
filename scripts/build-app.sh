@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds "Calendar Sync.app" into ./build.
+# Builds "Calendar Hub.app" into ./build.
 #
 #   scripts/build-app.sh                       # ad-hoc signed, for your own Mac
 #   SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/build-app.sh
@@ -10,19 +10,19 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-APP="build/Calendar Sync.app"
+APP="build/Calendar Hub.app"
 IDENTITY="${SIGN_IDENTITY:--}"
 
 # UNIVERSAL=1 builds for Apple silicon and Intel (needs full Xcode, not just the command line tools).
 ARCH_FLAGS=()
 if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); fi
 
-swift build -c release --product CalendarSync ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@"
-BIN="$(swift build -c release --product CalendarSync ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@" --show-bin-path)/CalendarSync"
+swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@"
+BIN="$(swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@" --show-bin-path)/CalendarHub"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/CalendarSync"
+cp "$BIN" "$APP/Contents/MacOS/CalendarHub"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
@@ -30,7 +30,7 @@ if [[ "$IDENTITY" == "-" ]]; then
   codesign --force --sign - "$APP"
 else
   codesign --force --options runtime --timestamp \
-    --entitlements Support/CalendarSync.entitlements \
+    --entitlements Support/CalendarHub.entitlements \
     --sign "$IDENTITY" "$APP"
 fi
 
