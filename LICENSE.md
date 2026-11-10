@@ -1,7 +1,7 @@
 Copyright (c) 2026 Pedro Vicente (https://github.com/neteinstein)
 
-Calendar Sync is licensed under the Sustainable Use License 1.0 (SPDX: `SUL-1.0`) below. For any use
-these terms do not allow, such as building or selling a product or service from Calendar Sync or including it
+Calendar Hub is licensed under the Sustainable Use License 1.0 (SPDX: `SUL-1.0`) below. For any use
+these terms do not allow, such as building or selling a product or service from Calendar Hub or including it
 in one, ask the licensor for a separate license.
 
 # Sustainable Use License

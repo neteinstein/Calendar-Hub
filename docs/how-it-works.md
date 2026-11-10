@@ -7,7 +7,7 @@ flowchart LR
     A["Secondary calendar<br/>in Calendar.app"] --> S
     B[".ics calendar link<br/>(subscribed)"] --> S
     C["Outlook on the web<br/>(sign in once)"] --> S
-    S{{"Calendar Sync<br/>plan: add · update · remove"}} --> M["Main calendar<br/>[Calendar A] Sprint planning ▶ Join"]
+    S{{"Calendar Hub<br/>plan: add · update · remove"}} --> M["Main calendar<br/>[Calendar A] Sprint planning ▶ Join"]
     M -. "Two way sync: Busy, no details" .-> A
     M -. "Two way sync (experimental)" .-> C
 ```
@@ -55,9 +55,9 @@ The **full-screen alert** (on unless you turn it off) blurs the screen when a ma
 
 The **Tasks** view sits between List and Stats (turn it off in Settings › Tasks). Type a task and press Return for one with no date, or open it for more: notes, a **due date**, the **meeting it's for**, and **nudges**.
 
-- **Kept in Reminders.** Each task is a reminder in a Reminders list you pick (by default the one Reminders adds new reminders to). So it's on your iPhone and other devices too, you can tick it off anywhere, and it stays if you remove Calendar Sync. Reminders already in that list show up as tasks. The app asks for access to Reminders the first time you open the view.
-- **For a meeting.** Pick a meeting from the next month, or right-click it in the List. The task is due when the meeting starts, its open tasks show **to prepare** on the meeting's alert, and the link is saved in the reminder's URL field (`calendarsync://event?…`), so Reminders keeps it too.
-- **Nudges.** A nudge is one of the reminder's alerts, so Reminders shows it as a notification on all your devices, even while Calendar Sync isn't running. Pick one timed by the due date or the meeting (when it starts, 5, 15 or 30 minutes or an hour before, that day or the day before at 9:00) or a set time, and as many as you like. New tasks get the nudge set in Settings › Tasks: an hour before a meeting, and at the due time otherwise.
+- **Kept in Reminders.** Each task is a reminder in a Reminders list you pick (by default the one Reminders adds new reminders to). So it's on your iPhone and other devices too, you can tick it off anywhere, and it stays if you remove Calendar Hub. Reminders already in that list show up as tasks. The app asks for access to Reminders the first time you open the view.
+- **For a meeting.** Pick a meeting from the next month, or right-click it in the List. The task is due when the meeting starts, its open tasks show **to prepare** on the meeting's alert, and the link is saved in the reminder's URL field (`calendarhub://event?…`), so Reminders keeps it too.
+- **Nudges.** A nudge is one of the reminder's alerts, so Reminders shows it as a notification on all your devices, even while Calendar Hub isn't running. Pick one timed by the due date or the meeting (when it starts, 5, 15 or 30 minutes or an hour before, that day or the day before at 9:00) or a set time, and as many as you like. New tasks get the nudge set in Settings › Tasks: an hour before a meeting, and at the due time otherwise.
 - **Notes in a window.** Open a task's notes in a window of their own (the page button on its row, or in its editor) for more room and formatting: a Markdown editor that styles headings, bold, italic, code, links, quotes, lists and checklists as you type, with a bar of buttons, ⌘B, ⌘I, ⌘E and ⌘K. Return carries a list on, and a click ticks a checklist box. They're saved as you type, as Markdown in the reminder's notes, so Reminders has them too.
 - **On the calendar.** Month marks a day with open tasks with a ring after its dots, and a picked day lists its tasks above its meetings. In List, each day starts with its tasks, and today with the overdue ones too. Tick them off there, or click one to open it.
 - **Moves with the meeting.** After each sync, a task for a meeting that moved has its due date and nudges moved by as much, so an hour before stays an hour before. A meeting that's gone or cancelled is marked as removed, and its tasks stay as they are.
@@ -76,7 +76,7 @@ Only timed meetings in your main calendar count: all-day, declined and out-of-of
 
 The app checks GitHub for a newer version **once a day**, counting the day across sleep and restarts, and Settings' **About** pane can check now. A Homebrew install compares with the version the [tap](https://github.com/neteinstein/homebrew-tap) serves, since that's what `brew upgrade` installs and it can trail `main` for a while; a source build compares with the newest release, or the version on `main` while there are no releases.
 
-When there is one, a blue **update** button appears next to **Sync now** in the menu. Click it, confirm, and Terminal opens and runs the update: `brew update` and `brew upgrade calendar-sync` (as the account that owns Homebrew, if that's a separate admin account, so Terminal asks for its password), or `git pull` and `scripts/build-app.sh` for a source build. Then it restarts the app, through `brew services` if that started it. It stops at the first error and leaves the running copy alone, and the Terminal window shows what went wrong. Settings shows a warning too, with an **Update** button that shows the commands to run by hand and can run them in Terminal the same way. A source build moved out of its clone can't update by itself: its button opens those instructions.
+When there is one, a blue **update** button appears next to **Sync now** in the menu. Click it, confirm, and Terminal opens and runs the update: `brew update` and `brew upgrade calendar-hub` (as the account that owns Homebrew, if that's a separate admin account, so Terminal asks for its password), or `git pull` and `scripts/build-app.sh` for a source build. Then it restarts the app, through `brew services` if that started it. It stops at the first error and leaves the running copy alone, and the Terminal window shows what went wrong. Settings shows a warning too, with an **Update** button that shows the commands to run by hand and can run them in Terminal the same way. A source build moved out of its clone can't update by itself: its button opens those instructions.
 
 ## Known limits
 
