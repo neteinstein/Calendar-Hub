@@ -55,7 +55,7 @@ struct MeetingStatsView: View {
                 chart
                 insights
                 yearCard
-                Text("Timed meetings in your main calendar. All-day, declined and out-of-office events don't count, and time in overlapping meetings counts once. Out of office counts the time it covers within working hours, from Monday to Friday.")
+                Text("Timed meetings in your main calendar. All-day, declined and out-of-office events don't count, and time in overlapping meetings counts once. Meeting-free time and out of office are measured within working hours, from Monday to Friday.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -262,6 +262,12 @@ struct MeetingStatsView: View {
                     tile("leaf.fill", .green, "Free block left", value: Text(durationText(free.duration)),
                          detail: Text("\(free.start.formatted(date: .omitted, time: .shortened)) – \(free.end.formatted(date: .omitted, time: .shortened))"))
                 }
+                if let free = stats.freeToday {
+                    freeTile("sun.max.fill", .mint, "Meeting-free today", free)
+                }
+                if let free = stats.freeTomorrow {
+                    freeTile("sunrise.fill", .cyan, "Meeting-free tomorrow", free)
+                }
             }
             if stats.workingHoursThisWeek > 0 {
                 HStack(spacing: 6) {
@@ -279,6 +285,13 @@ struct MeetingStatsView: View {
                 .help("Of \(MeetingStats.format(stats.workingHoursThisWeek)) working hours this week")
             }
         }
+    }
+
+    /// The part of a day's working hours with no meeting in it.
+    private func freeTile(_ symbol: String, _ color: Color, _ title: String, _ hours: Double) -> some View {
+        tile(symbol, color, title, value: nil, amount: hours,
+             detail: Text("\(Int((hours / workingDayHours * 100).rounded()))% of a \(workingDayText) day"))
+            .help("Time within working hours with no meeting")
     }
 
     private var previousMonthName: String {
