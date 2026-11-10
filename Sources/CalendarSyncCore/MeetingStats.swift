@@ -47,6 +47,11 @@ public enum MeetingStats {
         /// The longest stretch without meetings left today within working hours, if any is left.
         public var freeBlockToday: DateInterval?
         public var longestFreeToday: TimeInterval? { freeBlockToday?.duration }
+        /// Hours of today's working hours with no meeting in them, past ones included. Nil on a
+        /// weekend, or without working hours.
+        public var freeToday: Double?
+        /// The same for tomorrow, going by what's already in the calendar.
+        public var freeTomorrow: Double?
         /// Out of office within the working hours of this week's weekdays, and those hours.
         public var outOfOfficeThisWeek: Double
         public var workingHoursThisWeek: Double
@@ -203,6 +208,8 @@ public enum MeetingStats {
             meetingsLastWeek: lastWeekMeetings.count,
             backToBackLastWeek: backToBack,
             freeBlockToday: longestFree(in: events, now: now, calendar: calendar, workingHours: workingHours),
+            freeToday: freeHours(in: events, on: day(0).start, calendar: calendar, workingHours: workingHours),
+            freeTomorrow: freeHours(in: events, on: day(1).start, calendar: calendar, workingHours: workingHours),
             outOfOfficeThisWeek: outOfOffice.hours,
             workingHoursThisWeek: workingDaysThisWeek.reduce(0) { $0 + $1.duration } / 3600
         )
@@ -211,6 +218,15 @@ public enum MeetingStats {
     /// Out of office, all-day ones included, unless declined or cancelled.
     static func countsAsAway(_ event: SourceEvent) -> Bool {
         isOutOfOffice(event) && !event.isDeclined && !event.isCancelled && event.end > event.start
+    }
+
+    /// The hours of `day`'s working hours that no meeting covers, or nil when the day has none: a
+    /// weekend, like everything else measured against working hours.
+    static func freeHours(in events: [SourceEvent], on day: Date, calendar: Calendar,
+                          workingHours: WorkingHours) -> Double? {
+        guard !calendar.isDateInWeekend(day),
+              let working = workingHours.interval(on: day, calendar: calendar) else { return nil }
+        return max(working.duration / 3600 - hours(of: events, in: working).hours, 0)
     }
 
     /// The longest gap between meetings from now until the end of today's working hours. The

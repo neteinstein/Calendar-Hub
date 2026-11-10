@@ -175,6 +175,39 @@ final class MeetingStatsTests: XCTestCase {
         XCTAssertEqual(WorkingHours.text(17 * 60 + 30), "17:30")
     }
 
+    func testMeetingFreeTimeTodayAndTomorrow() {
+        // Tuesday 3 November 2026, 15:00: the whole working day counts, not only what's left.
+        let events = [
+            // Today: 8:00–10:00 (an hour of it before work), then two overlapping to 13:00.
+            meeting(date(11, 3, 8), date(11, 3, 10)),
+            meeting(date(11, 3, 11), date(11, 3, 12, 30)),
+            meeting(date(11, 3, 12), date(11, 3, 13)),
+            meeting(date(11, 3, 9), date(11, 3, 17), declined: true),
+            // Tomorrow: half an hour, and one after work.
+            meeting(date(11, 4, 14), date(11, 4, 14, 30)),
+            meeting(date(11, 4, 18), date(11, 4, 19)),
+        ]
+        let summary = MeetingStats.summary(of: events, now: date(11, 3, 15), calendar: utc)
+        XCTAssertEqual(summary.freeToday, 5, "8 hours less 1 and 2")
+        XCTAssertEqual(summary.freeTomorrow, 7.5)
+
+        let longer = MeetingStats.summary(of: events, now: date(11, 3, 15), calendar: utc,
+                                          workingHours: WorkingHours(start: 8 * 60, end: 18 * 60 + 30))
+        XCTAssertEqual(longer.freeToday, 6.5, "10.5 hours less 2 and 2")
+        XCTAssertEqual(longer.freeTomorrow, 9.5)
+    }
+
+    func testNoMeetingFreeTimeOnWeekends() {
+        // Friday 6 November 2026: tomorrow is Saturday.
+        let friday = MeetingStats.summary(of: [], now: date(11, 6, 10), calendar: utc)
+        XCTAssertEqual(friday.freeToday, 8)
+        XCTAssertNil(friday.freeTomorrow)
+        // Sunday: today has no working hours, Monday does.
+        let sunday = MeetingStats.summary(of: [], now: date(11, 8, 10), calendar: utc)
+        XCTAssertNil(sunday.freeToday)
+        XCTAssertEqual(sunday.freeTomorrow, 8)
+    }
+
     func testNoFreeTimeAfterWorkingHours() {
         XCTAssertNil(MeetingStats.summary(of: [], now: date(11, 3, 19), calendar: utc).longestFreeToday)
     }
