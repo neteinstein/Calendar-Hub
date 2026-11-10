@@ -38,7 +38,11 @@ brew trust --formula neteinstein/tap/calendar-hub
 brew services start neteinstein/tap/calendar-hub
 ```
 
-The second command starts it now and at every login. It needs macOS 14 or later; more in [Install](#install).
+The first command installs it.
+
+The second command marks it as trusted since recently Homebrew versions won’t run formula code from a third-party tap (anything outside Homebrew’s own) until the user running brew says they trust it.
+
+The third command starts it now and at every login. It needs macOS 14 or later; more in [Install](#install).
 
 Calendar Hub was called Calendar Sync up to 2.0.19. Coming from `calendar-sync`? See [Coming from Calendar Sync](docs/install.md#coming-from-calendar-sync).
 
