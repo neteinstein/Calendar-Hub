@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.9](https://img.shields.io/badge/version-2.0.9-2563EB)](Support/Info.plist)
+[![Version 2.0.10](https://img.shields.io/badge/version-2.0.10-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -16,7 +16,7 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 
 <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">
-  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: meetings from a secondary calendar are copied into the main calendar as [Calendar A] meeting name, with the Teams link">
+  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, and the main calendar shows up in Calendar A as Busy">
 </a>
 
 <sub>▶ <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">Watch with sound</a> · 21 seconds</sub>
