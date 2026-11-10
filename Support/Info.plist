@@ -3,32 +3,32 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Calendar Sync</string>
+	<string>Calendar Hub</string>
 	<key>CFBundleExecutable</key>
-	<string>CalendarSync</string>
+	<string>CalendarHub</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>org.neteinstein.calendarsync</string>
+	<string>org.neteinstein.calendarhub</string>
 	<key>CFBundleName</key>
-	<string>Calendar Sync</string>
+	<string>Calendar Hub</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.19</string>
+	<string>2.0.20</string>
 	<key>CFBundleVersion</key>
-	<string>54</string>
+	<string>55</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Calendar Sync reads your secondary calendars and copies their meetings into the calendar you choose.</string>
+	<string>Calendar Hub reads your secondary calendars and copies their meetings into the calendar you choose.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Calendar Sync reads your secondary calendars and copies their meetings into the calendar you choose.</string>
+	<string>Calendar Hub reads your secondary calendars and copies their meetings into the calendar you choose.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Calendar Sync keeps the tasks you add in its menu as reminders, so they're on your other devices too and stay in Reminders.</string>
+	<string>Calendar Hub keeps the tasks you add in its menu as reminders, so they're on your other devices too and stay in Reminders.</string>
 	<key>NSRemindersUsageDescription</key>
-	<string>Calendar Sync keeps the tasks you add in its menu as reminders, so they're on your other devices too and stay in Reminders.</string>
+	<string>Calendar Hub keeps the tasks you add in its menu as reminders, so they're on your other devices too and stay in Reminders.</string>
 </dict>
 </plist>
