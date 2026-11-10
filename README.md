@@ -32,7 +32,10 @@ With [Homebrew](https://brew.sh/):
 
 ```bash
 brew install neteinstein/tap/calendar-hub
+
 brew services start neteinstein/tap/calendar-hub
+or 
+open “/opt/homebrew/opt/calendar-hub/Calendar\ Hub.app”
 ```
 
 The second command starts it now and at every login. It needs macOS 14 or later; more in [Install](#install).
