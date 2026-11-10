@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.9](https://img.shields.io/badge/version-2.0.9-2563EB)](Support/Info.plist)
+[![Version 2.0.12](https://img.shields.io/badge/version-2.0.12-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -92,10 +92,10 @@ The screen blurs and a card counts down to the start, with the meeting's open ta
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-bar-dark.webp">
-  <img src="docs/screenshots/menu-bar-light.webp" width="520" alt="The menu bar item showing the date, and showing Design review · 13m">
+  <img src="docs/screenshots/menu-bar-light.webp" width="520" alt="The menu bar item showing the date, showing Design review · 13m, and the same with a progress bar under it">
 </picture>
 
-Today's date, or, if you like, the next meeting and the minutes left when it's 15 minutes away.
+Today's date, or, if you like, the next meeting and the minutes left when it's 15 minutes away, with a bar under it that fills as the meeting runs.
 
 ### Settings
 

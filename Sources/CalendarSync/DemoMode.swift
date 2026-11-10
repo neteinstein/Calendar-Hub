@@ -369,7 +369,7 @@ private struct MenuBarItemPreview: View {
     }
 }
 
-/// The menu bar item with the date, then with the next meeting about to start.
+/// The menu bar item with the date, then with the next meeting, then with its progress bar too.
 private struct MenuBarStrips: View {
     @ObservedObject var settings: SettingsStore
     @ObservedObject var controller: SyncController
@@ -378,17 +378,20 @@ private struct MenuBarStrips: View {
         VStack(spacing: 12) {
             strip(showsNextMeeting: false)
             strip(showsNextMeeting: true)
+            strip(showsNextMeeting: true, showsMeetingProgress: true)
         }
         .padding(20)
         .frame(width: 520)
         .background(Wallpaper())
     }
 
-    private func strip(showsNextMeeting: Bool) -> some View {
-        let shown = SettingsStore(defaults: UserDefaults(suiteName: "org.neteinstein.calendarsync.demo.strip\(showsNextMeeting)")!)
+    private func strip(showsNextMeeting: Bool, showsMeetingProgress: Bool = false) -> some View {
+        let shown = SettingsStore(defaults: UserDefaults(
+            suiteName: "org.neteinstein.calendarsync.demo.strip\(showsNextMeeting)\(showsMeetingProgress)")!)
         shown.menuCalendarEnabled = true
         shown.targetCalendarID = settings.targetCalendarID
         shown.menuBar.showsNextMeeting = showsNextMeeting
+        shown.menuBar.showsMeetingProgress = showsMeetingProgress
         return HStack(spacing: 14) {
             Spacer()
             MenuBarItemPreview(settings: shown, controller: controller)
