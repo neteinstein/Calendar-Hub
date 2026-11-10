@@ -432,6 +432,23 @@ final class SyncScheduleTests: XCTestCase {
                                              defaultMinutes: 15), SyncSchedule.maxMinutes)
     }
 
+    func testUnreadSourcesStayUnreadUntilReadAgain() {
+        let outlook = SourceConfig(kind: .outlookWeb, calendarName: "Outlook")
+        let other = SourceConfig(kind: .outlookWeb, calendarName: "Other")
+        let local = SourceConfig(kind: .eventKit(calendarID: "a"), calendarName: "A")
+        let off = SourceConfig(kind: .outlookWeb, calendarName: "Off", isEnabled: false)
+        let removed = UUID()
+        let sources = [outlook, other, local, off]
+        let unread = [outlook.id, other.id, off.id, removed]
+        // A sync of the Calendar.app calendar alone leaves both Outlook problems standing, but
+        // not those of a calendar turned off or removed since.
+        XCTAssertEqual(SyncSchedule.stillUnread(unread, read: [local.id], sources: sources), [outlook.id, other.id])
+        // One read again speaks for itself, whatever came of it.
+        XCTAssertEqual(SyncSchedule.stillUnread(unread, read: [local.id, outlook.id], sources: sources), [other.id])
+        XCTAssertEqual(SyncSchedule.stillUnread(unread, read: Set(sources.map(\.id)), sources: sources), [])
+        XCTAssertEqual(SyncSchedule.stillUnread([], read: [local.id], sources: sources), [])
+    }
+
     func testClockSetBackDoesNotPostponeReads() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let source = SourceConfig(kind: .eventKit(calendarID: "a"), calendarName: "A")

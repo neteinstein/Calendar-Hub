@@ -28,4 +28,12 @@ public enum SyncSchedule {
             return now.timeIntervalSince(last) >= seconds - 30
         }.map(\.id))
     }
+
+    /// The sources a sync left unread, out of `previous`, that a sync reading only `read`
+    /// says nothing about: still there, still enabled, and not read this time. Their problem
+    /// stands until they're read again; a sync of the other calendars mustn't clear it.
+    public static func stillUnread(_ previous: [UUID], read: Set<UUID>, sources: [SourceConfig]) -> Set<UUID> {
+        let enabled = Set(sources.filter(\.isEnabled).map(\.id))
+        return Set(previous).subtracting(read).intersection(enabled)
+    }
 }
