@@ -68,7 +68,7 @@ Turn on **World Clocks** in Settings › World Clocks and add the cities you wor
 
 ## Meeting Stats
 
-Turn on **Meeting Stats** and the menu gains a **Stats** view: hours in meetings **yesterday, today and tomorrow**, a chart of the **last two weeks**, **last week** (and how it compares with the week before) and **last month**, your **average per working day**, your **busiest weekday**, how many meetings ran **back to back**, the **longest free block** left today and when it is, how much of this week's working hours you're **out of office**, and a **prediction for the year**, pictured as a trip, like walking from Lisbon to Paris.
+Turn on **Meeting Stats** and the menu gains a **Stats** view: hours in meetings **yesterday, today and tomorrow**, a chart of the **last two weeks**, **last week** (and how it compares with the week before) and **last month**, your **average per working day**, your **busiest weekday**, how many meetings ran **back to back**, the **longest free block** left today and when it is, the **meeting-free time** in today's and tomorrow's working hours, how much of this week's working hours you're **out of office**, and a **prediction for the year**, pictured as a trip, like walking from Lisbon to Paris.
 
 Only timed meetings in your main calendar count: all-day, declined and out-of-office events don't. Overlapping meetings count once, with the total counting overlap next to it, like "20 hours (25 counting overlap)". Out of office counts the time it covers within working hours, Monday to Friday. Working hours are 9:00 to 17:00 unless you set your own in Settings.
 
