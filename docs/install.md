@@ -41,8 +41,8 @@ The app was called Calendar Sync, formula `calendar-sync`, up to 2.0.19. `brew u
 ## From source
 
 ```bash
-git clone https://github.com/neteinstein/Calendar-Sync
-cd Calendar-Sync
+git clone https://github.com/neteinstein/Calendar-Hub
+cd Calendar-Hub
 scripts/build-app.sh
 open "build/Calendar Hub.app"
 ```

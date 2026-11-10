@@ -12,12 +12,12 @@
 #   curl -L <url> | shasum -a 256
 class CalendarHub < Formula
   desc "Menu bar app that copies secondary-calendar meetings into your main calendar"
-  homepage "https://github.com/neteinstein/Calendar-Sync"
-  url "https://github.com/neteinstein/Calendar-Sync/archive/6553dc30bd4f34ec333225ebf7e69f61c05e402d.tar.gz"
+  homepage "https://github.com/neteinstein/Calendar-Hub"
+  url "https://github.com/neteinstein/Calendar-Hub/archive/6553dc30bd4f34ec333225ebf7e69f61c05e402d.tar.gz"
   version "0.1.0"
   sha256 "6a692331352ba3412d1231a98ef53c2d75e3c1d1a1671d696cd00dba0758039f"
   license "SUL-1.0"
-  head "https://github.com/neteinstein/Calendar-Sync.git", branch: "main"
+  head "https://github.com/neteinstein/Calendar-Hub.git", branch: "main"
 
   depends_on macos: :sonoma
 

@@ -21,10 +21,10 @@ final class UpdateCheckTests: XCTestCase {
     }
 
     func testParsesTheLatestReleaseResponse() throws {
-        let json = #"{"tag_name":"v0.3.0","html_url":"https://github.com/neteinstein/Calendar-Sync/releases/tag/v0.3.0","name":"Calendar view"}"#
+        let json = #"{"tag_name":"v0.3.0","html_url":"https://github.com/neteinstein/Calendar-Hub/releases/tag/v0.3.0","name":"Calendar view"}"#
         let latest = try XCTUnwrap(UpdateCheck.latest(fromReleaseJSON: Data(json.utf8)))
         XCTAssertEqual(latest.version, "v0.3.0")
-        XCTAssertEqual(latest.url?.absoluteString, "https://github.com/neteinstein/Calendar-Sync/releases/tag/v0.3.0")
+        XCTAssertEqual(latest.url?.absoluteString, "https://github.com/neteinstein/Calendar-Hub/releases/tag/v0.3.0")
         XCTAssertTrue(UpdateCheck.isNewer(latest.version, than: "0.1.0"))
 
         XCTAssertNil(UpdateCheck.latest(fromReleaseJSON: Data(#"{"message":"Not Found"}"#.utf8)),
@@ -53,7 +53,7 @@ final class UpdateCheckFormulaAndScheduleTests: XCTestCase {
         let formula = """
             class CalendarHub < Formula
               desc "Menu bar app that copies secondary-calendar meetings into your main calendar"
-              url "https://github.com/neteinstein/Calendar-Sync/archive/bfb7da4.tar.gz"
+              url "https://github.com/neteinstein/Calendar-Hub/archive/bfb7da4.tar.gz"
               version "2.0.1"
               sha256 "ca3a079c"
 
@@ -93,10 +93,10 @@ final class UpdateScriptTests: XCTestCase {
         XCTAssertEqual(UpdateCheck.homebrewPrefix(forResolvedBundle: URL(fileURLWithPath:
             "/usr/local/Cellar/calendar-hub/2.0.1/Calendar Hub.app"))?.path, "/usr/local")
         XCTAssertNil(UpdateCheck.homebrewPrefix(forResolvedBundle: URL(fileURLWithPath:
-            "/Users/me/Calendar-Sync/build/Calendar Hub.app")))
+            "/Users/me/Calendar-Hub/build/Calendar Hub.app")))
 
         XCTAssertEqual(UpdateCheck.sourceClone(forResolvedBundle: URL(fileURLWithPath:
-            "/Users/me/Calendar-Sync/build/Calendar Hub.app"))?.path, "/Users/me/Calendar-Sync")
+            "/Users/me/Calendar-Hub/build/Calendar Hub.app"))?.path, "/Users/me/Calendar-Hub")
         XCTAssertNil(UpdateCheck.sourceClone(forResolvedBundle: URL(fileURLWithPath:
             "/Applications/Calendar Hub.app")), "a build copied out of its clone")
     }
@@ -138,9 +138,9 @@ final class UpdateScriptTests: XCTestCase {
     }
 
     func testSourceBuildPullsRebuildsAndReopens() throws {
-        let script = try XCTUnwrap(UpdateCheck.updateScript(for: .source(clone: URL(fileURLWithPath: "/Users/me/Pedro's Code/Calendar-Sync"))))
+        let script = try XCTUnwrap(UpdateCheck.updateScript(for: .source(clone: URL(fileURLWithPath: "/Users/me/Pedro's Code/Calendar-Hub"))))
         assertInOrder(script, [
-            "cd '/Users/me/Pedro'\\''s Code/Calendar-Sync'\n",
+            "cd '/Users/me/Pedro'\\''s Code/Calendar-Hub'\n",
             "git pull --ff-only\n",
             "scripts/build-app.sh\n",
             "pkill -x CalendarHub || true\n",

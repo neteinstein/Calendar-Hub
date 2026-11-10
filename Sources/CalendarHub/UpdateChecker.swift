@@ -9,11 +9,11 @@ import Foundation
 /// fresh source build would be).
 @MainActor
 final class UpdateChecker: ObservableObject {
-    static let repoPage = URL(string: "https://github.com/neteinstein/Calendar-Sync")!
+    static let repoPage = URL(string: "https://github.com/neteinstein/Calendar-Hub")!
     /// Where About's Donate button and the menu's heart lead.
     static let donatePage = URL(string: "https://www.pedrovicente.pt/donate")!
-    private static let releaseAPI = URL(string: "https://api.github.com/repos/neteinstein/Calendar-Sync/releases/latest")!
-    private static let mainInfoPlist = URL(string: "https://raw.githubusercontent.com/neteinstein/Calendar-Sync/main/Support/Info.plist")!
+    private static let releaseAPI = URL(string: "https://api.github.com/repos/neteinstein/Calendar-Hub/releases/latest")!
+    private static let mainInfoPlist = URL(string: "https://raw.githubusercontent.com/neteinstein/Calendar-Hub/main/Support/Info.plist")!
     private static let tapFormula = URL(string: "https://raw.githubusercontent.com/neteinstein/homebrew-tap/main/Formula/calendar-hub.rb")!
 
     /// How this copy was installed: where its updates come from, and how to run one.
