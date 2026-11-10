@@ -59,6 +59,11 @@ final class DemoCalendars {
         settings.twoWaySync = true
         settings.menuCalendarEnabled = true
         settings.menuCalendar.showsMeetingStats = true
+        settings.worldClocks = WorldClockOptions(showsInMenu: true, clocks: [
+            WorldClock(name: "New York", timeZoneID: "America/New_York"),
+            WorldClock(name: "São Paulo", timeZoneID: "America/Sao_Paulo"),
+            WorldClock(name: "Berlin", timeZoneID: "Europe/Berlin"),
+        ])
         settings.menuBar.showsNextMeeting = true
         settings.options.daysAhead = 14
         return settings
@@ -257,7 +262,7 @@ enum Snapshots {
                 .environmentObject(context.tasks)
                 .defaultAppStorage(context.defaults)
         }
-        for mode in ["month", "list", "tasks", "stats"] {
+        for mode in ["month", "list", "tasks", "clocks", "stats"] {
             context.defaults.set(mode, forKey: "menuCalendarMode")
             await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode)-\(suffix)", appearance, to: folder)
         }
