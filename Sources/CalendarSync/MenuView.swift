@@ -172,6 +172,9 @@ struct MenuView: View {
                     confirmUpdate(to: latest)
                 }
             }
+            IconButton("heart", help: "Donate") {
+                NSWorkspace.shared.open(UpdateChecker.donatePage)
+            }
             IconButton("arrow.triangle.2.circlepath", help: "Sync now (⌘R)", shortcut: "r") {
                 Task { await controller.syncNow() }
             }
