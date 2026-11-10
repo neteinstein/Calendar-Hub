@@ -29,7 +29,7 @@ final class ApplicationsLinkTests: XCTestCase {
 
     func testNoOptBundleOutsideTheCellar() {
         for path in [
-            "/Users/me/Calendar-Sync/build/Calendar Hub.app",
+            "/Users/me/Calendar-Hub/build/Calendar Hub.app",
             "/Applications/Calendar Hub.app",
             "/opt/homebrew/opt/calendar-hub/Calendar Hub.app",
             "/opt/homebrew/Cellar/calendar-hub/1.1.2/Calendar Hub.app/Contents/MacOS/CalendarHub",

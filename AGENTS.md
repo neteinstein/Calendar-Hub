@@ -36,7 +36,7 @@ changes. Homebrew users only get a new version when the formula in the tap chang
    head (`git rev-parse HEAD`): PRs here are merged with merge commits, not squashed, so that
    commit ends up on `main`. If the branch gets more commits before it merges, re-pin.
 2. In the tap's `Formula/calendar-hub.rb`, set:
-   - `url` to `https://github.com/neteinstein/Calendar-Sync/archive/<commit on main>.tar.gz`
+   - `url` to `https://github.com/neteinstein/Calendar-Hub/archive/<commit on main>.tar.gz`
    - `version` to the new `CFBundleShortVersionString`
    - `sha256` to the output of `curl -sSL <url> | shasum -a 256`
 

@@ -1321,7 +1321,7 @@ private struct UpdateInstructionsSheet: View {
     private let restartCommand = "brew services restart calendar-hub"
 
     private let sourceCommands = """
-        cd Calendar-Sync
+        cd Calendar-Hub
         git pull
         scripts/build-app.sh
         open "build/Calendar Hub.app"
