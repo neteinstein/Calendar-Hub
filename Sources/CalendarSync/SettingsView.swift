@@ -1242,17 +1242,10 @@ private struct AboutTab: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 400)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 12) {
-                Button {
-                    openURL(URL(string: "https://revolut.me/neteinstein")!)
-                } label: {
-                    Label("Donate with Revolut", systemImage: "heart.fill")
-                }
-                Button {
-                    openURL(URL(string: "https://www.buymeacoffee.com/neteinstein")!)
-                } label: {
-                    Label("Buy me a coffee", systemImage: "cup.and.saucer.fill")
-                }
+            Button {
+                openURL(UpdateChecker.donatePage)
+            } label: {
+                Label("Donate", systemImage: "heart.fill")
             }
             .controlSize(.large)
         }
