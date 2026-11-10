@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.20](https://img.shields.io/badge/version-2.0.20-2563EB)](Support/Info.plist)
+[![Version 2.0.21](https://img.shields.io/badge/version-2.0.21-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -27,6 +27,8 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 ---
 
 ## How to install
+
+**No Terminal:** download [Calendar-Hub.dmg](https://github.com/neteinstein/Calendar-Hub/releases/latest/download/Calendar-Hub.dmg) and follow [Install Calendar Hub](docs/download.md), a step-by-step guide with pictures.
 
 With [Homebrew](https://brew.sh/):
 
@@ -217,7 +219,7 @@ With [Homebrew](https://brew.sh/):
 brew install neteinstein/tap/calendar-hub
 ```
 
-It needs macOS 14 or later and the Xcode command line tools: Homebrew builds the app on your Mac.
+It needs macOS 14 or later and the Xcode command line tools: Homebrew builds the app on your Mac. No Terminal? [Download](#download) the app instead.
 
 ### Run it
 
@@ -234,6 +236,10 @@ brew services start neteinstein/tap/calendar-hub
 ```
 
 The first time it runs, it links itself into your Applications folder, so you can also open it from Finder or the Dock.
+
+### Download
+
+No Homebrew or Terminal needed: [Install Calendar Hub](docs/download.md) walks through downloading [Calendar-Hub.dmg](https://github.com/neteinstein/Calendar-Hub/releases/latest/download/Calendar-Hub.dmg), dragging it into Applications and allowing it the first time (it isn't signed by Apple), with pictures. Send that page to anyone who isn't technical.
 
 ### Set it up
 

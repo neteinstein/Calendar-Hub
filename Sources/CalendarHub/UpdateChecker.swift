@@ -12,6 +12,9 @@ final class UpdateChecker: ObservableObject {
     static let repoPage = URL(string: "https://github.com/neteinstein/Calendar-Hub")!
     /// Where About's Donate button and the menu's heart lead.
     static let donatePage = URL(string: "https://www.pedrovicente.pt/donate")!
+    /// The newest release's disk image, for a copy installed from one: GitHub sends this
+    /// address to the asset of the latest release.
+    static let downloadDMG = URL(string: "https://github.com/neteinstein/Calendar-Hub/releases/latest/download/Calendar-Hub.dmg")!
     private static let releaseAPI = URL(string: "https://api.github.com/repos/neteinstein/Calendar-Hub/releases/latest")!
     private static let mainInfoPlist = URL(string: "https://raw.githubusercontent.com/neteinstein/Calendar-Hub/main/Support/Info.plist")!
     private static let tapFormula = URL(string: "https://raw.githubusercontent.com/neteinstein/homebrew-tap/main/Formula/calendar-hub.rb")!
@@ -114,8 +117,18 @@ final class UpdateChecker: ObservableObject {
 
     // MARK: - Updating
 
+    /// Installed from the disk image (or a source build moved out of its clone): not Homebrew,
+    /// not in a clone. The update is the new disk image, downloaded and dragged into Applications.
+    static var isDownloadInstall: Bool {
+        if case .source(clone: nil) = installation { return true }
+        return false
+    }
+
     /// The update can run by itself, in Terminal. Not for a source build moved out of its clone.
     static var canUpdateInTerminal: Bool { UpdateCheck.updateScript(for: installation) != nil }
+
+    /// How to install the downloaded disk image, for a copy installed from one.
+    static let downloadSummary = "Your browser downloads Calendar-Hub.dmg. Quit Calendar Hub, open the disk image and drag Calendar Hub into Applications, replacing the old one. Your settings are kept. As the first time, macOS asks you to allow it in System Settings › Privacy & Security (Open Anyway), and asks for calendar access again."
 
     /// What `updateInTerminal` does, to ask before it runs.
     static var updateSummary: String {
