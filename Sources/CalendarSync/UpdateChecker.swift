@@ -10,6 +10,8 @@ import Foundation
 @MainActor
 final class UpdateChecker: ObservableObject {
     static let repoPage = URL(string: "https://github.com/neteinstein/Calendar-Sync")!
+    /// Where About's Donate button and the menu's heart lead.
+    static let donatePage = URL(string: "https://www.pedrovicente.pt/donate")!
     private static let releaseAPI = URL(string: "https://api.github.com/repos/neteinstein/Calendar-Sync/releases/latest")!
     private static let mainInfoPlist = URL(string: "https://raw.githubusercontent.com/neteinstein/Calendar-Sync/main/Support/Info.plist")!
     private static let tapFormula = URL(string: "https://raw.githubusercontent.com/neteinstein/homebrew-tap/main/Formula/calendar-sync.rb")!
