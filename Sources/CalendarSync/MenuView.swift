@@ -126,7 +126,7 @@ struct MenuView: View {
     // MARK: - Web calendars and footer
 
     /// A chip per Outlook web calendar, named as in Settings, or by its prefix for copies while
-    /// it has no name. An orange dot marks one the last sync couldn't read.
+    /// it has no name. A red chip marks one the last sync couldn't read.
     private func webCalendars(_ sources: [SourceConfig]) -> some View {
         HStack(spacing: 6) {
             Text("Web calendars")
@@ -488,9 +488,6 @@ private struct WebCalendarChip: View {
             HStack(spacing: 5) {
                 Circle().fill(color).frame(width: 7, height: 7)
                 Text(name).lineLimit(1)
-                if needsAttention {
-                    Circle().fill(.orange).frame(width: 6, height: 6)
-                }
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(.tertiary)
@@ -499,12 +496,19 @@ private struct WebCalendarChip: View {
             .padding(.leading, 7)
             .padding(.trailing, 8)
             .padding(.vertical, 3)
-            .background(Color.primary.opacity(hovering ? 0.11 : 0.06), in: Capsule())
+            .background(background, in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
         .onHover { hovering = $0 }
         .pointingHandCursor()
         .help(needsAttention ? "Open the Outlook window for \(name) to sign in again" : "Open the Outlook window for \(name)")
+    }
+
+    /// Red while the last sync couldn't read this calendar, the usual gray otherwise.
+    private var background: Color {
+        needsAttention
+            ? Color.red.opacity(hovering ? 0.55 : 0.4)
+            : Color.primary.opacity(hovering ? 0.11 : 0.06)
     }
 }
