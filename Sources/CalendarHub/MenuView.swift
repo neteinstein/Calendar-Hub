@@ -220,6 +220,7 @@ struct MenuView: View {
     /// Asks first, like Quit, then runs the update in Terminal. A source build moved out of its
     /// clone can't update by itself, so Settings shows how instead.
     private func confirmUpdate(to latest: UpdateCheck.Latest) {
+        if UpdateChecker.isDownloadInstall { return confirmDownload(of: latest) }
         guard UpdateChecker.canUpdateInTerminal else { return showSettings(at: .general) }
         let current = updates.currentVersion
         DispatchQueue.main.async {
@@ -237,6 +238,21 @@ struct MenuView: View {
                     NSAlert(error: error).runModal()
                 }
             }
+        }
+    }
+
+    /// A copy installed from the disk image updates by downloading the new one.
+    private func confirmDownload(of latest: UpdateCheck.Latest) {
+        let current = updates.currentVersion
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "Download Calendar Hub \(latest.version)?"
+            alert.informativeText = "You have version \(current). " + UpdateChecker.downloadSummary
+            alert.addButton(withTitle: "Download")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            NSWorkspace.shared.open(UpdateChecker.downloadDMG)
         }
     }
 
