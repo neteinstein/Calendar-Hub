@@ -6,11 +6,14 @@ public struct WorldClock: Codable, Hashable, Identifiable, Sendable {
     /// The name shown, which the user can change: "San Francisco" for America/Los_Angeles.
     public var name: String
     public var timeZoneID: String
+    /// The working hours there, or nil while they're the same as here.
+    public var workingHours: WorkingHours?
 
-    public init(id: UUID = UUID(), name: String, timeZoneID: String) {
+    public init(id: UUID = UUID(), name: String, timeZoneID: String, workingHours: WorkingHours? = nil) {
         self.id = id
         self.name = name
         self.timeZoneID = timeZoneID
+        self.workingHours = workingHours
     }
 
     /// Its time zone, or UTC if the identifier is no longer known.
@@ -22,10 +25,20 @@ public struct WorldClockOptions: Codable, Hashable, Sendable {
     /// The menu gets a World Clocks view, before Stats.
     public var showsInMenu: Bool
     public var clocks: [WorldClock]
+    /// The names given to where we are, by time zone identifier, so that a name given in one
+    /// time zone doesn't follow the Mac to another.
+    public var localNames: [String: String]
 
-    public init(showsInMenu: Bool = false, clocks: [WorldClock] = []) {
+    public init(showsInMenu: Bool = false, clocks: [WorldClock] = [], localNames: [String: String] = [:]) {
         self.showsInMenu = showsInMenu
         self.clocks = clocks
+        self.localNames = localNames
+    }
+
+    /// The name of where we are in `timeZone`: the one given to it, or its time zone's city.
+    public func localName(in timeZone: TimeZone) -> String {
+        let name = localNames[timeZone.identifier]?.trimmingCharacters(in: .whitespaces) ?? ""
+        return name.isEmpty ? WorldClocks.cityName(of: timeZone.identifier) : name
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -33,6 +46,7 @@ public struct WorldClockOptions: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         showsInMenu = try c.decodeIfPresent(Bool.self, forKey: .showsInMenu) ?? false
         clocks = try c.decodeIfPresent([WorldClock].self, forKey: .clocks) ?? []
+        localNames = try c.decodeIfPresent([String: String].self, forKey: .localNames) ?? [:]
     }
 }
 
@@ -72,7 +86,18 @@ public enum WorldClocks {
         return weekday == 1 || weekday == 7
     }
 
-    /// Where `date` falls in the day of `timeZone`, against `workingHours` (the same in every city).
+    /// A city's time zone and the hours it works, in its own time.
+    public struct Schedule: Hashable, Sendable {
+        public var timeZone: TimeZone
+        public var workingHours: WorkingHours
+
+        public init(timeZone: TimeZone, workingHours: WorkingHours) {
+            self.timeZone = timeZone
+            self.workingHours = workingHours
+        }
+    }
+
+    /// Where `date` falls in the day of `timeZone`, against `workingHours` in that city's time.
     public static func period(at date: Date, in timeZone: TimeZone, workingHours: WorkingHours,
                               calendar: Calendar = Calendar(identifier: .gregorian)) -> Period {
         let minute = minuteOfDay(date, in: timeZone, calendar: calendar)
@@ -123,15 +148,14 @@ public enum WorldClocks {
     }
 
     /// The stretches of the local day of `day` when it's working time in every one of
-    /// `timeZones`, in minutes after the local midnight.
-    public static func overlap(on day: Date, of timeZones: [TimeZone], workingHours: WorkingHours,
-                               calendar: Calendar) -> [Range<Int>] {
-        guard !timeZones.isEmpty, let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
+    /// `schedules`, each by its own working hours, in minutes after the local midnight.
+    public static func overlap(on day: Date, of schedules: [Schedule], calendar: Calendar) -> [Range<Int>] {
+        guard !schedules.isEmpty, let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
         let length = Int(interval.duration / 60)
         var ranges: [Range<Int>] = []
         for minute in stride(from: 0, to: length, by: step) {
             let date = interval.start.addingTimeInterval(Double(minute) * 60)
-            guard timeZones.allSatisfy({ period(at: date, in: $0, workingHours: workingHours, calendar: calendar) == .working })
+            guard schedules.allSatisfy({ period(at: date, in: $0.timeZone, workingHours: $0.workingHours, calendar: calendar) == .working })
             else { continue }
             let end = min(minute + step, length)
             if let last = ranges.last, last.upperBound == minute {
