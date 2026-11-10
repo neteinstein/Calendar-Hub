@@ -1,26 +1,26 @@
 <div align="center">
 
-<img src="docs/icon.png" width="128" height="128" alt="Calendar Sync app icon">
+<img src="docs/icon.png" width="128" height="128" alt="Calendar Hub app icon">
 
-# Calendar Sync
+# Calendar Hub
 
 **Your secondary calendars' meetings, in your main calendar.**
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.19](https://img.shields.io/badge/version-2.0.19-2563EB)](Support/Info.plist)
-[![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
+[![Version 2.0.20](https://img.shields.io/badge/version-2.0.20-2563EB)](Support/Info.plist)
+[![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
-[![Homebrew installs in the last 365 days](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fformulae.brew.sh%2Fapi%2Fanalytics%2Finstall%2F365d.json&search=%22neteinstein%2Ftap%2Fcalendar-sync%22%2C%5Cs%2A%22count%22%3A%5Cs%2A%22%28%5B%5E%22%5D%2B%29%22&replace=%241&label=brew%20installs%20%28365d%29&logo=homebrew&logoColor=white&color=FBB040)](https://formulae.brew.sh/analytics/install/365d/)
+[![Homebrew installs in the last 365 days](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fformulae.brew.sh%2Fapi%2Fanalytics%2Finstall%2F365d.json&search=%22neteinstein%2Ftap%2Fcalendar-hub%22%2C%5Cs%2A%22count%22%3A%5Cs%2A%22%28%5B%5E%22%5D%2B%29%22&replace=%241&label=brew%20installs%20%28365d%29&logo=homebrew&logoColor=white&color=FBB040)](https://formulae.brew.sh/analytics/install/365d/)
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 [![Donate](https://img.shields.io/badge/donate-%E2%99%A5-EC4899)](https://www.pedrovicente.pt/donate)
 
-<a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">
-  <img src="docs/demo.webp" width="860" alt="Calendar Sync demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, and the main calendar shows up in Calendar A as Busy">
+<a href="https://github.com/neteinstein/Calendar-Hub/raw/main/docs/calendar-hub.mp4">
+  <img src="docs/demo.webp" width="860" alt="Calendar Hub demo: Calendar A's meetings fly across into the main calendar as [Calendar A] meeting name, with the Teams link, follow it when one moves or is cancelled, the main calendar shows up in Calendar A as Busy, and the menu with meeting alerts, tasks and world clocks">
 </a>
 
-<sub>▶ <a href="https://github.com/neteinstein/Calendar-Sync/raw/main/docs/calendar-sync.mp4">Watch with sound</a> · 21 seconds</sub>
+<sub>▶ <a href="https://github.com/neteinstein/Calendar-Hub/raw/main/docs/calendar-hub.mp4">Watch with sound</a> · 21 seconds</sub>
 
 </div>
 
@@ -31,17 +31,19 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 With [Homebrew](https://brew.sh/):
 
 ```bash
-brew install neteinstein/tap/calendar-sync
-brew services start neteinstein/tap/calendar-sync
+brew install neteinstein/tap/calendar-hub
+brew services start neteinstein/tap/calendar-hub
 ```
 
 The second command starts it now and at every login. It needs macOS 14 or later; more in [Install](#install).
+
+Calendar Hub was called Calendar Sync up to 2.0.19. Coming from `calendar-sync`? See [Coming from Calendar Sync](docs/install.md#coming-from-calendar-sync).
 
 ## Why
 
 Booked solid in another calendar. Wide open in your main calendar.
 
-When your meetings live in a secondary calendar (another company's account, a second job, a personal calendar), your main calendar says you're free all day. Calendar Sync copies each meeting across as **`[Calendar A] Sprint planning`**, with its join link, and keeps the copy right when the meeting moves or is cancelled.
+When your meetings live in a secondary calendar (another company's account, a second job, a personal calendar), your main calendar says you're free all day. Calendar Hub copies each meeting across as **`[Calendar A] Sprint planning`**, with its join link, and keeps the copy right when the meeting moves or is cancelled.
 
 ## A look around
 
@@ -205,7 +207,7 @@ Nothing identifies a meeting in the system log: the app logs counts and times, n
 With [Homebrew](https://brew.sh/):
 
 ```bash
-brew install neteinstein/tap/calendar-sync
+brew install neteinstein/tap/calendar-hub
 ```
 
 It needs macOS 14 or later and the Xcode command line tools: Homebrew builds the app on your Mac.
@@ -215,13 +217,13 @@ It needs macOS 14 or later and the Xcode command line tools: Homebrew builds the
 Once:
 
 ```bash
-open "$(brew --prefix)/opt/calendar-sync/Calendar Sync.app"
+open "$(brew --prefix)/opt/calendar-hub/Calendar Hub.app"
 ```
 
 Or every time you log in:
 
 ```bash
-brew services start neteinstein/tap/calendar-sync
+brew services start neteinstein/tap/calendar-hub
 ```
 
 The first time it runs, it links itself into your Applications folder, so you can also open it from Finder or the Dock.
@@ -237,14 +239,14 @@ That's it. It syncs every 15 minutes, and calendars in Calendar.app within secon
 ### Update
 
 ```bash
-brew update && brew upgrade calendar-sync
+brew update && brew upgrade calendar-hub
 ```
 
-Then restart it with `brew services restart calendar-sync`, or just open it again: the new version takes over from the old copy. Or let the app do it: it checks for a new version once a day, and when there is one, a blue **update** button appears next to **Sync now** in the menu. Click it and Terminal runs these commands and restarts the app. More in [Install and update](docs/install.md), including building from source.
+Then restart it with `brew services restart calendar-hub`, or just open it again: the new version takes over from the old copy. Or let the app do it: it checks for a new version once a day, and when there is one, a blue **update** button appears next to **Sync now** in the menu. Click it and Terminal runs these commands and restarts the app. More in [Install and update](docs/install.md), including building from source.
 
 ## Feedback and issues
 
-Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Calendar-Sync/issues). Settings › About › **Send feedback or report a bug** takes you there too.
+Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Calendar-Hub/issues). Settings › About › **Send feedback or report a bug** takes you there too.
 
 ## Learn more
 
@@ -255,7 +257,7 @@ Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Cal
 
 ## License
 
-Calendar Sync is source-available under the [Sustainable Use License 1.0](LICENSE.md) (SPDX `SUL-1.0`). You can use and change it for free, for personal use or at work, **including commercially** for your own business. You can share it, with or without your changes, as long as you do so for free and for noncommercial purposes. Selling it, building a product or service from it, or including it in one needs a separate licence from the author.
+Calendar Hub is source-available under the [Sustainable Use License 1.0](LICENSE.md) (SPDX `SUL-1.0`). You can use and change it for free, for personal use or at work, **including commercially** for your own business. You can share it, with or without your changes, as long as you do so for free and for noncommercial purposes. Selling it, building a product or service from it, or including it in one needs a separate licence from the author.
 
 Copyright (c) 2026 Pedro Vicente (https://github.com/neteinstein)
 

@@ -19,7 +19,7 @@ mkdir -p "$out"
 # A new instance even while another copy runs, opened through LaunchServices so macOS lists
 # it as its own app (not under the shell that ran it); -g keeps it in the background, so the
 # run doesn't take the keyboard from the app in front; -W waits for it to finish and quit.
-open -n -g -W --env CALENDAR_SYNC_SNAPSHOTS="$png" "build/Calendar Sync.app"
+open -n -g -W --env CALENDAR_HUB_SNAPSHOTS="$png" "build/Calendar Hub.app"
 
 for file in "$png"/*.png; do
     cwebp -quiet -q 86 "$file" -o "$out/$(basename "${file%.png}").webp"
