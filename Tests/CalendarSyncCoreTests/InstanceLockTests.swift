@@ -41,4 +41,35 @@ final class InstanceLockTests: XCTestCase {
         try Data().write(to: blocker)
         XCTAssertThrowsError(try InstanceLock.acquire(at: blocker.appendingPathComponent("instance.lock")))
     }
+
+    func testHolderIsReadBack() throws {
+        let url = folder.appendingPathComponent("instance.lock")
+        let lock = try XCTUnwrap(InstanceLock.acquire(at: url))
+        XCTAssertNil(InstanceLock.holder(at: url), "an empty file, as older copies leave it")
+        lock.record(.init(pid: 4242, version: "2.0.15"))
+        XCTAssertEqual(InstanceLock.holder(at: url), .init(pid: 4242, version: "2.0.15"))
+        // A shorter record leaves nothing of the longer one behind.
+        lock.record(.init(pid: 7, version: "3.0"))
+        XCTAssertEqual(InstanceLock.holder(at: url), .init(pid: 7, version: "3.0"))
+        XCTAssertNil(try InstanceLock.acquire(at: url), "recording doesn't give the lock up")
+    }
+
+    func testUnreadableHolderIsNone() throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("instance.lock")
+        for text in ["", "hello", "12", "abc 2.0.15", "-3 2.0.15", "12 2.0.15 extra"] {
+            try Data(text.utf8).write(to: url)
+            XCTAssertNil(InstanceLock.holder(at: url), text)
+        }
+        XCTAssertNil(InstanceLock.holder(at: folder.appendingPathComponent("missing")))
+    }
+
+    func testOnlyANewerCopyTakesOver() {
+        XCTAssertTrue(InstanceLock.replaces(.init(pid: 1, version: "2.0.14"), version: "2.0.15"))
+        XCTAssertTrue(InstanceLock.replaces(.init(pid: 1, version: "2.0.9"), version: "2.0.10"))
+        XCTAssertFalse(InstanceLock.replaces(.init(pid: 1, version: "2.0.15"), version: "2.0.15"), "the same version")
+        XCTAssertFalse(InstanceLock.replaces(.init(pid: 1, version: "2.1.0"), version: "2.0.15"), "an older copy")
+        XCTAssertTrue(InstanceLock.replaces(nil, version: "2.0.15"), "a copy from before it wrote itself down")
+        XCTAssertFalse(InstanceLock.replaces(nil, version: ""), "a copy that doesn't know its own version")
+    }
 }
