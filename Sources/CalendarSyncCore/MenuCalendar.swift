@@ -163,4 +163,13 @@ public enum MenuCalendar {
         }
         return "\(title) · \(shortDuration(minutes: minutes(from: now, to: event.end))) left"
     }
+
+    /// How far through `event` `now` is, from 0 to 1, for the bar under the menu bar text: 0
+    /// before it starts, nil whenever `menuBarText` shows nothing.
+    public static func menuBarProgress(for event: SourceEvent, now: Date) -> Double? {
+        guard menuBarText(for: event, now: now) != nil else { return nil }
+        let length = event.end.timeIntervalSince(event.start)
+        guard length > 0 else { return 1 }
+        return min(max(now.timeIntervalSince(event.start) / length, 0), 1)
+    }
 }

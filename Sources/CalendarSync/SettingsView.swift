@@ -184,10 +184,16 @@ private struct MenuBarTab: View {
                     Toggle("Show the week day in the menu bar", isOn: $settings.menuBar.showsWeekday)
                 }
                 Toggle("Show the next meeting in the menu bar", isOn: $settings.menuBar.showsNextMeeting)
+                // Off and greyed out until the meeting is shown: the bar sits under its title.
+                Toggle("Show the meeting's progress under its title", isOn: Binding(
+                    get: { settings.menuBar.drawsMeetingProgress },
+                    set: { settings.menuBar.showsMeetingProgress = $0 }
+                ))
+                .disabled(!settings.menuBar.showsNextMeeting)
             } header: {
                 Text("Menu bar")
             } footer: {
-                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day next to it when that's on. With the next meeting on, from 15 minutes before a meeting until it ends, its title and the minutes left take the date's place.")
+                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day next to it when that's on. With the next meeting on, from 15 minutes before a meeting until it ends, its title and the minutes left take the date's place, and with the progress on, a bar under them fills as the meeting runs.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

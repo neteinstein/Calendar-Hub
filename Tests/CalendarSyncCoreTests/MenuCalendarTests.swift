@@ -170,6 +170,24 @@ final class MenuCalendarTests: XCTestCase {
         XCTAssertEqual(MenuCalendar.shortDuration(minutes: 60), "1h")
     }
 
+    func testMenuBarProgress() {
+        let start = date(2026, 11, 5, hour: 10)
+        func at(_ minutes: Double) -> Date { start.addingTimeInterval(minutes * 60) }
+        let meeting = SourceEvent(key: "m", title: "Design review", start: start, end: at(40))
+        XCTAssertEqual(MenuCalendar.menuBarProgress(for: meeting, now: at(-5)), 0, "not started yet")
+        XCTAssertEqual(MenuCalendar.menuBarProgress(for: meeting, now: at(10)), 0.25)
+        XCTAssertEqual(MenuCalendar.menuBarProgress(for: meeting, now: at(30)), 0.75)
+        XCTAssertNil(MenuCalendar.menuBarProgress(for: meeting, now: at(-20)), "not in the menu bar yet")
+        XCTAssertNil(MenuCalendar.menuBarProgress(for: meeting, now: at(40)), "over")
+    }
+
+    func testMeetingProgressNeedsTheMeetingTitle() throws {
+        XCTAssertFalse(MenuBarOptions(showsNextMeeting: false, showsMeetingProgress: true).drawsMeetingProgress)
+        XCTAssertTrue(MenuBarOptions(showsNextMeeting: true, showsMeetingProgress: true).drawsMeetingProgress)
+        let old = try JSONDecoder().decode(MenuBarOptions.self, from: Data(#"{"showsWeekday":true,"showsNextMeeting":true}"#.utf8))
+        XCTAssertFalse(old.showsMeetingProgress, "off for settings saved before it existed")
+    }
+
     func testMenuBarPrefersTheMeetingAboutToStart() {
         let now = date(2026, 11, 5, hour: 11)
         let focus = SourceEvent(key: "focus", title: "Focus", start: date(2026, 11, 5, hour: 9), end: date(2026, 11, 5, hour: 13))
