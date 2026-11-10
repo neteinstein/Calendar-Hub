@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.16](https://img.shields.io/badge/version-2.0.16-2563EB)](Support/Info.plist)
+[![Version 2.0.17](https://img.shields.io/badge/version-2.0.17-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Sync/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -149,7 +149,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 </picture>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-worldClocks-dark.webp">
-  <img src="docs/screenshots/settings-worldClocks-light.webp" width="640" alt="Settings, World Clocks: the World Clocks view in the menu, the working hours, and the cities, each with its time zone and time">
+  <img src="docs/screenshots/settings-worldClocks-light.webp" width="640" alt="Settings, World Clocks: the World Clocks view in the menu, your working hours, and the cities, starting with where you are, each with its name, time zone, time and working hours">
 </picture>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">

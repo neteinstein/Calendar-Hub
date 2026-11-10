@@ -6,11 +6,14 @@ public struct WorldClock: Codable, Hashable, Identifiable, Sendable {
     /// The name shown, which the user can change: "San Francisco" for America/Los_Angeles.
     public var name: String
     public var timeZoneID: String
+    /// The working hours there, or nil while they're the same as here.
+    public var workingHours: WorkingHours?
 
-    public init(id: UUID = UUID(), name: String, timeZoneID: String) {
+    public init(id: UUID = UUID(), name: String, timeZoneID: String, workingHours: WorkingHours? = nil) {
         self.id = id
         self.name = name
         self.timeZoneID = timeZoneID
+        self.workingHours = workingHours
     }
 
     /// Its time zone, or UTC if the identifier is no longer known.
@@ -22,10 +25,20 @@ public struct WorldClockOptions: Codable, Hashable, Sendable {
     /// The menu gets a World Clocks view, before Stats.
     public var showsInMenu: Bool
     public var clocks: [WorldClock]
+    /// The names given to where we are, by time zone identifier, so that a name given in one
+    /// time zone doesn't follow the Mac to another.
+    public var localNames: [String: String]
 
-    public init(showsInMenu: Bool = false, clocks: [WorldClock] = []) {
+    public init(showsInMenu: Bool = false, clocks: [WorldClock] = [], localNames: [String: String] = [:]) {
         self.showsInMenu = showsInMenu
         self.clocks = clocks
+        self.localNames = localNames
+    }
+
+    /// The name of where we are in `timeZone`: the one given to it, or its time zone's city.
+    public func localName(in timeZone: TimeZone) -> String {
+        let name = localNames[timeZone.identifier]?.trimmingCharacters(in: .whitespaces) ?? ""
+        return name.isEmpty ? WorldClocks.cityName(of: timeZone.identifier) : name
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -33,6 +46,7 @@ public struct WorldClockOptions: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         showsInMenu = try c.decodeIfPresent(Bool.self, forKey: .showsInMenu) ?? false
         clocks = try c.decodeIfPresent([WorldClock].self, forKey: .clocks) ?? []
+        localNames = try c.decodeIfPresent([String: String].self, forKey: .localNames) ?? [:]
     }
 }
 
@@ -72,7 +86,18 @@ public enum WorldClocks {
         return weekday == 1 || weekday == 7
     }
 
-    /// Where `date` falls in the day of `timeZone`, against `workingHours` (the same in every city).
+    /// A city's time zone and the hours it works, in its own time.
+    public struct Schedule: Hashable, Sendable {
+        public var timeZone: TimeZone
+        public var workingHours: WorkingHours
+
+        public init(timeZone: TimeZone, workingHours: WorkingHours) {
+            self.timeZone = timeZone
+            self.workingHours = workingHours
+        }
+    }
+
+    /// Where `date` falls in the day of `timeZone`, against `workingHours` in that city's time.
     public static func period(at date: Date, in timeZone: TimeZone, workingHours: WorkingHours,
                               calendar: Calendar = Calendar(identifier: .gregorian)) -> Period {
         let minute = minuteOfDay(date, in: timeZone, calendar: calendar)
@@ -123,15 +148,14 @@ public enum WorldClocks {
     }
 
     /// The stretches of the local day of `day` when it's working time in every one of
-    /// `timeZones`, in minutes after the local midnight.
-    public static func overlap(on day: Date, of timeZones: [TimeZone], workingHours: WorkingHours,
-                               calendar: Calendar) -> [Range<Int>] {
-        guard !timeZones.isEmpty, let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
+    /// `schedules`, each by its own working hours, in minutes after the local midnight.
+    public static func overlap(on day: Date, of schedules: [Schedule], calendar: Calendar) -> [Range<Int>] {
+        guard !schedules.isEmpty, let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
         let length = Int(interval.duration / 60)
         var ranges: [Range<Int>] = []
         for minute in stride(from: 0, to: length, by: step) {
             let date = interval.start.addingTimeInterval(Double(minute) * 60)
-            guard timeZones.allSatisfy({ period(at: date, in: $0, workingHours: workingHours, calendar: calendar) == .working })
+            guard schedules.allSatisfy({ period(at: date, in: $0.timeZone, workingHours: $0.workingHours, calendar: calendar) == .working })
             else { continue }
             let end = min(minute + step, length)
             if let last = ranges.last, last.upperBound == minute {
@@ -175,11 +199,19 @@ public enum WorldClocks {
 
     // MARK: - Cities
 
-    /// A city to pick, from a time zone's identifier: Europe/Lisbon is Lisbon, in Europe.
+    /// A city to pick, from a time zone's identifier: Europe/Lisbon is Lisbon, in Europe and in
+    /// Portugal.
     public struct Place: Hashable, Sendable {
         public var city: String
         public var region: String
         public var timeZoneID: String
+        /// The ISO 3166 code of its country, if it's in one.
+        public var countryCode: String?
+
+        /// Its country's name in `locale`, or its region where it has no country.
+        public func countryName(locale: Locale = .current) -> String {
+            countryCode.flatMap { locale.localizedString(forRegionCode: $0) } ?? region
+        }
     }
 
     /// The city a time zone's identifier names: "New York" for America/New_York.
@@ -193,25 +225,59 @@ public enum WorldClocks {
         .map { id in
             Place(city: cityName(of: id),
                   region: String(id.split(separator: "/").first ?? "").replacingOccurrences(of: "_", with: " "),
-                  timeZoneID: id)
+                  timeZoneID: id, countryCode: countryCodes[id])
         }
         .sorted { $0.city < $1.city }
 
-    /// The places that match `query`: by city or region, or every city of a time zone
-    /// abbreviation such as PST. Cities starting with it come first.
-    public static func search(_ query: String, limit: Int = 8) -> [Place] {
+    private static let english = Locale(identifier: "en_US")
+
+    /// A city for each time a country keeps: one for Portugal's mainland and one for the Azores,
+    /// but not one for every city of the United States that shares New York's time. The main
+    /// city of each comes first.
+    public static func places(inCountry code: String, at date: Date = Date()) -> [Place] {
+        guard let ids = countryZones.first(where: { $0.country == code })?.timeZoneIDs else { return [] }
+        let calendar = calendar(Calendar(identifier: .gregorian), in: TimeZone(identifier: "UTC")!)
+        let year = calendar.component(.year, from: date)
+        // Winter and summer, so zones that differ only in daylight saving time stay apart.
+        let moments = [1, 7].compactMap { calendar.date(from: DateComponents(year: year, month: $0, day: 1)) }
+        var seen = Set<[Int]>()
+        return ids.compactMap { id in
+            guard let place = places.first(where: { $0.timeZoneID == id }), let zone = TimeZone(identifier: id),
+                  seen.insert(moments.map { zone.secondsFromGMT(for: $0) }).inserted else { return nil }
+            return place
+        }
+    }
+
+    /// The places that match `query`: by city, country or region, or every city of a time zone
+    /// abbreviation such as PST. A country gives a city for each of its time zones. A country
+    /// named in full comes first, then cities starting with the query, then countries starting
+    /// with it. Countries match by their name in `locale` or in English.
+    public static func search(_ query: String, limit: Int = 8, locale: Locale = .current, at date: Date = Date()) -> [Place] {
         let query = query.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return [] }
+        let folding: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         func matches(_ text: String, prefix: Bool) -> Bool {
-            let options: String.CompareOptions = prefix ? [.caseInsensitive, .diacriticInsensitive, .anchored]
-                : [.caseInsensitive, .diacriticInsensitive]
-            return text.range(of: query, options: options) != nil
+            text.range(of: query, options: prefix ? folding.union(.anchored) : folding) != nil
+        }
+        func names(_ code: String) -> [String] {
+            [locale, english].compactMap { $0.localizedString(forRegionCode: code) }
+        }
+        let codes = countryZones.map(\.country)
+        let alias = countryAliases.first { $0.key.caseInsensitiveCompare(query) == .orderedSame }?.value
+        let named = codes.filter { code in
+            code == alias || names(code).contains { $0.compare(query, options: folding) == .orderedSame }
+        }
+        // Two letters could start too many countries to be one.
+        let startingCountries = query.count < 3 ? [] : codes.filter { code in
+            !named.contains(code) && names(code).contains { matches($0, prefix: true) }
         }
         let abbreviated = TimeZone.abbreviationDictionary.first { $0.key.caseInsensitiveCompare(query) == .orderedSame }?.value
         let starting = places.filter { matches($0.city, prefix: true) }
         let containing = places.filter { !matches($0.city, prefix: true) && (matches($0.city, prefix: false) || matches($0.region, prefix: true)) }
         let byAbbreviation = places.filter { $0.timeZoneID == abbreviated }
+        let found = byAbbreviation + named.flatMap { places(inCountry: $0, at: date) } + starting
+            + startingCountries.flatMap { places(inCountry: $0, at: date) } + containing
         var seen = Set<String>()
-        return (byAbbreviation + starting + containing).filter { seen.insert($0.timeZoneID).inserted }.prefix(limit).map { $0 }
+        return found.filter { seen.insert($0.timeZoneID).inserted }.prefix(limit).map { $0 }
     }
 }

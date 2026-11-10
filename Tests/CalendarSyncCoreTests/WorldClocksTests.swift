@@ -42,12 +42,53 @@ final class WorldClocksTests: XCTestCase {
     }
 
     func testOverlap() {
-        let overlap = WorldClocks.overlap(on: date(10, 12), of: [lisbon, newYork, berlin],
-                                          workingHours: WorkingHours(), calendar: local)
+        func schedules(_ timeZones: [TimeZone]) -> [WorldClocks.Schedule] {
+            timeZones.map { .init(timeZone: $0, workingHours: WorkingHours()) }
+        }
+        let overlap = WorldClocks.overlap(on: date(10, 12), of: schedules([lisbon, newYork, berlin]), calendar: local)
         XCTAssertEqual(overlap, [14 * 60..<16 * 60])
-        XCTAssertEqual(WorldClocks.overlap(on: date(10, 12), of: [newYork, kolkata],
-                                           workingHours: WorkingHours(), calendar: local), [])
-        XCTAssertEqual(WorldClocks.overlap(on: date(14, 12), of: [lisbon], workingHours: WorkingHours(), calendar: local), [])
+        XCTAssertEqual(WorldClocks.overlap(on: date(10, 12), of: schedules([newYork, kolkata]), calendar: local), [])
+        XCTAssertEqual(WorldClocks.overlap(on: date(14, 12), of: schedules([lisbon]), calendar: local), [])
+    }
+
+    func testOverlapUsesEachCityWorkingHours() {
+        // New York starts at 7:00 there (12:00 in Lisbon) and Berlin ends at 19:00 there (18:00 in Lisbon).
+        let overlap = WorldClocks.overlap(on: date(10, 12), of: [
+            .init(timeZone: lisbon, workingHours: WorkingHours()),
+            .init(timeZone: newYork, workingHours: WorkingHours(start: 7 * 60, end: 15 * 60)),
+            .init(timeZone: berlin, workingHours: WorkingHours(start: 11 * 60, end: 19 * 60)),
+        ], calendar: local)
+        XCTAssertEqual(overlap, [12 * 60..<17 * 60])
+        // Kolkata works late, so it meets New York: 19:00 to 23:00 there is 13:30 to 17:30 in Lisbon.
+        XCTAssertEqual(WorldClocks.overlap(on: date(10, 12), of: [
+            .init(timeZone: newYork, workingHours: WorkingHours()),
+            .init(timeZone: kolkata, workingHours: WorkingHours(start: 19 * 60, end: 23 * 60)),
+        ], calendar: local), [14 * 60..<17 * 60 + 30])
+        // Working hours win over the night.
+        XCTAssertEqual(WorldClocks.period(at: date(10, 17), in: kolkata,
+                                          workingHours: WorkingHours(start: 19 * 60, end: 23 * 60)), .working)
+    }
+
+    func testLocalName() {
+        var options = WorldClockOptions()
+        XCTAssertEqual(options.localName(in: lisbon), "Lisbon")
+        options.localNames[lisbon.identifier] = "Porto"
+        XCTAssertEqual(options.localName(in: lisbon), "Porto")
+        // The name stays with its time zone.
+        XCTAssertEqual(options.localName(in: newYork), "New York")
+        options.localNames[lisbon.identifier] = "  "
+        XCTAssertEqual(options.localName(in: lisbon), "Lisbon")
+    }
+
+    func testClocksSavedWithoutWorkingHoursDecode() throws {
+        let json = #"{"showsInMenu":true,"clocks":[{"id":"6F1B0C0E-6C55-4B8E-9E0B-0C7A4C0E2B11","name":"Berlin","timeZoneID":"Europe/Berlin"}]}"#
+        let options = try JSONDecoder().decode(WorldClockOptions.self, from: Data(json.utf8))
+        XCTAssertNil(options.clocks.first?.workingHours)
+        XCTAssertEqual(options.localNames, [:])
+        var clock = try XCTUnwrap(options.clocks.first)
+        clock.workingHours = WorkingHours(start: 8 * 60, end: 16 * 60)
+        let saved = try JSONDecoder().decode(WorldClock.self, from: JSONEncoder().encode(clock))
+        XCTAssertEqual(saved.workingHours, WorkingHours(start: 8 * 60, end: 16 * 60))
     }
 
     func testTexts() {
@@ -68,6 +109,42 @@ final class WorldClocksTests: XCTestCase {
         XCTAssertTrue(WorldClocks.search("Lis").contains { $0.timeZoneID == "Europe/Lisbon" })
         XCTAssertTrue(WorldClocks.search("").isEmpty)
         XCTAssertEqual(WorldClocks.cityName(of: "America/Argentina/Buenos_Aires"), "Buenos Aires")
+    }
+
+    func testSearchByCountry() {
+        let english = Locale(identifier: "en_US")
+        func ids(_ query: String, locale: Locale = english) -> [String] {
+            WorldClocks.search(query, limit: 20, locale: locale, at: date(10, 12)).map(\.timeZoneID)
+        }
+        // One time zone, one city.
+        XCTAssertEqual(ids("Germany").first, "Europe/Berlin")
+        XCTAssertEqual(ids("japan"), ["Asia/Tokyo"])
+        // A city for each time the country keeps, the main one first, and no more.
+        XCTAssertEqual(Array(ids("Portugal").prefix(2)), ["Europe/Lisbon", "Atlantic/Azores"])
+        XCTAssertFalse(ids("Portugal").contains("Atlantic/Madeira"))
+        let states = ids("United States")
+        XCTAssertEqual(Array(states.prefix(3)), ["America/New_York", "America/Chicago", "America/Denver"])
+        XCTAssertTrue(states.contains("America/Phoenix"))
+        XCTAssertTrue(states.contains("America/Los_Angeles"))
+        XCTAssertTrue(states.contains("Pacific/Honolulu"))
+        XCTAssertFalse(states.contains("America/Detroit"))
+        // The start of a name, what people call it, and its name in the Mac's language.
+        XCTAssertEqual(ids("Portug").first, "Europe/Lisbon")
+        XCTAssertEqual(ids("uk").first, "Europe/London")
+        XCTAssertEqual(ids("usa").first, "America/New_York")
+        XCTAssertEqual(ids("Alemanha", locale: Locale(identifier: "pt_PT")).first, "Europe/Berlin")
+        XCTAssertEqual(ids("Germany", locale: Locale(identifier: "pt_PT")).first, "Europe/Berlin")
+        // A country named in full comes before the cities that start the same way.
+        XCTAssertEqual(ids("India").first, "Asia/Calcutta")
+        // Cities still come by their own name.
+        XCTAssertEqual(ids("Detroit").first, "America/Detroit")
+        XCTAssertEqual(WorldClocks.search("Lisbon", locale: english).first?.countryName(locale: english), "Portugal")
+    }
+
+    func testEveryCityWithACountryIsKnown() {
+        // The table covers the time zones macOS lists, less the ones without a country.
+        let without = WorldClocks.places.filter { $0.countryCode == nil }.map(\.timeZoneID)
+        XCTAssertEqual(without, [], "no country for \(without)")
     }
 
     func testOptionsDecodeWhenEmpty() throws {
