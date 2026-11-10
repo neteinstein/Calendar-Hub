@@ -45,7 +45,7 @@ The app recognises its Busy events by the code, and matches them to your main ca
 - **Tasks view.** Your tasks, by when they're due: overdue, today, tomorrow, later and no date, with the ones done this week folded away. Month and List show each day's tasks too. See [Tasks](#tasks).
 - **Colors.** The lists tint each event with the **color of the calendar it came from**, shade **all-day events**, and group each day's **morning** and **afternoon** into colored blocks. Each of these can be turned off.
 - **Status.** A pill says when the last sync ran. Anything that went wrong shows as a card with its fix, like **Open Outlook** for a calendar that signed you out; click the pill's count to see it in Settings.
-- **Next meeting in the menu bar.** Turn on **Show the next meeting in the menu bar** and, from 15 minutes before a meeting until it ends, the icon shows its name and the minutes left, like `Design review · 12m`.
+- **Next meeting in the menu bar.** Turn on **Show the next meeting in the menu bar** and, from 15 minutes before a meeting until it ends, the icon shows its name and the minutes left, like `Design review · 12m`. With that on, **Show the meeting's progress under its title** adds a bar under the name that fills as the meeting runs; it stays off and greyed out while the next meeting isn't shown.
 
 ## The meeting alert
 

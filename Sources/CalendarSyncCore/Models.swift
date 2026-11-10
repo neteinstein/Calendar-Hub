@@ -144,17 +144,24 @@ public struct MenuBarOptions: Codable, Hashable, Sendable {
     public var showsWeekday: Bool
     /// Within 15 minutes of a meeting, and while it runs, its title and the minutes left.
     public var showsNextMeeting: Bool
+    /// A bar under the meeting's title that fills as the meeting runs. Only with `showsNextMeeting`.
+    public var showsMeetingProgress: Bool
 
-    public init(showsWeekday: Bool = false, showsNextMeeting: Bool = false) {
+    public init(showsWeekday: Bool = false, showsNextMeeting: Bool = false, showsMeetingProgress: Bool = false) {
         self.showsWeekday = showsWeekday
         self.showsNextMeeting = showsNextMeeting
+        self.showsMeetingProgress = showsMeetingProgress
     }
+
+    /// Whether the menu bar draws the progress bar: it hangs off the meeting's title.
+    public var drawsMeetingProgress: Bool { showsNextMeeting && showsMeetingProgress }
 
     // Settings saved by older versions don't have every key yet.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         showsWeekday = try c.decodeIfPresent(Bool.self, forKey: .showsWeekday) ?? false
         showsNextMeeting = try c.decodeIfPresent(Bool.self, forKey: .showsNextMeeting) ?? false
+        showsMeetingProgress = try c.decodeIfPresent(Bool.self, forKey: .showsMeetingProgress) ?? false
     }
 }
 

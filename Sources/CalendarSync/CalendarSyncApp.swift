@@ -91,7 +91,8 @@ struct CalendarSyncApp: App {
 
     /// The icon in the menu bar: a calendar glyph, plus today's date when the menu calendar
     /// is on, and with it the week day when that is on too. With "Show the next meeting" on, a
-    /// meeting about to start or under way takes the date's place. A badge on the glyph marks a
+    /// meeting about to start or under way takes the date's place, with a bar under it that fills
+    /// as the meeting runs when that is on too. A badge on the glyph marks a
     /// sync with problems; menu bar labels are drawn in one color, so it's part of the symbol.
     /// `Clock` keeps the date and the minutes right as the minutes pass. Not a TimelineView: in a
     /// menu bar label it re-renders the button in an endless loop and the app hangs at launch.
@@ -113,10 +114,21 @@ struct CalendarSyncApp: App {
             return MenuCalendar.menuBarText(for: meeting, now: clock.now)
         }
 
+        /// How far through the meeting in `meetingText` it is, when its progress bar is on.
+        private var meetingProgress: Double? {
+            guard settings.menuBar.drawsMeetingProgress,
+                  let meeting = controller.menuBarMeeting(now: clock.now) else { return nil }
+            return MenuCalendar.menuBarProgress(for: meeting, now: clock.now)
+        }
+
         var body: some View {
             let hasProblems = !controller.problems.isEmpty || controller.setupProblem != nil
             let text = meetingText
-            if settings.menuCalendarEnabled || text != nil {
+            if let text, let progress = meetingProgress {
+                Image(nsImage: Self.progressImage(symbol: hasProblems ? Self.problemIcon : "calendar",
+                                                  text: text, progress: progress))
+                    .renderingMode(.template)
+            } else if settings.menuCalendarEnabled || text != nil {
                 HStack(spacing: 3) {
                     Image(systemName: hasProblems ? Self.problemIcon : "calendar")
                     if let text {
@@ -132,6 +144,34 @@ struct CalendarSyncApp: App {
 
         /// In place of the plain calendar while the last sync had problems, so it can't be missed.
         private static let problemIcon = "calendar.badge.exclamationmark"
+
+        /// The glyph and the meeting's text with a bar under the text that fills as the meeting
+        /// runs, drawn into one template image: a menu bar label shows only its text and images,
+        /// so a shape in it would never be drawn. Fits the menu bar's height.
+        private static func progressImage(symbol: String, text: String, progress: Double) -> NSImage {
+            let content = HStack(alignment: .center, spacing: 3) {
+                Image(systemName: symbol)
+                Text(text)
+                    .padding(.bottom, 4)
+                    .overlay(alignment: .bottom) {
+                        Capsule().fill(.black.opacity(0.3))
+                            .overlay(alignment: .leading) {
+                                GeometryReader { bar in
+                                    Capsule().frame(width: max(bar.size.width * progress, progress > 0 ? 2 : 0))
+                                }
+                            }
+                            .frame(height: 2)
+                    }
+            }
+            .font(Font(NSFont.menuBarFont(ofSize: 0)))
+            .foregroundStyle(.black)
+            .padding(.vertical, 1)
+            let renderer = ImageRenderer(content: content)
+            renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+            let image = renderer.nsImage ?? NSImage()
+            image.isTemplate = true
+            return image
+        }
     }
 
     var body: some Scene {
