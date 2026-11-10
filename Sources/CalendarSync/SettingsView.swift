@@ -40,7 +40,8 @@ struct SettingsView: View {
         }
         .frame(width: 780, height: 540)
         .toggleStyle(AccentSwitchStyle())
-        .onAppear { NSApp.activate(ignoringOtherApps: true) }
+        // Not while rendering the README's screenshots, which must leave the user's app in front.
+        .onAppear { if Snapshots.folder == nil { NSApp.activate(ignoringOtherApps: true) } }
     }
 }
 
