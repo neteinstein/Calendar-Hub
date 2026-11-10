@@ -304,9 +304,9 @@ enum Snapshots {
         window.isReleasedWhenClosed = false
         window.contentView = host
         window.setContentSize(host.fittingSize)
-        // Key, so sidebars and controls draw as in the window in front, not dimmed.
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        // Not activating the app, and not made key: a run would otherwise take the keyboard
+        // from whatever the user is typing in, once per screenshot.
+        window.orderFrontRegardless()
         try? await Task.sleep(for: .seconds(settle))
         window.setContentSize(host.fittingSize)
         host.layoutSubtreeIfNeeded()
@@ -319,10 +319,12 @@ enum Snapshots {
     }
 }
 
-/// A borderless window that can be key, so what it shows draws as active.
+/// A borderless window that says it's the key one without being it, so what it shows draws as
+/// in the window in front (sidebars and controls otherwise come out dimmed) while the app
+/// stays in the background.
 private final class SnapshotWindow: NSWindow {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var isKeyWindow: Bool { true }
+    override var isMainWindow: Bool { true }
 }
 
 /// A slice of desktop under the menu bar, with the menu open below its icon.
