@@ -160,6 +160,50 @@ final class SyncPlannerTests: XCTestCase {
         XCTAssertTrue(next.isEmpty)
     }
 
+    func testCopiesOfSourcesNoLongerSetUpAreOrphans() {
+        let removed = SourceConfig(kind: .outlookWeb, calendarName: "Work")
+        let kept = SourceConfig(kind: .outlookWeb, calendarName: "Other Mac")
+        let existing = copies(from: SyncPlanner.plan(
+            sources: [(removed, .success([event("2", "Late", at: 3), event("1", "Early", at: 1)])),
+                      (kept, .success([event("3", "Theirs", at: 2)])),
+                      (source, .success([event("4", "Mine", at: 4)]))],
+            existing: [], options: SyncOptions()))
+        var busy = existing[0]
+        busy.marker = nil // a Busy event, or anything else without a marker
+
+        let orphans = SyncPlanner.orphanedCopies(in: existing + [busy], known: [source.id, kept.id])
+        XCTAssertEqual(orphans.map(\.title), ["[Work] Early", "[Work] Late"], "sorted by start, unmarked left out")
+        XCTAssertTrue(SyncPlanner.orphanedCopies(in: existing, known: [source.id, kept.id, removed.id]).isEmpty)
+    }
+
+    func testDisabledSourceIsNotAnOrphan() {
+        var off = source
+        off.isEnabled = false
+        let existing = copies(from: SyncPlanner.plan(sources: [(source, .success([event("1", "A", at: 1)]))],
+                                                     existing: [], options: SyncOptions()))
+        XCTAssertTrue(SyncPlanner.orphanedCopies(in: existing, known: [off.id]).isEmpty)
+    }
+
+    func testRemovingASourceRemovesOnlyItsCopies() {
+        let other = SourceConfig(kind: .outlookWeb, calendarName: "Calendar B")
+        let existing = copies(from: SyncPlanner.plan(
+            sources: [(source, .success([event("1", "A", at: 2), event("2", "B", at: 1)])),
+                      (other, .success([event("1", "A", at: 2)]))],
+            existing: [], options: SyncOptions()))
+
+        let plan = SyncPlanner.planCopyRemoval(existing: existing, sourceIDs: [source.id])
+        XCTAssertEqual(plan.deletes, 2)
+        XCTAssertEqual(plan.actions.count, 2, "nothing but removals")
+        let removedIDs = plan.actions.compactMap { action -> String? in
+            if case .delete(let id, _, _) = action { id } else { nil }
+        }
+        let theirs = Set(existing.filter { $0.marker?.sourceID == source.id }.map(\.eventID))
+        XCTAssertEqual(Set(removedIDs), theirs)
+        guard case .delete(_, let title, _) = plan.actions[0] else { return XCTFail() }
+        XCTAssertEqual(title, "[Calendar A] B", "earliest first")
+        XCTAssertTrue(SyncPlanner.planCopyRemoval(existing: existing, sourceIDs: []).isEmpty)
+    }
+
     func testDisabledSourceKeepsItsCopies() {
         let first = SyncPlanner.plan(sources: [(source, .success([event("1", "A", at: 1)]))], existing: [], options: SyncOptions())
         var off = source
