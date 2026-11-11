@@ -1437,6 +1437,8 @@ private struct LogsTab: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(appLog.log.text(), forType: .string)
                 }
+                Button("Show in Finder") { appLog.revealFile() }
+                    .help("The log is also saved in ~/Library/Logs/Calendar Hub, with the lines from earlier launches.")
                 Button("Clear") { appLog.clear() }
                 Button("Turn off") {
                     appLog.setEnabled(false)
