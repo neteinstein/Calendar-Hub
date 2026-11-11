@@ -42,4 +42,20 @@ public enum EventAlertPlanner {
             }
             .sorted { $0.start < $1.start }
     }
+
+    /// The next moment after `now` an alert falls due: the earliest start, less the lead
+    /// time, of the events that will deserve one. A timer set for it shows the alert on the
+    /// second, where waiting for the next periodic check could leave it up to 25 seconds late.
+    public static func nextAlertTime(
+        events: [SourceEvent],
+        shown: Set<String>,
+        now: Date,
+        leadMinutes: Int
+    ) -> Date? {
+        events
+            .filter { !$0.isAllDay && !$0.isDeclined && !$0.isCancelled && !shown.contains($0.key) }
+            .map { $0.start.addingTimeInterval(-60 * Double(max(0, leadMinutes))) }
+            .filter { $0 > now }
+            .min()
+    }
 }

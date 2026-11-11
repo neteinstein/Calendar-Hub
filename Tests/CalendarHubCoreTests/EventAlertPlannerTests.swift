@@ -56,4 +56,14 @@ final class EventAlertPlannerTests: XCTestCase {
         let roundTrip = try JSONDecoder().decode(EventAlertOptions.self, from: JSONEncoder().encode(full))
         XCTAssertEqual(roundTrip, full)
     }
+
+    func testNextAlertTimeIsTheEarliestUpcomingLeadTime() {
+        let events = [event("later", startsIn: 10), event("sooner", startsIn: 3), event("now", startsIn: 0)]
+        XCTAssertEqual(EventAlertPlanner.nextAlertTime(events: events, shown: [], now: now, leadMinutes: 1),
+                       now + 2 * 60, "already-due alerts are left to the check; the next is 1 minute before 'sooner'")
+        XCTAssertEqual(EventAlertPlanner.nextAlertTime(events: events, shown: ["sooner"], now: now, leadMinutes: 0),
+                       now + 10 * 60)
+        var declined = event("declined", startsIn: 2); declined.isDeclined = true
+        XCTAssertNil(EventAlertPlanner.nextAlertTime(events: [declined], shown: [], now: now, leadMinutes: 1))
+    }
 }
