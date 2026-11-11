@@ -152,7 +152,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             signingIn = true
         } else if signingIn, Self.isOutlookHost(url) {
             signingIn = false
-            NSLog("Calendar Hub: signed in to Outlook, closing its window")
+            AppLog.write("Calendar Hub: signed in to Outlook, closing its window")
             window?.close()
         }
     }
@@ -248,7 +248,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             if !loaded {
                 let weekName = weekFrom.formatted(.dateTime.day().month())
                 // The page's host only: its path and query are the account's own business.
-                NSLog("Calendar Hub: Outlook week of \(weekName) not read: \(captured.count - before) responses, page on \(webView.url?.host ?? "none")")
+                AppLog.write("Calendar Hub: Outlook week of \(weekName) not read: \(captured.count - before) responses, page on \(webView.url?.host ?? "none")")
                 return .failure("Couldn't read the Outlook calendar for the week of \(weekName) (no calendar data loaded).")
             }
         }
@@ -269,7 +269,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             .filter { $0.end > start && $0.start < end }
         readBusyEvents(itemIDs: itemIDs, details: details, readFromScreen: !onScreen.isEmpty, from: start, to: end)
         let withLinks = events.filter { $0.meetingURL != nil }.count
-        NSLog("Calendar Hub: Outlook \(events.count) meetings, \(details.count) detail responses, \(withLinks) with a meeting link")
+        AppLog.write("Calendar Hub: Outlook \(events.count) meetings, \(details.count) detail responses, \(withLinks) with a meeting link")
         return .success(events)
     }
 
@@ -321,7 +321,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         // The Busy events are read again on the next fetch.
         busyEvents = nil
         busyProblem = "Outlook wasn't read since its Busy events changed."
-        NSLog("Calendar Hub: Outlook Busy events, \(plan.actions.count) changes, \(errors.count) failed")
+        AppLog.write("Calendar Hub: Outlook Busy events, \(plan.actions.count) changes, \(errors.count) failed")
         return errors
     }
 

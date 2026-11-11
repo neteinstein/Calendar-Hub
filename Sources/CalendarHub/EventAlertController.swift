@@ -78,7 +78,7 @@ final class EventAlertController: ObservableObject {
                 keepOnScreen()
                 return
             }
-            NSLog("Calendar Hub: closing the alert for the meeting at \(current.start), which has ended")
+            AppLog.write("Calendar Hub: closing the alert for the meeting at \(current.start), which has ended")
             window.orderOut(nil)
             self.window = nil
             self.current = nil
@@ -93,7 +93,7 @@ final class EventAlertController: ObservableObject {
             events = read
             lastReadFailure = nil
         case .failure(let reason):
-            if reason != lastReadFailure { NSLog("Calendar Hub: can't check for alerts: \(reason)") }
+            if reason != lastReadFailure { AppLog.write("Calendar Hub: can't check for alerts: \(reason)") }
             lastReadFailure = reason
             return
         }
@@ -159,7 +159,7 @@ final class EventAlertController: ObservableObject {
         window = panel
         current = event
         bringForward(panel)
-        NSLog("Calendar Hub: showing the alert for the meeting at \(event.start)")
+        AppLog.write("Calendar Hub: showing the alert for the meeting at \(event.start)")
         return true
     }
 
