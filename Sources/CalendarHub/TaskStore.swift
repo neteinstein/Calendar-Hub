@@ -176,7 +176,7 @@ final class TaskStore: ObservableObject {
                 continue
             }
             if let realigned = TaskPlanner.realigned(task, to: event, calendar: calendar) {
-                NSLog("Calendar Hub: a task follows its event to \(event.start)")
+                AppLog.write("Calendar Hub: a task follows its event to \(event.start)")
                 save(realigned)
             }
         }

@@ -26,7 +26,7 @@ enum RenameMigration {
         relinkApplications(defaults)
         defaults.set(true, forKey: doneKey)
         if settings > 0 || websiteData {
-            NSLog("Calendar Hub brought across \(settings) settings\(websiteData ? " and the Outlook sign-in" : "") from Calendar Sync.")
+            AppLog.write("Calendar Hub brought across \(settings) settings\(websiteData ? " and the Outlook sign-in" : "") from Calendar Sync.")
         }
     }
 
@@ -34,7 +34,7 @@ enum RenameMigration {
     private static func quitOldCopies() {
         let old = NSRunningApplication.runningApplications(withBundleIdentifier: oldBundleID)
         guard !old.isEmpty else { return }
-        NSLog("Calendar Hub has the Calendar Sync that was running quit.")
+        AppLog.write("Calendar Hub has the Calendar Sync that was running quit.")
         old.forEach { $0.terminate() }
         let deadline = Date().addingTimeInterval(5)
         while old.contains(where: { !$0.isTerminated }), Date() < deadline {
@@ -81,7 +81,7 @@ enum RenameMigration {
                 try fileManager.copyItem(at: from, to: to)
                 copied = true
             } catch {
-                NSLog("Calendar Hub couldn't copy Calendar Sync's \(folder) data: \(error)")
+                AppLog.write("Calendar Hub couldn't copy Calendar Sync's \(folder) data: \(error)")
             }
         }
         return copied
@@ -101,7 +101,7 @@ enum RenameMigration {
             try fileManager.removeItem(at: link)
             defaults.set(false, forKey: "linkedIntoApplications")
         } catch {
-            NSLog("Calendar Hub couldn't remove Calendar Sync's link in ~/Applications: \(error)")
+            AppLog.write("Calendar Hub couldn't remove Calendar Sync's link in ~/Applications: \(error)")
         }
     }
 

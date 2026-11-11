@@ -195,6 +195,8 @@ final class SyncController: ObservableObject {
 
         let (start, end) = window
         let selected = settings.sources.filter { $0.isEnabled && only?.contains($0.id) != false }
+        AppLog.write("Calendar Hub: \(apply ? "sync" : "preview") of \(selected.count) calendars: "
+                     + selected.map(\.calendarName).joined(separator: ", "))
         // All marked read up front: a timer tick while an earlier one is read (Outlook takes a
         // minute) mustn't queue another read of the ones still to come.
         if apply { for source in selected { lastRead[source.id] = Date() } }
@@ -308,6 +310,8 @@ final class SyncController: ObservableObject {
             preview = plan
             busyPreview = busyPlans
         }
+        AppLog.write("Calendar Hub: \(apply ? lastSummary : "preview: \(plan.creates) to add, \(plan.updates) to update, \(plan.deletes) to remove")")
+        for problem in problems.sorted() { AppLog.write("Calendar Hub: problem: \(problem)") }
         self.problems = problems.sorted()
         unreadSources = unread.sorted { $0.name < $1.name }
         return plan
@@ -438,7 +442,7 @@ final class SyncController: ObservableObject {
             do {
                 try await WKWebsiteDataStore.remove(forIdentifier: sourceID)
             } catch {
-                NSLog("Calendar Hub: couldn't delete Outlook sign-in data: \(error)")
+                AppLog.write("Calendar Hub: couldn't delete Outlook sign-in data: \(error)")
             }
         }
     }

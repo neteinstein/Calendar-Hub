@@ -8,10 +8,15 @@ struct SettingsView: View {
     @EnvironmentObject private var controller: SyncController
     /// The pane shown, kept between openings. The menu sets it to open Settings at a given pane.
     @AppStorage(SettingsPane.defaultsKey) private var pane: SettingsPane = .general
+    /// Logs is listed only while debug logging is on.
+    @AppStorage(AppLog.enabledKey) private var logging = false
+
+    private var shown: SettingsPane { pane == .logs && !logging ? .general : pane }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: Binding(get: { pane }, set: { if let picked = $0 { pane = picked } })) { pane in
+            List(SettingsPane.allCases.filter { $0 != .logs || logging },
+                 selection: Binding(get: { shown }, set: { if let picked = $0 { pane = picked } })) { pane in
                 HStack(spacing: 4) {
                     Label {
                         Text(pane.title)
@@ -35,8 +40,8 @@ struct SettingsView: View {
             .frame(minWidth: 215)
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            pane.content
-                .navigationTitle(pane.title)
+            shown.content
+                .navigationTitle(shown.title)
         }
         .frame(width: 780, height: 540)
         .toggleStyle(AccentSwitchStyle())
@@ -46,7 +51,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, menuBar, alerts, tasks, worldClocks, preview, about
+    case general, calendars, twoWaySync, menuBar, alerts, tasks, worldClocks, preview, about, logs
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -64,6 +69,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: "World Clocks"
         case .preview: "Preview"
         case .about: "About"
+        case .logs: "Logs"
         }
     }
 
@@ -78,6 +84,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: "globe"
         case .preview: "eye.fill"
         case .about: "info"
+        case .logs: "doc.text.magnifyingglass"
         }
     }
 
@@ -91,6 +98,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .tasks: .green
         case .worldClocks: .indigo
         case .preview: .orange
+        case .logs: .brown
         }
     }
 
@@ -106,6 +114,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: WorldClocksTab()
         case .preview: PreviewTab()
         case .about: AboutTab()
+        case .logs: LogsTab()
         }
     }
 }
@@ -1202,6 +1211,8 @@ private struct PreviewTab: View {
 private struct AboutTab: View {
     @Environment(\.openURL) private var openURL
     @EnvironmentObject private var updates: UpdateChecker
+    @AppStorage(AppLog.enabledKey) private var logging = false
+    @AppStorage(SettingsPane.defaultsKey) private var pane: SettingsPane = .about
 
     var body: some View {
         ScrollView {
@@ -1229,10 +1240,23 @@ private struct AboutTab: View {
                 Link("pedrovicente.pt", destination: URL(string: "https://pedrovicente.pt")!)
             }
 
-            Button {
-                openURL(UpdateChecker.repoPage.appendingPathComponent("issues"))
-            } label: {
-                Label("Send feedback or report a bug", systemImage: "ladybug")
+            HStack(spacing: 10) {
+                Button {
+                    AppLog.shared.sendFeedback(openURL: openURL)
+                } label: {
+                    Label("Send feedback or report a bug", systemImage: "ladybug")
+                }
+                Button {
+                    AppLog.shared.setEnabled(true)
+                    pane = .logs
+                } label: {
+                    Label(logging ? "Show debug logs" : "Enable debug logs", systemImage: "doc.text.magnifyingglass")
+                }
+                .help("Keeps a log of what Calendar Hub does, in Settings › Logs, and sends it with your feedback.")
+            }
+            if logging {
+                Text("Debug logging is on: feedback includes the log.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Divider().frame(width: 280)
@@ -1248,6 +1272,69 @@ private struct AboutTab: View {
                 Label("Donate", systemImage: "heart.fill")
             }
             .controlSize(.large)
+        }
+    }
+}
+
+// MARK: - Logs
+
+/// The debug log, live: new lines appear at the bottom as Calendar Hub works.
+private struct LogsTab: View {
+    @Environment(\.openURL) private var openURL
+    @ObservedObject private var appLog = AppLog.shared
+    @AppStorage(SettingsPane.defaultsKey) private var pane: SettingsPane = .logs
+    /// Off while the user scrolls back through older lines.
+    @State private var follow = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        if appLog.log.entries.isEmpty {
+                            Text("Nothing logged yet. Lines appear here as Calendar Hub syncs, reads calendars and shows alerts.")
+                                .foregroundStyle(.secondary)
+                        }
+                        ForEach(appLog.log.entries) { entry in
+                            Text(DebugLog.line(entry))
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .id(entry.id)
+                        }
+                    }
+                    .textSelection(.enabled)
+                    .padding(12)
+                }
+                .background(Color(nsColor: .textBackgroundColor))
+                .onChange(of: appLog.log.entries.last?.id) { _, last in
+                    if follow, let last { proxy.scrollTo(last, anchor: .bottom) }
+                }
+                .onAppear {
+                    if let last = appLog.log.entries.last?.id { proxy.scrollTo(last, anchor: .bottom) }
+                }
+            }
+            Divider()
+            HStack {
+                Toggle("Follow new lines", isOn: $follow)
+                    .toggleStyle(.checkbox)
+                Spacer()
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(appLog.log.text(), forType: .string)
+                }
+                Button("Clear") { appLog.clear() }
+                Button("Turn off") {
+                    appLog.setEnabled(false)
+                    pane = .about
+                }
+                Button {
+                    appLog.sendFeedback(openURL: openURL)
+                } label: {
+                    Label("Send feedback", systemImage: "ladybug")
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
         }
     }
 }
