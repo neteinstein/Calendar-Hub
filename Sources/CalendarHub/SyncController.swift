@@ -21,6 +21,9 @@ final class SyncController: ObservableObject {
     @Published private(set) var preview: SyncPlan?
     /// Busy events the next sync would add to secondary calendars, per secondary calendar.
     @Published private(set) var busyPreview: [BusyPreview] = []
+    /// Copies in the main calendar, from today on, of secondary calendars that aren't set up
+    /// here (see `SyncPlanner.orphanedCopies`), minus the ones the user chose to keep.
+    @Published private(set) var orphanedCopies: [ExistingCopy] = []
 
     struct BusyPreview: Identifiable {
         let id: UUID
@@ -310,11 +313,78 @@ final class SyncController: ObservableObject {
             preview = plan
             busyPreview = busyPlans
         }
+        refreshOrphanedCopies(targetID: targetID)
         AppLog.write("Calendar Hub: \(apply ? lastSummary : "preview: \(plan.creates) to add, \(plan.updates) to update, \(plan.deletes) to remove")")
         for problem in problems.sorted() { AppLog.write("Calendar Hub: problem: \(problem)") }
         self.problems = problems.sorted()
         unreadSources = unread.sorted { $0.name < $1.name }
         return plan
+    }
+
+    // MARK: - Copies of calendars no longer synced
+
+    /// Where copies are looked for when they're removed: from the start of today to a year
+    /// ahead, wider than any sync window, so copies made while the window was longer go too.
+    /// Earlier copies are left as a record of meetings that happened.
+    private var cleanupWindow: (start: Date, end: Date) {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date())
+        return (start, calendar.date(byAdding: .year, value: 1, to: start)!)
+    }
+
+    private func copiesInCleanupWindow() -> [ExistingCopy] {
+        guard hasCalendarAccess, eventKit.demo == nil, let targetID = settings.targetCalendarID else { return [] }
+        let (start, end) = cleanupWindow
+        return eventKit.existingCopies(targetID: targetID, from: start, to: end) ?? []
+    }
+
+    private func refreshOrphanedCopies(targetID: String) {
+        let (start, end) = cleanupWindow
+        let known = Set(settings.sources.map(\.id)).union(settings.keptOrphanSourceIDs)
+        let orphans = SyncPlanner.orphanedCopies(
+            in: eventKit.existingCopies(targetID: targetID, from: start, to: end) ?? [], known: known)
+        if orphans.count != orphanedCopies.count {
+            AppLog.write("Calendar Hub: \(orphans.count) copies of calendars no longer synced.")
+        }
+        orphanedCopies = orphans
+    }
+
+    /// The copies of one secondary calendar in the main calendar, from today on: asked about
+    /// when that calendar is removed.
+    func copies(of sourceID: UUID) -> [ExistingCopy] {
+        copiesInCleanupWindow().filter { $0.marker?.sourceID == sourceID }
+    }
+
+    /// Removes `copies` from the main calendar: those of a secondary calendar just removed, or
+    /// orphaned ones the user reviewed. Only those exact events go, so nothing is removed that
+    /// wasn't shown. Waits for a sync under way, so the two don't write at once.
+    func removeCopies(_ copies: [ExistingCopy]) async {
+        guard !copies.isEmpty, let targetID = settings.targetCalendarID else { return }
+        while isSyncing { try? await Task.sleep(nanoseconds: 200_000_000) }
+        isSyncing = true
+        defer {
+            isSyncing = false
+            runQueuedSync()
+        }
+        let ids = Set(copies.compactMap { $0.marker?.sourceID })
+        let wanted = Set(copies.map(\.eventID))
+        // Read again, so only copies still there (and still carrying the marker) are removed.
+        let current = copiesInCleanupWindow().filter { wanted.contains($0.eventID) }
+        let plan = SyncPlanner.planCopyRemoval(existing: current, sourceIDs: ids)
+        ignoreStoreChangesUntil = .now + .seconds(5)
+        let errors = eventKit.apply(plan, targetID: targetID)
+        ignoreStoreChangesUntil = .now + .seconds(5)
+        AppLog.write("Calendar Hub: removed \(plan.deletes - errors.count) copies of calendars no longer synced.")
+        for error in errors { AppLog.write("Calendar Hub: problem: \(error)") }
+        problems = (problems + errors).sorted()
+        lastSummary = "Removed \(plan.deletes - errors.count) copies of calendars no longer synced"
+        refreshOrphanedCopies(targetID: targetID)
+    }
+
+    /// Keeps the orphaned copies of `sourceIDs` and stops offering to remove them.
+    func keepCopies(of sourceIDs: Set<UUID>) {
+        settings.keptOrphanSourceIDs.formUnion(sourceIDs)
+        orphanedCopies.removeAll { $0.marker.map { sourceIDs.contains($0.sourceID) } ?? false }
     }
 
     /// Counts each secondary calendar's copies once `plan` is applied, and notes the time for
