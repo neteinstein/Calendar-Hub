@@ -11,7 +11,11 @@ final class EventAlertController: ObservableObject {
     private let eventKit: EventKitBridge
     /// For the tasks to prepare a meeting, listed on its alert.
     private let tasks: TaskStore?
+    /// Checks every 20 seconds, which catches up after sleep and calendar changes.
     private var timer: Timer?
+    /// Fires on the second the next alert or snooze falls due, so it isn't left waiting for
+    /// the 20-second check, which runs at whatever offset from the minute the app launched at.
+    private var exactTimer: Timer?
     /// Occurrence keys already alerted, with when, so each event alerts once. Pruned daily.
     private var shown: [String: Date] = [:]
     /// Alerts put off with "Remind me in 1 minute", and when they come back.
@@ -65,6 +69,8 @@ final class EventAlertController: ObservableObject {
     }
 
     private func check() {
+        exactTimer?.invalidate()
+        exactTimer = nil
         let now = Date()
         if let window, let current {
             // An alert left up after its event ended would hold back every alert after it.
@@ -101,8 +107,25 @@ final class EventAlertController: ObservableObject {
         let due = EventAlertPlanner.dueAlerts(
             events: events, shown: Set(shown.keys), now: now, leadMinutes: settings.alerts.leadMinutes)
         // Marked only once it's on screen, so an alert that couldn't show is tried again.
-        guard let event = due.first, show(event) else { return }
-        shown[event.key] = now
+        if let event = due.first, show(event) {
+            shown[event.key] = now
+            return
+        }
+        // The events read reach a minute past the lead time and this runs every 20 seconds,
+        // so the next alert is always in view before it falls due.
+        let next = [EventAlertPlanner.nextAlertTime(
+            events: events, shown: Set(shown.keys), now: now, leadMinutes: settings.alerts.leadMinutes),
+                    snoozed.values.min()].compactMap { $0 }.min()
+        if let next { scheduleExactCheck(at: next) }
+    }
+
+    private func scheduleExactCheck(at date: Date) {
+        let timer = Timer(fire: date, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.check() }
+        }
+        timer.tolerance = 0
+        RunLoop.main.add(timer, forMode: .common)
+        exactTimer = timer
     }
 
     /// The screen the user is looking at, as best we can tell: the one with the pointer.
