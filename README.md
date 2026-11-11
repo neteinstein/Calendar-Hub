@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.23](https://img.shields.io/badge/version-2.0.23-2563EB)](Support/Info.plist)
+[![Version 2.0.24](https://img.shields.io/badge/version-2.0.24-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -261,7 +261,47 @@ Then restart it with `brew services restart calendar-hub`, or just open it again
 
 Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Calendar-Hub/issues). Settings › About › **Send feedback or report a bug** takes you there too.
 
-To help track a problem down, click **Enable debug logs** next to it. A **Logs** pane appears in Settings and shows what Calendar Hub does as it happens: syncs, calendars read, alerts. **Send feedback** then opens a new issue with the log's newest lines filled in, and copies the whole log to the clipboard. The log stays on your Mac until you send it; **Turn off** in Logs stops logging and clears it.
+To help track a problem down, click **Enable debug logs** next to it. A **Logs** pane appears in Settings and shows what Calendar Hub does as it happens: syncs, calendars read, alerts. **Send feedback** then opens a new issue with the log's newest lines filled in, and copies the whole log to the clipboard. While logging is on, the log is also saved to `~/Library/Logs/Calendar Hub/debug.log` (**Show in Finder** in Logs), so it keeps the lines from earlier launches, including one that crashed. The log stays on your Mac until you send it; **Turn off** in Logs stops logging and deletes it.
+
+## Common issues
+
+### The app closes as soon as I open it
+
+First check whether another copy is already running. Only one copy runs at a time, so a second copy (from `brew services` and **Open at login** together, say) quits straight away and asks the running one to show its menu bar icon:
+
+```bash
+pgrep -lf CalendarHub
+```
+
+```bash
+brew services list | grep calendar-hub
+```
+
+If no other copy is running, turn on debug logging from Terminal, since you can't reach Settings. Then open the app again:
+
+```bash
+defaults write org.neteinstein.calendarhub debugLogging -bool true
+```
+
+The log is saved to `~/Library/Logs/Calendar Hub/debug.log`. Attach it to a [new issue](https://github.com/neteinstein/Calendar-Hub/issues/new), together with the crash report if there is one. You can find the report in Console.app under **Crash Reports** (search for `CalendarHub`), or list the reports with:
+
+```bash
+ls -t ~/Library/Logs/DiagnosticReports | grep -i calendarhub
+```
+
+To see the app's lines in the system log, even with debug logging off, run this right after it closes:
+
+```bash
+log show --last 5m --predicate 'process == "CalendarHub"' --info --debug
+```
+
+Starting the app from Terminal prints everything, crash messages included:
+
+```bash
+"$(brew --prefix)/opt/calendar-hub/Calendar Hub.app/Contents/MacOS/CalendarHub"
+```
+
+To turn debug logging off again, use **Turn off** in Settings › Logs, or run `defaults write org.neteinstein.calendarhub debugLogging -bool false`.
 
 ## Learn more
 
