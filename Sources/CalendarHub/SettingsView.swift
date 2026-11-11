@@ -593,7 +593,7 @@ private struct SourcesTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if settings.sources.isEmpty {
+            if settings.sources.isEmpty && controller.orphanedCopies.isEmpty {
                 ContentUnavailableView(
                     "No secondary calendars yet",
                     systemImage: "calendar.badge.plus",
@@ -601,6 +601,7 @@ private struct SourcesTab: View {
             } else {
                 Form {
                     UnreadSourcesSection()
+                    OrphanedCopiesSection()
                     ForEach($settings.sources) { $source in
                         SourceRow(source: $source)
                     }
@@ -716,11 +717,115 @@ private struct UnreadSourcesSection: View {
     }
 }
 
+/// Copies in the main calendar of secondary calendars that aren't set up here any more, at the
+/// top of Secondary Calendars. Nothing syncs them, so they're offered for removal, after a look
+/// at exactly what would go.
+private struct OrphanedCopiesSection: View {
+    @EnvironmentObject private var controller: SyncController
+    @State private var reviewing = false
+
+    var body: some View {
+        let count = controller.orphanedCopies.count
+        if count > 0 {
+            Section {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "calendar.badge.exclamationmark")
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(count == 1 ? "1 copy from a calendar you no longer sync"
+                                        : "\(count) copies from calendars you no longer sync")
+                            .fontWeight(.semibold)
+                        Text("Left by a secondary calendar that was removed or added again. Nothing keeps them up to date, so they don't follow changes or cancellations, and can show a meeting twice.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button("Review…") { reviewing = true }
+                        .disabled(controller.isSyncing)
+                }
+                .padding(.vertical, 2)
+            } header: {
+                Label("Copies no longer synced", systemImage: "exclamationmark.circle.fill")
+                    .foregroundStyle(.orange)
+            }
+            .sheet(isPresented: $reviewing) { OrphanedCopiesSheet() }
+        }
+    }
+}
+
+/// Lists the orphaned copies before anything is removed. Removes those exact events, or keeps
+/// them and stops asking.
+private struct OrphanedCopiesSheet: View {
+    @EnvironmentObject private var controller: SyncController
+    @Environment(\.dismiss) private var dismiss
+    /// Taken when the sheet opens, so what's removed is what was shown.
+    @State private var copies: [ExistingCopy] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(copies.count == 1 ? "1 copy no longer synced" : "\(copies.count) copies no longer synced")
+                .font(.headline)
+            Text("These copies in your main calendar, from today on, came from a secondary calendar that isn't set up here any more. If another Mac copies into the same main calendar, its copies show here too: keep those.")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            List(copies, id: \.eventID) { copy in
+                HStack {
+                    Text(copy.title).lineLimit(1)
+                    Spacer()
+                    Text(copy.start, format: .dateTime.weekday().day().month().hour().minute())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(minHeight: 220)
+            HStack {
+                Button("Keep Them") {
+                    controller.keepCopies(of: Set(copies.compactMap { $0.marker?.sourceID }))
+                    dismiss()
+                }
+                .help("Leave these copies and stop offering to remove them")
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(copies.count == 1 ? "Remove 1 Copy" : "Remove \(copies.count) Copies", role: .destructive) {
+                    let copies = copies
+                    Task { await controller.removeCopies(copies) }
+                    dismiss()
+                }
+                .disabled(copies.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 520, height: 420)
+        .onAppear { copies = controller.orphanedCopies }
+    }
+}
+
 private struct SourceRow: View {
     @Binding var source: SourceConfig
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
     @State private var renaming = false
+    @State private var confirmingRemoval = false
+    /// The calendar's copies from today on, looked up when Remove is clicked.
+    @State private var copiesToRemove: [ExistingCopy] = []
+
+    /// Removes this calendar, and its copies unless `keepingCopies`. Kept copies aren't
+    /// offered for removal again under "Copies no longer synced".
+    private func remove(keepingCopies: Bool) {
+        if source.kind == .outlookWeb { controller.forgetOutlookSession(for: source.id) }
+        let id = source.id
+        let copies = copiesToRemove
+        // Removed on the next run loop so SwiftUI isn't still reading this row's binding.
+        DispatchQueue.main.async {
+            settings.sources.removeAll { $0.id == id }
+            if keepingCopies {
+                if !copies.isEmpty { controller.keepCopies(of: [id]) }
+            } else {
+                Task { await controller.removeCopies(copies) }
+            }
+        }
+    }
 
     /// Calendar.app sources use the calendar's current name; Outlook web sources use the typed one.
     private var displayName: String {
@@ -767,10 +872,20 @@ private struct SourceRow: View {
                 }
                 Spacer()
                 Button("Remove", role: .destructive) {
-                    if source.kind == .outlookWeb { controller.forgetOutlookSession(for: source.id) }
-                    let id = source.id
-                    // Removed on the next run loop so SwiftUI isn't still reading this row's binding.
-                    DispatchQueue.main.async { settings.sources.removeAll { $0.id == id } }
+                    copiesToRemove = controller.copies(of: source.id)
+                    if copiesToRemove.isEmpty { remove(keepingCopies: true) } else { confirmingRemoval = true }
+                }
+                .confirmationDialog("Remove “\(source.name ?? displayName)”?", isPresented: $confirmingRemoval) {
+                    Button(copiesToRemove.count == 1 ? "Remove Calendar and Its Copy" : "Remove Calendar and Its \(copiesToRemove.count) Copies",
+                           role: .destructive) { remove(keepingCopies: false) }
+                    Button(copiesToRemove.count == 1 ? "Remove Calendar, Keep Copy" : "Remove Calendar, Keep Copies") {
+                        remove(keepingCopies: true)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text(copiesToRemove.count == 1
+                         ? "Its copy of a meeting from today on is in your main calendar. Once the calendar is removed, nothing keeps it up to date, so it won't follow changes or cancellations."
+                         : "Its \(copiesToRemove.count) copies of meetings from today on are in your main calendar. Once the calendar is removed, nothing keeps them up to date, so they won't follow changes or cancellations.")
                 }
             }
         } header: {

@@ -134,6 +134,31 @@ public enum SyncPlanner {
         return SyncPlan(actions: actions, failedSources: [:], unchangedCount: 0)
     }
 
+    /// Copies whose secondary calendar isn't set up here any more: removed, or set up again
+    /// under a new id (a calendar added back, or one lost in a move between versions). No sync
+    /// touches them again, so they'd stay next to the new copies, and never follow the
+    /// meeting's changes. Sorted by start.
+    ///
+    /// They're only ever removed when the user asks: another Mac copying into the same main
+    /// calendar has its own sources, whose copies look just the same from here.
+    ///
+    /// - Parameter known: the sources set up here, and any whose copies the user chose to keep.
+    public static func orphanedCopies(in existing: [ExistingCopy], known: Set<UUID>) -> [ExistingCopy] {
+        existing
+            .filter { copy in copy.marker.map { !known.contains($0.sourceID) } ?? false }
+            .sorted { $0.start < $1.start }
+    }
+
+    /// Removes the copies of `sourceIDs` among `existing`: those of a secondary calendar being
+    /// removed, or orphaned ones the user chose to remove.
+    public static func planCopyRemoval(existing: [ExistingCopy], sourceIDs: Set<UUID>) -> SyncPlan {
+        let actions = existing
+            .filter { copy in copy.marker.map { sourceIDs.contains($0.sourceID) } ?? false }
+            .sorted { $0.start < $1.start }
+            .map { SyncAction.delete(eventID: $0.eventID, title: $0.title, start: $0.start) }
+        return SyncPlan(actions: actions, failedSources: [:], unchangedCount: 0)
+    }
+
     /// For a Busy event already matched by time. The description is compared word by word,
     /// so one a calendar server stored as HTML, with its own idea of line breaks and paragraph
     /// spacing, isn't rewritten on every sync, while a Busy event made by an older version

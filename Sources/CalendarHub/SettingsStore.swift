@@ -39,6 +39,16 @@ final class SettingsStore: ObservableObject {
         didSet { if busyAlertsCleared != oldValue { defaults.set(busyAlertsCleared, forKey: "busyAlertsCleared") } }
     }
 
+    /// Sources not set up here whose copies the user chose to keep (another Mac's, say), so
+    /// they aren't offered for removal again.
+    @Published var keptOrphanSourceIDs: Set<UUID> {
+        didSet {
+            if keptOrphanSourceIDs != oldValue {
+                defaults.set(keptOrphanSourceIDs.map(\.uuidString).sorted(), forKey: "keptOrphanSourceIDs")
+            }
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -60,6 +70,7 @@ final class SettingsStore: ObservableObject {
         twoWaySyncOutlookWeb = defaults.bool(forKey: "twoWaySyncOutlookWeb")
         busyCalendarIDs = Set(defaults.stringArray(forKey: "busyCalendarIDs") ?? [])
         busyAlertsCleared = defaults.bool(forKey: "busyAlertsCleared")
+        keptOrphanSourceIDs = Set((defaults.stringArray(forKey: "keptOrphanSourceIDs") ?? []).compactMap(UUID.init(uuidString:)))
     }
 
     /// How an Outlook on the web calendar is kept in `busyCalendarIDs`.
