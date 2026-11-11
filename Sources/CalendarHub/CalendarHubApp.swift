@@ -21,6 +21,7 @@ struct CalendarHubApp: App {
         // Calendar.app, the Applications folder and the real settings alone.
         let demo = DemoCalendars.isRequested ? DemoCalendars() : nil
         if demo == nil {
+            AppLog.start()
             Self.quitIfAlreadyRunning()
             RenameMigration.run()
             Self.linkIntoApplicationsOnce()
