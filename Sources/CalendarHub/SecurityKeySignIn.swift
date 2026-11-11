@@ -111,7 +111,7 @@ final class SecurityKeySignIn {
             guard !isCancelled, let text = Self.message(for: error) else {
                 return Self.failure("NotAllowedError", "Cancelled.")
             }
-            NSLog("Calendar Hub: security key sign-in failed: \(error)")
+            AppLog.write("Calendar Hub: security key sign-in failed: \(error)")
             // The page gets its answer now, not once the alert is closed.
             Self.show(text, on: window)
             return Self.failure("NotAllowedError", text)

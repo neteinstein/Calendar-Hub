@@ -249,7 +249,7 @@ enum Snapshots {
             for (suffix, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
                 await render(context, appearance: appearance, suffix: suffix, to: folder)
             }
-            NSLog("Calendar Hub: screenshots written to \(folder.path)")
+            AppLog.write("Calendar Hub: screenshots written to \(folder.path)")
             NSApp.terminate(nil)
         }
     }
@@ -284,7 +284,7 @@ enum Snapshots {
         }
         await shoot(environment(MenuBarStrips(settings: context.settings, controller: context.controller)),
                     "menu-bar-\(suffix)", appearance, to: folder)
-        for pane in SettingsPane.allCases where pane != .preview {
+        for pane in SettingsPane.allCases where pane != .preview && pane != .logs {
             context.defaults.set(pane.rawValue, forKey: SettingsPane.defaultsKey)
             await shoot(environment(WindowFrame(title: pane.title) { SettingsView() }),
                         "settings-\(pane.rawValue)-\(suffix)", appearance, to: folder)

@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.22](https://img.shields.io/badge/version-2.0.22-2563EB)](Support/Info.plist)
+[![Version 2.0.23](https://img.shields.io/badge/version-2.0.23-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -260,6 +260,8 @@ Then restart it with `brew services restart calendar-hub`, or just open it again
 ## Feedback and issues
 
 Found a bug, or have an idea? [Open an issue](https://github.com/neteinstein/Calendar-Hub/issues). Settings › About › **Send feedback or report a bug** takes you there too.
+
+To help track a problem down, click **Enable debug logs** next to it. A **Logs** pane appears in Settings and shows what Calendar Hub does as it happens: syncs, calendars read, alerts. **Send feedback** then opens a new issue with the log's newest lines filled in, and copies the whole log to the clipboard. The log stays on your Mac until you send it; **Turn off** in Logs stops logging and clears it.
 
 ## Learn more
 

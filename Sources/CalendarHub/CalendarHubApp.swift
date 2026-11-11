@@ -57,7 +57,7 @@ struct CalendarHubApp: App {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         do {
             guard let lock = try InstanceLock.acquire(at: url) ?? takeOver(at: url, version: version) else {
-                NSLog("Calendar Hub is already running, so this copy quits.")
+                AppLog.write("Calendar Hub is already running, so this copy quits.")
                 AppDelegate.askRunningCopyToShowMenuBarItem()
                 exit(0)
             }
@@ -65,7 +65,7 @@ struct CalendarHubApp: App {
             lock.record(InstanceLock.Holder(pid: getpid(), version: version))
             instanceLock = lock
         } catch {
-            NSLog("Calendar Hub couldn't check for another running copy, so it runs anyway: \(error)")
+            AppLog.write("Calendar Hub couldn't check for another running copy, so it runs anyway: \(error)")
         }
     }
 
@@ -84,7 +84,7 @@ struct CalendarHubApp: App {
         guard InstanceLock.replaces(holder, version: version) else { return nil }
         let old = holder.map { holder in others.filter { $0.processIdentifier == holder.pid } } ?? others
         guard !old.isEmpty else { return nil }
-        NSLog("Calendar Hub \(version) takes over from the \(holder?.version ?? "older") copy that was running.")
+        AppLog.write("Calendar Hub \(version) takes over from the \(holder?.version ?? "older") copy that was running.")
 
         // Asked to quit first, so it saves what's open; ended if it hasn't after a while (a
         // dialog left open keeps it from quitting).
@@ -122,11 +122,11 @@ struct CalendarHubApp: App {
         let system = fileManager.urls(for: .applicationDirectory, in: .localDomainMask)[0]
         do {
             if try ApplicationsLink.ensure(linkTo: target, in: home, unlessIn: [system]) == .created {
-                NSLog("Calendar Hub linked itself into \(home.path).")
+                AppLog.write("Calendar Hub linked itself into \(home.path).")
             }
             defaults.set(true, forKey: key)
         } catch {
-            NSLog("Calendar Hub couldn't link itself into \(home.path): \(error)")
+            AppLog.write("Calendar Hub couldn't link itself into \(home.path): \(error)")
         }
     }
 
@@ -254,7 +254,7 @@ final class MenuBarItem: ObservableObject {
             guard newValue != inserted else { return }
             objectWillChange.send()
             inserted = newValue
-            NSLog(newValue
+            AppLog.write(newValue
                   ? "Calendar Hub's menu bar icon is back."
                   : "Calendar Hub's menu bar icon was removed. The app keeps syncing; open it again to bring the icon back.")
         }
