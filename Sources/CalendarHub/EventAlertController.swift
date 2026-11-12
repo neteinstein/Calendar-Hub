@@ -503,36 +503,15 @@ private struct AlertJoinButton: View {
             Label {
                 Text(service.map { "Join \($0.name)" } ?? "Join call")
             } icon: {
-                if let service, let icon = Self.appIcon(for: service) {
-                    Image(nsImage: icon).resizable().frame(width: 20, height: 20)
-                } else {
-                    Image(systemName: service?.symbol ?? "video.fill")
-                }
+                MeetingServiceIcon(service: service, size: 20)
             }
             KeyCap("⏎")
         }
-        .buttonStyle(AlertButtonStyle(prominent: true, fill: service.map { Color(rgb: $0.color) } ?? .accentColor,
-                                      text: service?.prefersDarkText == true ? .black : .white))
+        .buttonStyle(AlertButtonStyle(prominent: true, fill: service?.fill ?? .accentColor,
+                                      text: service?.textColor ?? .white))
         .keyboardShortcut(.defaultAction)
     }
 
-    /// The icon of the first of the service's apps that's installed.
-    private static func appIcon(for service: MeetingService) -> NSImage? {
-        for id in service.bundleIDs {
-            if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-                return NSWorkspace.shared.icon(forFile: app.path)
-            }
-        }
-        return nil
-    }
-}
-
-private extension Color {
-    /// A color from 0xRRGGBB.
-    init(rgb: UInt32) {
-        self.init(.sRGB, red: Double((rgb >> 16) & 0xFF) / 255, green: Double((rgb >> 8) & 0xFF) / 255,
-                  blue: Double(rgb & 0xFF) / 255)
-    }
 }
 
 /// The alert's large, rounded buttons: filled for the main action (in the accent color unless
