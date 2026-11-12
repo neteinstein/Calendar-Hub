@@ -259,4 +259,30 @@ final class OutlookWebParserTests: XCTestCase {
         let source = SourceConfig(kind: .outlookWeb, calendarName: "Sainsbury's")
         XCTAssertFalse(SyncPlanner.shouldCopy(events[0], from: source, options: SyncOptions()))
     }
+
+    func testSignedOutNotices() {
+        for notice in [
+            "Your session has expired. Please sign in again.",
+            "Session expired\nSign in",
+            "You\u{2019}ve been signed out. Sign in",
+            "You're signed out of Outlook",
+            "Your sign-in has expired. Refresh the page to sign in again.",
+            "We need you to sign in to continue.",
+            "Please log in again",
+            "Your credentials have expired. Sign back in to keep using Outlook.",
+        ] {
+            XCTAssertTrue(OutlookWebParser.isSignedOutNotice(notice), notice)
+        }
+        for notice in [
+            "Event saved",
+            "You're offline. We'll try again when you're connected.",
+            "Sign in to Teams to see who's available",
+            "Reminder: Planning session, 10:00 AM",
+            "Signed out notes are kept for 30 days",
+        ] {
+            XCTAssertFalse(OutlookWebParser.isSignedOutNotice(notice), notice)
+        }
+        XCTAssertTrue(OutlookWebParser.isSignedOutStatus(440))
+        XCTAssertFalse(OutlookWebParser.isSignedOutStatus(401))
+    }
 }
