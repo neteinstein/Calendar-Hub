@@ -49,6 +49,10 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// tell, with the reason in `busyProblem`.
     private(set) var busyEvents: [ExistingCopy]?
     private(set) var busyProblem: String?
+    /// Outlook answered 440 ("Login Time-out") since the read started: the sign-in has run
+    /// out though the page is still Outlook's. Set by the page scripts, see `captureScript`.
+    private var sawLoginTimeout = false
+    private var signedOutReason: String?
     private let securityKey = SecurityKeySignIn()
 
     init(sourceID: UUID) {
@@ -189,6 +193,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
 
     private func read(from start: Date, to end: Date) async -> SourceFetchResult {
         captured = []
+        sawLoginTimeout = false
+        signedOutReason = nil
         var onScreen: [SourceEvent] = []
         var calendar = Calendar.current
         calendar.firstWeekday = 2 // Monday
@@ -209,7 +215,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
                     before = captured.count
                     lastCaptureAt = nil
                 case .failed:
-                    if isSignInPage(webView.url) { break } // reported below
+                    if await isSignedOut() { break } // reported below
                     return .failure("Couldn't switch Outlook to its week view.")
                 }
             } else {
@@ -226,10 +232,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             let weekFrom = week?.start ?? weekStart, weekTo = week?.end ?? end
             var loaded = await waitForCalendarData(after: before, from: weekFrom, to: weekTo)
 
-            if isSignInPage(webView.url) {
-                needsSignIn = true
-                return .failure("Signed out of Outlook. Open the Outlook window to sign in again.")
-            }
+            if await isSignedOut() { return signedOut() }
             // Outlook doesn't always fetch a week in a way we can capture (it can come from a
             // background worker). The meetings it shows on the page are always there.
             if !loaded {
@@ -253,9 +256,12 @@ final class OutlookWebSource: NSObject, ObservableObject {
             }
         }
 
-        needsSignIn = false
         let itemIDs = OutlookWebParser.itemIDs(fromPayloads: captured)
         let details = await loadDetails(itemIDs: itemIDs)
+        // Outlook can show what it had loaded before its sign-in ran out, and say so only
+        // afterwards, or answer only the meetings asked for in full with a 440.
+        if await isSignedOut() { return signedOut() }
+        needsSignIn = false
         // Captured data first: it has more detail (meeting links, declined, all day).
         var seen: Set<String> = []
         let events = (OutlookWebParser.events(fromPayloads: captured, details: details) + onScreen)
@@ -272,6 +278,46 @@ final class OutlookWebSource: NSObject, ObservableObject {
         AppLog.write("Calendar Hub: Outlook \(events.count) meetings, \(details.count) detail responses, \(withLinks) with a meeting link")
         return .success(events)
     }
+
+    private func signedOut() -> SourceFetchResult {
+        needsSignIn = true
+        AppLog.write("Calendar Hub: signed out of Outlook (\(signedOutReason ?? "sign-in page"))")
+        return .failure("Signed out of Outlook. Open the Outlook window to sign in again.")
+    }
+
+    /// Whether Outlook's sign-in has run out: the page went to Microsoft's sign-in, or it
+    /// stayed on Outlook, which then answers 440 or puts up a notice asking to sign in again
+    /// (a bar across the top of the page) while still showing what it had loaded. The reason
+    /// goes to `signedOutReason`, for the log.
+    private func isSignedOut() async -> Bool {
+        if isSignInPage(webView.url) {
+            signedOutReason = "sign-in page"
+            return true
+        }
+        if sawLoginTimeout {
+            signedOutReason = "Outlook answered 440"
+            return true
+        }
+        let notices = (try? await webView.evaluateJavaScript(Self.noticesScript, contentWorld: Self.bridgeWorld) as? [String]) ?? []
+        guard notices.contains(where: OutlookWebParser.isSignedOutNotice) else { return false }
+        signedOutReason = "Outlook asks to sign in again"
+        return true
+    }
+
+    /// The text of what Outlook shows as notices: bars, alerts, dialogs. Short ones only, so a
+    /// whole page that happens to be marked up as one isn't read.
+    static let noticesScript = """
+    (() => {
+      const selector = '[role=alert], [role=alertdialog], [role=status], [role=dialog], [aria-live], '
+        + '[class*="MessageBar"], [class*="messageBar"]';
+      const texts = [];
+      for (const e of document.querySelectorAll(selector)) {
+        const text = (e.innerText || e.textContent || '').trim();
+        if (text && text.length <= 500) texts.push(text);
+      }
+      return texts;
+    })()
+    """
 
     /// Finds the Busy events two way sync wrote, for `applyBusy`. Only from a read that got
     /// every week's data and every meeting in full: a Busy event missed here would get another
@@ -372,7 +418,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         var loaded = false
         while ContinuousClock.now < deadline {
             try? await Task.sleep(nanoseconds: 500_000_000)
-            if isSignInPage(webView.url) { return false }
+            if await isSignedOut() { return false }
             if !loaded, captured.count > checked {
                 loaded = OutlookWebParser.events(fromPayloads: Array(captured[checked...]))
                     .contains { $0.start >= from && $0.start < to }
@@ -425,7 +471,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         """
         var clicked = false
         for _ in 0..<30 {
-            if isSignInPage(webView.url) { return .failed }
+            if await isSignedOut() { return .failed }
             switch (try? await webView.evaluateJavaScript(script, contentWorld: Self.bridgeWorld) as? String) ?? "loading" {
             case "week": return clicked ? .switched : .alreadyWeek
             case "clicked": clicked = true
@@ -458,6 +504,10 @@ final class OutlookWebSource: NSObject, ObservableObject {
     }
 
     fileprivate func receive(_ message: WKScriptMessage) {
+        if let body = message.body as? [String: Any], body["loginTimeout"] as? Bool == true {
+            sawLoginTimeout = true
+            return
+        }
         // Only a running fetch reads the captured data, and it starts from none. Between
         // fetches Outlook goes on loading data in the background (and mail, if the user reads
         // it in the window), which would otherwise pile up here for as long as the app runs.
@@ -542,6 +592,12 @@ final class OutlookWebSource: NSObject, ObservableObject {
           post('calsync-service', stringify({ url: new URL(String(url), location.href).href, headers: headers }));
         } catch (e) {}
       }
+      // 440 ("Login Time-out") from Outlook itself: its sign-in has run out.
+      function checkStatus(url, status) {
+        try {
+          if (status === 440 && new URL(String(url), location.href).origin === location.origin) post('calsync-signedout', '');
+        } catch (e) {}
+      }
       function headersOf(source, into) {
         try { if (source) new Headers(source).forEach((v, k) => { into[k] = v; }); } catch (e) {}
         return into;
@@ -564,6 +620,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             const input = args[0], init = args[1];
             const url = typeof input === 'string' ? input : (input && input.url) || '';
             if (RX.test(url)) p.then(r => r.clone().text()).then(send).catch(() => {});
+            p.then(r => checkStatus(url, r.status)).catch(() => {});
             const headers = headersOf(input && input.headers, {});
             remember(url, headersOf(init && init.headers, headers));
           } catch (e) {}
@@ -591,6 +648,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
           if (request) {
             requests.delete(self);
             remember(request.url, request.headers);
+            const url = request.url;
+            self.addEventListener('loadend', function () { checkStatus(url, this.status); });
             if (RX.test(request.url)) {
               self.addEventListener('load', function () {
                 try {
@@ -626,6 +685,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
       port.addEventListener('calsync-response', () => {
         try { handler.postMessage(port.getAttribute('data')); } catch (e) {}
       });
+      port.addEventListener('calsync-signedout', () => {
+        try { handler.postMessage({ loginTimeout: true }); } catch (e) {}
+      });
       port.addEventListener('calsync-service', () => {
         try { service = JSON.parse(port.getAttribute('data')); } catch (e) {}
       });
@@ -658,6 +720,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
             const r = await fetch(url.href, {
               method: 'POST', headers, body, credentials: 'include', signal: controller.signal,
             });
+            if (r.status === 440) handler.postMessage({ loginTimeout: true });
             return r.ok ? await r.text() : null;
           } catch (e) {
             return null;
