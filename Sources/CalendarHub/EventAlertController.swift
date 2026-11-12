@@ -335,15 +335,7 @@ struct EventAlertView: View {
 
             HStack(spacing: 10) {
                 if let url = event.meetingURL {
-                    Button {
-                        NSWorkspace.shared.open(url)
-                        dismiss()
-                    } label: {
-                        Label("Join call", systemImage: "video.fill")
-                        KeyCap("⏎")
-                    }
-                    .buttonStyle(AlertButtonStyle(prominent: true))
-                    .keyboardShortcut(.defaultAction)
+                    AlertJoinButton(url: url, dismiss: dismiss)
                     if let room {
                         Button(action: dismiss) {
                             Label("Go to \(room)", systemImage: "figure.walk").lineLimit(1)
@@ -495,21 +487,71 @@ private struct KeyCap: View {
     }
 }
 
-/// The alert's large, rounded buttons: filled in the accent color for the main action, gray
-/// for the others, and text only for Ignore.
+/// Join, in the colors of the meeting's service (Zoom blue, Teams purple, Meet yellow, …) with
+/// its app's icon, or in the accent color with a camera for any other link.
+private struct AlertJoinButton: View {
+    let url: URL
+    let dismiss: () -> Void
+
+    private var service: MeetingService? { MeetingService.of(url) }
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(url)
+            dismiss()
+        } label: {
+            Label {
+                Text(service.map { "Join \($0.name)" } ?? "Join call")
+            } icon: {
+                if let service, let icon = Self.appIcon(for: service) {
+                    Image(nsImage: icon).resizable().frame(width: 20, height: 20)
+                } else {
+                    Image(systemName: service?.symbol ?? "video.fill")
+                }
+            }
+            KeyCap("⏎")
+        }
+        .buttonStyle(AlertButtonStyle(prominent: true, fill: service.map { Color(rgb: $0.color) } ?? .accentColor,
+                                      text: service?.prefersDarkText == true ? .black : .white))
+        .keyboardShortcut(.defaultAction)
+    }
+
+    /// The icon of the first of the service's apps that's installed.
+    private static func appIcon(for service: MeetingService) -> NSImage? {
+        for id in service.bundleIDs {
+            if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+                return NSWorkspace.shared.icon(forFile: app.path)
+            }
+        }
+        return nil
+    }
+}
+
+private extension Color {
+    /// A color from 0xRRGGBB.
+    init(rgb: UInt32) {
+        self.init(.sRGB, red: Double((rgb >> 16) & 0xFF) / 255, green: Double((rgb >> 8) & 0xFF) / 255,
+                  blue: Double(rgb & 0xFF) / 255)
+    }
+}
+
+/// The alert's large, rounded buttons: filled for the main action (in the accent color unless
+/// given another), gray for the others, and text only for Ignore.
 private struct AlertButtonStyle: ButtonStyle {
     var prominent = false
     var plain = false
+    var fill: Color = .accentColor
+    var text: Color = .white
 
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 8) { configuration.label }
             .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(prominent ? AnyShapeStyle(.white) : plain ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+            .foregroundStyle(prominent ? AnyShapeStyle(text) : plain ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
             .padding(.horizontal, plain ? 8 : 16)
             .padding(.vertical, 9)
             .background {
                 if prominent {
-                    Capsule().fill(Color.accentColor).shadow(color: Color.accentColor.opacity(0.45), radius: 8, y: 4)
+                    Capsule().fill(fill).shadow(color: fill.opacity(0.45), radius: 8, y: 4)
                 } else if !plain {
                     Capsule().fill(Color.primary.opacity(0.09))
                 }
