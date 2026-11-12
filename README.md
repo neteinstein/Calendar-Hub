@@ -8,11 +8,11 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.25](https://img.shields.io/badge/version-2.0.25-2563EB)](Support/Info.plist)
+[![Version 2.0.26](https://img.shields.io/badge/version-2.0.26-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
-[![Homebrew installs in the last 365 days](https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fformulae.brew.sh%2Fapi%2Fanalytics%2Finstall%2F365d.json&search=%22neteinstein%2Ftap%2Fcalendar-hub%22%2C%5Cs%2A%22count%22%3A%5Cs%2A%22%28%5B%5E%22%5D%2B%29%22&replace=%241&label=brew%20installs%20%28365d%29&logo=homebrew&logoColor=white&color=FBB040)](https://formulae.brew.sh/analytics/install/365d/)
+[![Homebrew installs in the last 365 days: calendar-hub 1 + calendar-sync 15](https://img.shields.io/badge/brew%20installs%20(365d)-16-FBB040?logo=homebrew&logoColor=white)](https://formulae.brew.sh/analytics/install/365d/)
 [![License: Sustainable Use 1.0](https://img.shields.io/badge/license-Sustainable%20Use%201.0-8B5CF6)](LICENSE.md)
 [![Donate](https://img.shields.io/badge/donate-%E2%99%A5-EC4899)](https://www.pedrovicente.pt/donate)
 
