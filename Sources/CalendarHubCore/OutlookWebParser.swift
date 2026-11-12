@@ -218,6 +218,25 @@ public enum OutlookWebParser {
     private static let screenLabelRegex = try! NSRegularExpression(
         pattern: #"^(?:[A-Za-z]+(?: [A-Za-z]+){0,2} icon, )?(.+?), (\d{1,2}:\d{2}(?: [AP]M)?) to (\d{1,2}:\d{2}(?: [AP]M)?), (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), ([A-Z][a-z]+ \d{1,2}, \d{4})(.*)$"#)
 
+    // MARK: - Signed out
+
+    /// Whether a notice Outlook on the web shows (the bar across the top of the page, a
+    /// dialog, an alert) says its sign-in has run out. Outlook can stay open on the calendar
+    /// when that happens, rather than going to Microsoft's sign-in, and goes on showing what it
+    /// had loaded. English only, like the meetings read from the page.
+    public static func isSignedOutNotice(_ text: String) -> Bool {
+        let text = text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+        return signedOutNoticeRegex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    }
+
+    private static let signedOutNoticeRegex = try! NSRegularExpression(
+        pattern: #"\b(session (has )?(expired|timed out|ended)|(sign|log) ?in again|(sign|log) back in|(been|you're|you are|you were) (signed|logged) out|(sign|log) ?in to continue|(credentials|sign-?in|token) (has |have )?expired|re-?authenticate|re-?enter your (password|credentials))\b"#,
+        options: .caseInsensitive)
+
+    /// Outlook's answer when its sign-in has run out: 440, "Login Time-out".
+    public static func isSignedOutStatus(_ status: Int) -> Bool { status == 440 }
+
     // MARK: - One event
 
     static func event(from obj: Obj, detail: Obj? = nil, timeZone: TimeZone = .current) -> SourceEvent? {
