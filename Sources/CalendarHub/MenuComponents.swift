@@ -71,22 +71,31 @@ struct PillButtonStyle: ButtonStyle {
     }
 }
 
-/// Opens a meeting's call: a filled accent capsule, larger in the Up next card.
+/// Opens a meeting's call: a filled capsule in the colors of the meeting's service with its
+/// app's icon, like the alert's Join (the accent color and a camera for any other link), larger
+/// in the Up next card.
 struct JoinButton: View {
     let url: URL
     var large = false
 
+    private var service: MeetingService? { MeetingService.of(url) }
+
     var body: some View {
+        let fill = service?.fill ?? .accentColor
         Button {
             NSWorkspace.shared.open(url)
         } label: {
-            Label("Join", systemImage: "video.fill")
+            Label {
+                Text("Join")
+            } icon: {
+                MeetingServiceIcon(service: service, size: large ? 16 : 14)
+            }
                 .font(.system(size: large ? 13 : 11.5, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(service?.textColor ?? .white)
                 .padding(.horizontal, large ? 13 : 9)
                 .padding(.vertical, large ? 6 : 3.5)
-                .background(Color.accentColor, in: Capsule())
-                .shadow(color: Color.accentColor.opacity(0.4), radius: 4, y: 2)
+                .background(fill, in: Capsule())
+                .shadow(color: fill.opacity(0.4), radius: 4, y: 2)
                 .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
@@ -105,7 +114,11 @@ struct QuietJoinButton: View {
         Button {
             NSWorkspace.shared.open(url)
         } label: {
-            Label("Join", systemImage: "video.fill")
+            Label {
+                Text("Join")
+            } icon: {
+                MeetingServiceIcon(service: MeetingService.of(url), size: 14)
+            }
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(hovering ? .primary : .secondary)
                 .padding(.horizontal, 9)
