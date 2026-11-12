@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.30](https://img.shields.io/badge/version-2.0.30-2563EB)](Support/Info.plist)
+[![Version 2.0.31](https://img.shields.io/badge/version-2.0.31-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -145,7 +145,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 <td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-menuBar-dark.webp">
-  <img src="docs/screenshots/settings-menuBar-light.webp" alt="Settings, Menu bar: the menu calendar, the next meeting in the menu bar and Meeting Stats">
+  <img src="docs/screenshots/settings-menuBar-light.webp" alt="Settings, Menu bar: the month calendar and event list, and the next meeting in the menu bar">
 </picture>
 </td>
 </tr>

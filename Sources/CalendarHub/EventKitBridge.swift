@@ -200,8 +200,8 @@ final class EventKitBridge {
 
     // MARK: - Tasks
 
-    /// Tasks are reminders in Reminders, asked for separately from the calendars and only
-    /// once the Tasks view is used.
+    /// Tasks are reminders in Reminders, asked for separately from the calendars: at launch
+    /// right after them while Tasks is in the menu, or once Tasks is turned on.
     var reminderAccess: EKAuthorizationStatus {
         demo != nil ? .fullAccess : EKEventStore.authorizationStatus(for: .reminder)
     }

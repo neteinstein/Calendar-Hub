@@ -51,7 +51,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, menuBar, alerts, tasks, worldClocks, preview, about, logs
+    case general, calendars, twoWaySync, alerts, menuBar, tasks, worldClocks, meetingStats, preview, about, logs
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -67,6 +67,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .alerts: "Meeting alerts"
         case .tasks: "Tasks"
         case .worldClocks: "World Clocks"
+        case .meetingStats: "Meeting Stats"
         case .preview: "Preview"
         case .about: "About"
         case .logs: "Logs"
@@ -82,6 +83,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .alerts: "bell.fill"
         case .tasks: "checklist"
         case .worldClocks: "globe"
+        case .meetingStats: "chart.bar.fill"
         case .preview: "eye.fill"
         case .about: "info"
         case .logs: "doc.text.magnifyingglass"
@@ -97,6 +99,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .alerts: .red
         case .tasks: .green
         case .worldClocks: .indigo
+        case .meetingStats: .pink
         case .preview: .orange
         case .logs: .brown
         }
@@ -112,6 +115,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .alerts: AlertsTab()
         case .tasks: TasksTab()
         case .worldClocks: WorldClocksTab()
+        case .meetingStats: MeetingStatsTab()
         case .preview: PreviewTab()
         case .about: AboutTab()
         case .logs: LogsTab()
@@ -189,8 +193,17 @@ private struct MenuBarTab: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show a calendar in the menu", isOn: $settings.menuCalendarEnabled)
-                if settings.menuCalendarEnabled {
+                Toggle("Show month calendar", isOn: $settings.menuShowsMonth)
+                Toggle("Show event list", isOn: $settings.menuShowsList)
+            } header: {
+                Text("Menu")
+            } footer: {
+                Text("The menu bar button opens a month view — click a day for its events — and a scrolling list of your main calendar's events. Tasks, World Clocks and Meeting Stats have their own panes and can be shown without them.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                if settings.menuShowsCalendar {
                     Toggle("Show the week day in the menu bar", isOn: $settings.menuBar.showsWeekday)
                 }
                 Toggle("Show the next meeting in the menu bar", isOn: $settings.menuBar.showsNextMeeting)
@@ -203,11 +216,11 @@ private struct MenuBarTab: View {
             } header: {
                 Text("Menu bar")
             } footer: {
-                Text("The menu bar button opens a month view — click a day for its events — or a scrolling list of your main calendar's events, and the menu bar icon shows today's date, with the week day next to it when that's on. With the next meeting on, from 15 minutes before a meeting until it ends, its title and the minutes left take the date's place, and with the progress on, a bar under them fills as the meeting runs.")
+                Text("While the menu shows the month or the list, the menu bar icon shows today's date, with the week day next to it when that's on. With the next meeting on, from 15 minutes before a meeting until it ends, its title and the minutes left take the date's place, and with the progress on, a bar under them fills as the meeting runs.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            if settings.menuCalendarEnabled {
+            if settings.menuShowsCalendar {
                 Section("Menu calendar") {
                     Picker("Week starts on", selection: $settings.menuCalendar.weekStart) {
                         Text("Same as macOS").tag(MenuCalendarOptions.WeekStart.system)
@@ -219,22 +232,35 @@ private struct MenuBarTab: View {
                     Toggle("Color events by the calendar they came from", isOn: $settings.menuCalendar.colorsByCalendar)
                     Toggle("Show mornings and afternoons as colored blocks", isOn: $settings.menuCalendar.shadesTimeOfDay)
                 }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
 
-                Section {
-                    Toggle("Show Meeting Stats in the menu", isOn: $settings.menuCalendar.showsMeetingStats)
-                    if settings.menuCalendar.showsMeetingStats {
-                        LabeledContent("Working hours") {
-                            HStack(spacing: 4) {
-                                WorkingHoursPicker(hours: $settings.menuCalendar.workingHours)
-                            }
-                        }
+// MARK: - Meeting Stats
+
+private struct MeetingStatsTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show Meeting Stats in the menu", isOn: $settings.menuCalendar.showsMeetingStats)
+            } footer: {
+                Text("Adds a Stats view to the menu with the hours you spend in meetings, measured against your working hours.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Working hours") {
+                    HStack(spacing: 4) {
+                        WorkingHoursPicker(hours: $settings.menuCalendar.workingHours)
                     }
-                } header: {
-                    Text("Meeting Stats")
-                } footer: {
-                    Text("Adds a Stats view to the menu with the hours you spend in meetings, measured against your working hours.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
+            } footer: {
+                Text("Monday to Friday, and the same as World Clocks uses.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -340,12 +366,11 @@ private struct TasksTab: View {
         Form {
             Section {
                 Toggle("Show Tasks in the menu", isOn: $settings.taskOptions.showsInMenu)
-                if !settings.menuCalendarEnabled {
-                    Text("Turn on Show a calendar in the menu (Menu bar) to see it.")
-                        .foregroundStyle(.orange)
-                }
+                    .onChange(of: settings.taskOptions.showsInMenu) { _, shown in
+                        if shown, tasks.access == .notDetermined { Task { await tasks.requestAccess() } }
+                    }
             } footer: {
-                Text("Adds a Tasks view to the menu, next to List, for tasks and reminders, and shows each day's tasks in Month and List. Right-click a meeting in the List for a task to prepare it.")
+                Text("Adds a Tasks view to the menu for tasks and reminders, and shows each day's tasks in Month and List when those are on. Right-click a meeting in the List for a task to prepare it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -415,10 +440,6 @@ private struct WorldClocksTab: View {
         Form {
             Section {
                 Toggle("Show World Clocks in the menu", isOn: $settings.worldClocks.showsInMenu)
-                if settings.worldClocks.showsInMenu && !settings.menuCalendarEnabled {
-                    Text("Turn on Show a calendar in the menu (Menu bar) to see it.")
-                        .foregroundStyle(.orange)
-                }
             } footer: {
                 Text("Adds a World Clocks view to the menu, before Stats: the time here and in each city below, green while it's working time there, and a chart of today showing when everyone's at work. Type a time, or drag across the chart, to see it on every clock.")
                     .font(.caption).foregroundStyle(.secondary)
