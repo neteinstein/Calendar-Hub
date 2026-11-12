@@ -39,6 +39,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// Closed by `closeWindow`, whose caller syncs, so `onWindowClosed` isn't called.
     private var closingQuietly = false
     private var urlObservation: NSKeyValueObservation?
+    private var loadingObservation: NSKeyValueObservation?
+    /// Waiting to see that a finished Outlook page stays put before closing the window.
+    private var closeAfterSignIn: Task<Void, Never>?
     private var captured: [Data] = []
     /// On a clock that setting the time doesn't move, like the waits that use it.
     private var lastCaptureAt: ContinuousClock.Instant?
@@ -82,6 +85,9 @@ final class OutlookWebSource: NSObject, ObservableObject {
         urlObservation = webView.observe(\.url) { [weak self] webView, _ in
             MainActor.assumeIsolated { self?.urlChanged(webView.url) }
         }
+        loadingObservation = webView.observe(\.isLoading) { [weak self] webView, _ in
+            MainActor.assumeIsolated { self?.urlChanged(webView.url) }
+        }
     }
 
     /// The user agent of the Safari installed on this Mac, whose WebKit is the one the web view
@@ -106,6 +112,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
         securityKey.cancel()
         onWindowClosed = nil
         urlObservation = nil
+        loadingObservation = nil
+        closeAfterSignIn?.cancel()
         window?.close()
         window = nil
         webView.stopLoading()
@@ -150,14 +158,29 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// Closes the window once a sign-in in it is done: Microsoft sends it back to Outlook. Left
     /// open, it would keep every sync from reading this calendar, and it is easily lost behind
     /// other windows.
+    ///
+    /// Only once an Outlook page has finished loading, and is still there a moment later. The
+    /// URL changes as soon as a navigation starts, and Microsoft hands the sign-in to Outlook
+    /// with a form POST: closing then, and syncing (which loads another page), cancelled that
+    /// POST before Outlook could keep the sign-in, and the next try showed the account picker
+    /// again. Outlook may also bounce back to Microsoft's sign-in before it settles.
     private func urlChanged(_ url: URL?) {
         guard window?.isVisible == true, let url else { return }
         if Self.isSignInHost(url) {
             signingIn = true
-        } else if signingIn, Self.isOutlookHost(url) {
-            signingIn = false
-            AppLog.write("Calendar Hub: signed in to Outlook, closing its window")
-            window?.close()
+            closeAfterSignIn?.cancel()
+            closeAfterSignIn = nil
+        } else if signingIn, Self.isOutlookHost(url), !webView.isLoading, closeAfterSignIn == nil {
+            closeAfterSignIn = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, !Task.isCancelled else { return }
+                self.closeAfterSignIn = nil
+                guard self.signingIn, self.window?.isVisible == true, !self.webView.isLoading,
+                      let url = self.webView.url, Self.isOutlookHost(url) else { return }
+                self.signingIn = false
+                AppLog.write("Calendar Hub: signed in to Outlook, closing its window")
+                self.window?.close()
+            }
         }
     }
 
@@ -916,6 +939,8 @@ extension OutlookWebSource: NSWindowDelegate {
     nonisolated func windowWillClose(_ notification: Notification) {
         MainActor.assumeIsolated {
             signingIn = false
+            closeAfterSignIn?.cancel()
+            closeAfterSignIn = nil
             if closingQuietly { return }
             // After the window is gone: until then it still counts as open, and a read waits.
             DispatchQueue.main.async { [weak self] in self?.onWindowClosed?() }
