@@ -90,6 +90,12 @@ final class SyncController: ObservableObject {
         // sync() compares it with, and the two can't keep sending each other back here.
         _ = await eventKit.requestAccess()
         hasCalendarAccess = eventKit.hasAccess
+        // With Tasks in the menu, Reminders is asked for right after Calendars. Asks only the
+        // first time: once answered, the request returns without showing anything.
+        if settings.taskOptions.showsInMenu, eventKit.reminderAccess == .notDetermined {
+            _ = await eventKit.requestReminderAccess()
+            NotificationCenter.default.post(name: .EKEventStoreChanged, object: eventKit.store)
+        }
         // Runs without access too, so access granted later in System Settings is noticed.
         if timer == nil { startTimer() }
         guard hasCalendarAccess else {

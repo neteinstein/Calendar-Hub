@@ -170,7 +170,7 @@ struct CalendarHubApp: App {
                 Image(nsImage: Self.progressImage(symbol: hasProblems ? Self.problemIcon : "calendar",
                                                   text: text, progress: progress))
                     .renderingMode(.template)
-            } else if settings.menuCalendarEnabled || text != nil {
+            } else if settings.menuShowsCalendar || text != nil {
                 HStack(spacing: 3) {
                     Image(systemName: hasProblems ? Self.problemIcon : "calendar")
                     if let text {
