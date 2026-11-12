@@ -7,9 +7,11 @@ final class SettingsStore: ObservableObject {
     @Published var sources: [SourceConfig] { didSet { save(sources, "sources") } }
     @Published var options: SyncOptions { didSet { save(options, "options") } }
     @Published var alerts: EventAlertOptions { didSet { save(alerts, "alerts") } }
-    /// The menu bar button opens a month view / event list, and the icon shows today's date.
-    @Published var menuCalendarEnabled: Bool { didSet { defaults.set(menuCalendarEnabled, forKey: "menuCalendarEnabled") } }
-    /// What the icon shows next to today's date while the menu calendar is on.
+    /// The menu's Month view. On until turned off.
+    @Published var menuShowsMonth: Bool { didSet { defaults.set(menuShowsMonth, forKey: "menuShowsMonth") } }
+    /// The menu's List view, a scrolling list of events. On until turned off.
+    @Published var menuShowsList: Bool { didSet { defaults.set(menuShowsList, forKey: "menuShowsList") } }
+    /// What the icon shows next to today's date while the menu shows a calendar.
     @Published var menuBar: MenuBarOptions { didSet { save(menuBar, "menuBar") } }
     /// How the menu's month view lays out a week.
     @Published var menuCalendar: MenuCalendarOptions { didSet { save(menuCalendar, "menuCalendar") } }
@@ -57,7 +59,8 @@ final class SettingsStore: ObservableObject {
         self.sources = sources
         options = Self.load(SyncOptions.self, "options", defaults) ?? SyncOptions()
         alerts = Self.load(EventAlertOptions.self, "alerts", defaults) ?? EventAlertOptions()
-        menuCalendarEnabled = defaults.bool(forKey: "menuCalendarEnabled")
+        menuShowsMonth = defaults.object(forKey: "menuShowsMonth") as? Bool ?? true
+        menuShowsList = defaults.object(forKey: "menuShowsList") as? Bool ?? true
         menuBar = Self.load(MenuBarOptions.self, "menuBar", defaults) ?? MenuBarOptions()
         menuCalendar = Self.load(MenuCalendarOptions.self, "menuCalendar", defaults) ?? MenuCalendarOptions()
         taskOptions = Self.load(TaskOptions.self, "taskOptions", defaults) ?? TaskOptions()
@@ -71,6 +74,14 @@ final class SettingsStore: ObservableObject {
         busyCalendarIDs = Set(defaults.stringArray(forKey: "busyCalendarIDs") ?? [])
         busyAlertsCleared = defaults.bool(forKey: "busyAlertsCleared")
         keptOrphanSourceIDs = Set((defaults.stringArray(forKey: "keptOrphanSourceIDs") ?? []).compactMap(UUID.init(uuidString:)))
+    }
+
+    /// The menu shows Month or List, and the menu bar icon today's date.
+    var menuShowsCalendar: Bool { menuShowsMonth || menuShowsList }
+
+    /// The menu has at least one view: Month, List, Tasks, World Clocks or Stats.
+    var menuHasViews: Bool {
+        menuShowsCalendar || taskOptions.showsInMenu || worldClocks.showsInMenu || menuCalendar.showsMeetingStats
     }
 
     /// How an Outlook on the web calendar is kept in `busyCalendarIDs`.

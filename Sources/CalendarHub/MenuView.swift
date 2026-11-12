@@ -16,7 +16,7 @@ struct MenuView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !settings.menuCalendarEnabled {
+            if !settings.menuHasViews {
                 Text("Calendar Hub").font(.headline)
             }
 
@@ -29,7 +29,7 @@ struct MenuView: View {
                 }
             }
 
-            if settings.menuCalendarEnabled {
+            if settings.menuHasViews {
                 MenuCalendarView()
             }
 
@@ -45,7 +45,7 @@ struct MenuView: View {
             footer
         }
         .padding(14)
-        .frame(width: settings.menuCalendarEnabled ? 360 : 320)
+        .frame(width: settings.menuHasViews ? 360 : 320)
         // The menu window's own material lets a white window behind it wash the text out; the
         // window background, nearly opaque, keeps it readable while still hinting at the desktop.
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.92).ignoresSafeArea())
