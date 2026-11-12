@@ -57,7 +57,8 @@ final class DemoCalendars {
             SourceConfig(id: sourceX, kind: .outlookWeb, calendarName: "Client X", name: "Client X"),
         ]
         settings.twoWaySync = true
-        settings.menuCalendarEnabled = true
+        settings.menuShowsMonth = true
+        settings.menuShowsList = true
         settings.menuCalendar.showsMeetingStats = true
         settings.worldClocks = WorldClockOptions(showsInMenu: true, clocks: [
             WorldClock(name: "New York", timeZoneID: "America/New_York"),
@@ -396,7 +397,6 @@ private struct MenuBarStrips: View {
     private func strip(showsNextMeeting: Bool, showsMeetingProgress: Bool = false) -> some View {
         let shown = SettingsStore(defaults: UserDefaults(
             suiteName: "org.neteinstein.calendarhub.demo.strip\(showsNextMeeting)\(showsMeetingProgress)")!)
-        shown.menuCalendarEnabled = true
         shown.targetCalendarID = settings.targetCalendarID
         shown.menuBar.showsNextMeeting = showsNextMeeting
         shown.menuBar.showsMeetingProgress = showsMeetingProgress

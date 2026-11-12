@@ -2,8 +2,8 @@ import AppKit
 import CalendarHubCore
 import SwiftUI
 
-/// The month grid and event list shown at the top of the menu when "Show a calendar in the
-/// menu" is on. Events come from the main calendar, where secondary-calendar meetings are already copied.
+/// The views at the top of the menu, each turned on in Settings: the month grid, the event
+/// list, Tasks, World Clocks and Meeting Stats. Events come from the main calendar, where secondary-calendar meetings are already copied.
 struct MenuCalendarView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
@@ -31,13 +31,10 @@ struct MenuCalendarView: View {
         case month, list, tasks, clocks, stats
     }
 
-    /// The saved mode, or the list when Tasks, World Clocks or Stats was picked and is now off.
+    /// The saved mode, or the first one shown when the saved one is now off.
     private var shownMode: Mode {
-        switch mode {
-        case .tasks where !settings.taskOptions.showsInMenu, .clocks where !settings.worldClocks.showsInMenu,
-             .stats where !settings.menuCalendar.showsMeetingStats: .list
-        default: mode
-        }
+        let shown = modes.map(\.value)
+        return shown.contains(mode) ? mode : shown.first ?? .month
     }
 
     private var calendar: Calendar { settings.menuCalendar.applied(to: .current) }
@@ -48,7 +45,10 @@ struct MenuCalendarView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            SlidingSegments(options: modes, selection: Binding(get: { shownMode }, set: { mode = $0 }))
+            // No picker for a single view.
+            if modes.count > 1 {
+                SlidingSegments(options: modes, selection: Binding(get: { shownMode }, set: { mode = $0 }))
+            }
 
             ZStack(alignment: .top) {
                 switch shownMode {
@@ -75,15 +75,16 @@ struct MenuCalendarView: View {
             }
         }
         .onAppear { reload() }
-        .onChange(of: mode) { _, _ in reload() }
         .onChange(of: shownMonth) { _, _ in reload() }
         .onChange(of: settings.menuCalendar) { _, _ in reload() }
         .onChange(of: settings.taskOptions.showsInMenu) { _, _ in reload() }
+        .onChange(of: shownMode) { _, _ in reload() }
         .onChange(of: controller.lastSync) { _, _ in reload() }
     }
 
     private var modes: [(value: Mode, title: String)] {
-        [(.month, "Month"), (.list, "List")]
+        (settings.menuShowsMonth ? [(.month, "Month")] : [])
+            + (settings.menuShowsList ? [(.list, "List")] : [])
             + (settings.taskOptions.showsInMenu ? [(.tasks, "Tasks")] : [])
             + (settings.worldClocks.showsInMenu ? [(.clocks, "World Clocks")] : [])
             + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
