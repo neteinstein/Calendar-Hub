@@ -97,13 +97,19 @@ public enum MenuCalendar {
         !event.isAllDay && !event.isDeclined && !event.isCancelled && !MeetingStats.isOutOfOffice(event)
     }
 
+    /// How close the next meeting has to be for the menu to show it in the Up next card.
+    public static let upNextLead: TimeInterval = 4 * 60 * 60
+
     /// The meeting to show as "Up next": the one under way, or else the next one to start
-    /// today. Timed meetings only: not declined, cancelled or out-of-office events.
+    /// today within `upNextLead`. Timed meetings only: not declined, cancelled or
+    /// out-of-office events.
     public static func upNext(in events: [SourceEvent], now: Date, calendar: Calendar) -> SourceEvent? {
         events
             .filter { event in
                 isMeeting(event) && event.end > now
-                    && (event.start <= now || calendar.isDate(event.start, inSameDayAs: now))
+                    && (event.start <= now
+                        || (calendar.isDate(event.start, inSameDayAs: now)
+                            && event.start.timeIntervalSince(now) <= upNextLead))
             }
             .min { ($0.start, $0.end) < ($1.start, $1.end) }
     }
