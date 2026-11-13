@@ -39,7 +39,7 @@ The app recognises its Busy events by the code, and matches them to your main ca
 
 ## The menu
 
-- **Up next.** The menu leads with the next meeting today, or the one under way, with a countdown and a **Join** button.
+- **Up next.** The menu leads with the meeting under way, or the next one today if it starts within 4 hours, with a countdown and a **Join** button.
 - **Month view.** On unless you turn off **Show month calendar** (Settings › Menu bar). While the month or the list is shown, the icon shows **today's date** (add the **week day** next to it if you like). The month shows a dot for each calendar with meetings that day; click a day for its events. Start the week on **Sunday or Monday**, and hide **weekends** if you like.
 - **List view.** On unless you turn off **Show event list**. A scrolling list of your main calendar's events. It opens at today, with a line at the current time, today's finished meetings folded into one row, and each day's header kept in view while you scroll. Copies show the meeting's own name, with the calendar it came from under it, and a **Join** button appears from 15 minutes before a meeting. A meeting with tasks shows how many; right-click one to **add a task** for it.
 - **Tasks view.** Your tasks, by when they're due: overdue, today, tomorrow, later and no date, with the ones done this week folded away. Month and List show each day's tasks too. Tasks, World Clocks and Stats can each be shown without Month or List. See [Tasks](#tasks).

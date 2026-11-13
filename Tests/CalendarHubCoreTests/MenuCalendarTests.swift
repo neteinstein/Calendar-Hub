@@ -151,6 +151,11 @@ final class MenuCalendarTests: XCTestCase {
         let away = SourceEvent(key: "ooo", title: "Out of office", start: date(2026, 11, 5, hour: 10),
                                end: date(2026, 11, 5, hour: 18), isOutOfOffice: true)
         XCTAssertNil(MenuCalendar.upNext(in: [away], now: now, calendar: utc), "out of office isn't a meeting")
+        XCTAssertEqual(MenuCalendar.upNext(in: [event("in 4h", 15, 16)], now: now, calendar: utc)?.key, "in 4h")
+        XCTAssertNil(MenuCalendar.upNext(in: [event("evening", 16, 17)], now: now, calendar: utc),
+                     "more than 4 hours away")
+        XCTAssertEqual(MenuCalendar.upNext(in: [event("all morning", 6, 12)], now: now, calendar: utc)?.key, "all morning",
+                       "under way, however long ago it started")
     }
 
     func testCountdowns() {
