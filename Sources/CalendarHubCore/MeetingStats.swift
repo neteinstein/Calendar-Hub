@@ -141,10 +141,7 @@ public enum MeetingStats {
             return DateInterval(start: start, end: calendar.date(byAdding: .day, value: 1, to: start)!)
         }
         func previous(_ component: Calendar.Component) -> DateInterval {
-            guard let current = calendar.dateInterval(of: component, for: now),
-                  let start = calendar.date(byAdding: component, value: -1, to: current.start)
-            else { return DateInterval(start: today, duration: 0) }
-            return DateInterval(start: start, end: current.start)
+            previousPeriod(component, now: now, calendar: calendar)
         }
 
         let averageStart = calendar.date(byAdding: .day, value: -averageDays, to: today)!
@@ -159,9 +156,8 @@ public enum MeetingStats {
             start: calendar.date(byAdding: .weekOfYear, value: -1, to: lastWeek.start) ?? lastWeek.start,
             end: lastWeek.start)
 
-        let recentDays = (-14...1).map(day).filter { offset in
-            offset.start >= today || !calendar.isDateInWeekend(offset.start)
-        }.map { Day(day: $0.start, hours: hours(of: events, in: $0)) }
+        let recentDays = recentDayIntervals(now: now, calendar: calendar)
+            .map { Day(day: $0.start, hours: hours(of: events, in: $0)) }
 
         // Average per weekday over the four weeks: each weekday shows up four times.
         var byWeekday: [Int: Double] = [:]
@@ -215,6 +211,91 @@ public enum MeetingStats {
             outOfOfficeThisWeek: outOfOffice.hours,
             workingHoursThisWeek: workingDaysThisWeek.reduce(0) { $0 + $1.duration } / 3600
         )
+    }
+
+    /// The calendar `component` (week, month) before the one `now` is in.
+    static func previousPeriod(_ component: Calendar.Component, now: Date, calendar: Calendar) -> DateInterval {
+        guard let current = calendar.dateInterval(of: component, for: now),
+              let start = calendar.date(byAdding: component, value: -1, to: current.start)
+        else { return DateInterval(start: calendar.startOfDay(for: now), duration: 0) }
+        return DateInterval(start: start, end: current.start)
+    }
+
+    /// The days in the chart: the working days of the last two weeks, then today and tomorrow.
+    static func recentDayIntervals(now: Date, calendar: Calendar) -> [DateInterval] {
+        let today = calendar.startOfDay(for: now)
+        return (-14...1).compactMap { offset -> DateInterval? in
+            guard let start = calendar.date(byAdding: .day, value: offset, to: today),
+                  let end = calendar.date(byAdding: .day, value: 1, to: start),
+                  start >= today || !calendar.isDateInWeekend(start) else { return nil }
+            return DateInterval(start: start, end: end)
+        }
+    }
+
+    // MARK: - By calendar
+
+    /// Meeting time per calendar the meetings came from: the main calendar's own meetings
+    /// (internal) and the copies from each secondary calendar, for the Stats view's
+    /// "By calendar". Each calendar counts its own overlapping time once, so the calendars can
+    /// add up to more than `lastWeek` and `lastMonth`, which count time in meetings from two
+    /// calendars once.
+    public struct Breakdown: Hashable, Sendable {
+        public struct Group: Hashable, Sendable {
+            /// The secondary calendar the meetings were copied from; nil for the main
+            /// calendar's own meetings.
+            public var calendar: UUID?
+            public var lastWeek: Hours
+            public var lastMonth: Hours
+            /// The calendar's hours on each of `Breakdown.days`.
+            public var recentDays: [Hours]
+        }
+
+        public var lastWeek: Hours
+        public var lastMonth: Hours
+        /// The chart's days, as in `Summary.recentDays`.
+        public var days: [Date]
+        /// Internal first, then the secondary calendars in the order given.
+        public var groups: [Group]
+    }
+
+    /// `events` from the main calendar, split by the calendar each came from. `aliases` maps
+    /// the id another Mac gave a calendar to the one it has here, so that Mac's copies count as
+    /// this one's. Copies from a calendar that isn't in `calendars` (removed) are left out,
+    /// totals included.
+    public static func breakdown(of events: [SourceEvent], calendars: [UUID], aliases: [UUID: UUID] = [:],
+                                 now: Date, calendar: Calendar) -> Breakdown {
+        let known = Set(calendars)
+        var byOrigin: [UUID?: [SourceEvent]] = [:]
+        for event in events {
+            var origin = MenuCalendar.originID(of: event)
+            if let id = origin {
+                guard let here = known.contains(id) ? id : aliases[id].flatMap({ known.contains($0) ? $0 : nil })
+                else { continue }
+                origin = here
+            }
+            byOrigin[origin, default: []].append(event)
+        }
+        let lastWeek = previousPeriod(.weekOfYear, now: now, calendar: calendar)
+        let lastMonth = previousPeriod(.month, now: now, calendar: calendar)
+        let days = recentDayIntervals(now: now, calendar: calendar)
+        var seen = Set<UUID>()
+        let origins: [UUID?] = [nil] + calendars.filter { seen.insert($0).inserted }.map { $0 }
+        let groups = origins.map { origin -> Breakdown.Group in
+            let events = byOrigin[origin] ?? []
+            return Breakdown.Group(calendar: origin,
+                                   lastWeek: hours(of: events, in: lastWeek),
+                                   lastMonth: hours(of: events, in: lastMonth),
+                                   recentDays: days.map { hours(of: events, in: $0) })
+        }
+        let included = byOrigin.values.flatMap { $0 }
+        return Breakdown(lastWeek: hours(of: included, in: lastWeek),
+                         lastMonth: hours(of: included, in: lastMonth),
+                         days: days.map(\.start), groups: groups)
+    }
+
+    /// The main calendar's own meetings: not copies from a secondary calendar.
+    public static func internalMeetings(_ events: [SourceEvent]) -> [SourceEvent] {
+        events.filter { MenuCalendar.originID(of: $0) == nil }
     }
 
     /// Out of office, all-day ones included, unless declined or cancelled.
