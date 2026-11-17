@@ -261,7 +261,9 @@ final class SyncPlannerTests: XCTestCase {
         acceptedOnly.copyUnaccepted = false
         let options = SyncOptions(skipDeclined: false)
 
-        let plan = SyncPlanner.plan(sources: [(source, .success(events)), (acceptedOnly, .success(events))],
+        // Later the same day, so they aren't taken for the same invitations (see `SameInvite`).
+        let clientEvents = events.map { var e = $0; e.start += 8 * 3600; e.end += 8 * 3600; return e }
+        let plan = SyncPlanner.plan(sources: [(source, .success(events)), (acceptedOnly, .success(clientEvents))],
                                     existing: [], options: options)
         let titles = plan.actions.compactMap { if case .create(let spec) = $0 { spec.title } else { nil } }
         XCTAssertEqual(titles, [

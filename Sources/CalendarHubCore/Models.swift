@@ -270,6 +270,10 @@ public struct SourceEvent: Hashable, Sendable {
     /// app created (so two-way syncing doesn't loop), and copied when the source asks for details.
     public var notes: String?
     public var location: String?
+    /// The invitation's own id (iCalendar UID), shared by the copies of one invitation in
+    /// different calendars when their servers agree on it. Used to recognise the same meeting
+    /// in two calendars (see `SameInvite`). Nil when the calendar doesn't say.
+    public var inviteID: String?
 
     /// Accepted, or not an invitation at all: your own events and the ones you organise.
     public var isAccepted: Bool { !isDeclined && !isUnconfirmed }
@@ -287,7 +291,8 @@ public struct SourceEvent: Hashable, Sendable {
         isOutOfOffice: Bool = false,
         meetingURL: URL? = nil,
         notes: String? = nil,
-        location: String? = nil
+        location: String? = nil,
+        inviteID: String? = nil
     ) {
         self.key = key
         self.title = title
@@ -302,6 +307,7 @@ public struct SourceEvent: Hashable, Sendable {
         self.meetingURL = meetingURL
         self.notes = notes
         self.location = location
+        self.inviteID = inviteID
     }
 }
 
