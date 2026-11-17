@@ -16,6 +16,13 @@ extension WorldClocks {
         countryZones.flatMap { entry in entry.timeZoneIDs.map { ($0, entry.country) } },
         uniquingKeysWith: { first, _ in first })
 
+    /// The flag of the country a time zone is in, as an emoji: 🇬🇧 for Europe/London.
+    public static func flag(of timeZoneID: String) -> String? {
+        guard let code = countryCodes[timeZoneID], code.count == 2 else { return nil }
+        let scalars = code.uppercased().unicodeScalars.compactMap { Unicode.Scalar(0x1F1E6 + $0.value - 65) }
+        return scalars.count == 2 ? String(String.UnicodeScalarView(scalars)) : nil
+    }
+
     /// What people type for a country that isn't its name: UK, USA.
     static let countryAliases = ["UK": "GB", "USA": "US", "UAE": "AE"]
 
