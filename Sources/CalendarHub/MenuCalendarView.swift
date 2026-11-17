@@ -150,7 +150,9 @@ struct MenuCalendarView: View {
     private var statsEvents: [SourceEvent] {
         switch shownStatsCalendar {
         case "": events
-        case let id: events.filter { MenuCalendar.originID(of: $0)?.uuidString == id }
+        case let id: events.filter { event in
+            MenuCalendar.originID(of: event).flatMap { settings.source(forCopiesOf: $0)?.id.uuidString } == id
+        }
         }
     }
 
@@ -352,7 +354,8 @@ struct MenuCalendarView: View {
         for event in events.sorted(by: { $0.start < $1.start }) {
             let day = calendar.startOfDay(for: event.start)
             guard (byDay[day]?.count ?? 0) < (colors ? 3 : 1) else { continue }
-            let key = colors ? (MenuCalendar.originID(of: event)?.uuidString ?? "main") : "any"
+            let origin = MenuCalendar.originID(of: event).map { settings.source(forCopiesOf: $0)?.id ?? $0 }
+            let key = colors ? (origin?.uuidString ?? "main") : "any"
             guard seen[day, default: []].insert(key).inserted else { continue }
             if origins[key] == nil {
                 origins[key] = colors

@@ -191,7 +191,7 @@ final class TimeTracker: ObservableObject {
         let meetings = options.countsMeetings
             ? TimeTracking.meetingEntries(events: events, clients: settings.timeClients,
                                           internalClient: options.internalClient,
-                                          reassigned: log.meetingClients, now: now)
+                                          reassigned: log.meetingClients, otherMacIDs: settings.otherMacIDs, now: now)
             : []
         return TimeTracking.clip(TimeTracking.combine(meetings: meetings, logged: loggedEntries(now: now)), to: interval)
     }

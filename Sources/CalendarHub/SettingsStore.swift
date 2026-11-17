@@ -53,6 +53,17 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    /// Not a setting: ids another Mac gave the calendars set up here, each with the id the
+    /// calendar has here. That Mac's copies carry them (see `SyncPlan.otherMacIDs`).
+    var otherMacIDs: [UUID: UUID] {
+        didSet {
+            if otherMacIDs != oldValue {
+                defaults.set(Dictionary(uniqueKeysWithValues: otherMacIDs.map { ($0.key.uuidString, $0.value.uuidString) }),
+                             forKey: "otherMacIDs")
+            }
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -77,6 +88,8 @@ final class SettingsStore: ObservableObject {
         busyCalendarIDs = Set(defaults.stringArray(forKey: "busyCalendarIDs") ?? [])
         busyAlertsCleared = defaults.bool(forKey: "busyAlertsCleared")
         keptOrphanSourceIDs = Set((defaults.stringArray(forKey: "keptOrphanSourceIDs") ?? []).compactMap(UUID.init(uuidString:)))
+        otherMacIDs = Dictionary(uniqueKeysWithValues: (defaults.dictionary(forKey: "otherMacIDs") as? [String: String] ?? [:])
+            .compactMap { key, value in UUID(uuidString: key).flatMap { k in UUID(uuidString: value).map { (k, $0) } } })
     }
 
     /// The menu shows Month or List, and the menu bar icon today's date.
@@ -86,6 +99,12 @@ final class SettingsStore: ObservableObject {
     var menuHasViews: Bool {
         menuShowsCalendar || taskOptions.showsInMenu || worldClocks.showsInMenu || menuCalendar.showsMeetingStats
             || timeTracking.isEnabled
+    }
+
+    /// The calendar set up here whose copies carry `id`: its own id, or one another Mac gave
+    /// it. Nil for a calendar not set up here.
+    func source(forCopiesOf id: UUID) -> SourceConfig? {
+        sources.first { $0.id == id } ?? otherMacIDs[id].flatMap { here in sources.first { $0.id == here } }
     }
 
     /// Every client time can be logged to: the secondary calendars, those added by hand, Internal.

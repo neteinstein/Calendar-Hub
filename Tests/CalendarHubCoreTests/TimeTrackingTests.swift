@@ -103,6 +103,15 @@ final class TimeTrackingTests: XCTestCase {
         XCTAssertEqual(entries.first?.clientID, removed.id)
     }
 
+    func testCopyFromAnotherMacGoesToTheCalendarHere() {
+        let otherMacID = TimeClient(id: UUID().uuidString, name: "Client A")
+        let entries = TimeTracking.meetingEntries(events: [copy("Sync", at(10), at(11), from: otherMacID)],
+                                                  clients: [clientA], internalClient: internalClient,
+                                                  otherMacIDs: [UUID(uuidString: otherMacID.id)!: UUID(uuidString: clientA.id)!],
+                                                  now: at(18))
+        XCTAssertEqual(entries.first?.clientID, clientA.id)
+    }
+
     // MARK: - Combining
 
     func testTimerGivesWayToMeetings() {

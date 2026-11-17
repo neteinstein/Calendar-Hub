@@ -210,10 +210,12 @@ public enum TimeTracking {
     /// The meetings in `events` as entries, each to its client, up to `now`. A copy goes to the
     /// secondary calendar it came from (by the name in its title when that calendar was
     /// removed), the main calendar's own meetings to Internal, and a meeting given to another
-    /// client to that one. Time in overlapping meetings is logged once, to the meeting that
+    /// client to that one. A copy made by another Mac carries the id that Mac gave the calendar;
+    /// `otherMacIDs` maps it to the one it has here. Time in overlapping meetings is logged once, to the meeting that
     /// started first (the longer one when they start together), so nothing counts twice.
     public static func meetingEntries(events: [SourceEvent], clients: [TimeClient], internalClient: TimeClient,
-                                      reassigned: [String: TimeClient] = [:], now: Date) -> [TimeEntry] {
+                                      reassigned: [String: TimeClient] = [:], otherMacIDs: [UUID: UUID] = [:],
+                                      now: Date) -> [TimeEntry] {
         let byID = Dictionary(clients.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let meetings = events
             .filter { counts($0) && $0.start < now }
@@ -221,7 +223,8 @@ public enum TimeTracking {
         var covered: [DateInterval] = []
         var entries: [TimeEntry] = []
         for event in meetings {
-            let client = reassigned[event.key] ?? meetingClient(of: event, clients: byID, internalClient: internalClient)
+            let client = reassigned[event.key]
+                ?? meetingClient(of: event, clients: byID, internalClient: internalClient, otherMacIDs: otherMacIDs)
             let whole = DateInterval(start: event.start, end: min(event.end, now))
             for (index, piece) in subtract(covered, from: whole).enumerated() {
                 entries.append(TimeEntry(id: TimeEntry.meetingPrefix + event.key + (index == 0 ? "" : "#\(index)"),
@@ -236,8 +239,9 @@ public enum TimeTracking {
 
     /// The client a meeting goes to by itself, before any reassignment.
     public static func meetingClient(of event: SourceEvent, clients: [String: TimeClient],
-                                     internalClient: TimeClient) -> TimeClient {
-        guard let origin = MenuCalendar.originID(of: event) else { return internalClient }
+                                     internalClient: TimeClient, otherMacIDs: [UUID: UUID] = [:]) -> TimeClient {
+        guard let copied = MenuCalendar.originID(of: event) else { return internalClient }
+        let origin = clients[copied.uuidString] == nil ? otherMacIDs[copied] ?? copied : copied
         if let client = clients[origin.uuidString] { return client }
         // A secondary calendar no longer set up here: by the name its copies carry.
         let title = event.title
