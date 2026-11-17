@@ -23,58 +23,16 @@ struct AvailabilityView: View {
     @State private var copied = false
     @FocusState private var searchFocused: Bool
 
-    private var calendar: Calendar { settings.menuCalendar.applied(to: .current) }
-    private var workingHours: WorkingHours { settings.menuCalendar.workingHours }
-
-    /// Someone the text can be for: here, a World Clocks city, or a time zone searched for.
-    private struct Place: Hashable, Identifiable {
-        var id: String
-        var name: String
-        var timeZone: TimeZone
-        var workingHours: WorkingHours
-        var isHere: Bool
-
-        var flag: String? { WorldClocks.flag(of: timeZone.identifier) }
+    private var share: AvailabilityShare {
+        AvailabilityShare(settings: settings, controller: controller, span: span, timeZoneID: timeZoneID,
+                          otherName: otherName, minimumMinutes: minimumMinutes, bothWorking: bothWorking)
     }
 
-    private var here: Place {
-        Place(id: "", name: settings.worldClocks.localName(in: .current), timeZone: .current,
-              workingHours: workingHours, isHere: true)
-    }
-
-    private var places: [Place] {
-        var places = [here] + settings.worldClocks.clocks.map {
-            Place(id: $0.timeZoneID, name: $0.name, timeZone: $0.timeZone,
-                  workingHours: $0.workingHours ?? workingHours, isHere: false)
-        }
-        // A time zone found by searching stays in the list while it's picked.
-        if !timeZoneID.isEmpty, !places.contains(where: { $0.id == timeZoneID }), let zone = TimeZone(identifier: timeZoneID) {
-            places.append(Place(id: timeZoneID, name: otherName.isEmpty ? WorldClocks.cityName(of: timeZoneID) : otherName,
-                                timeZone: zone, workingHours: workingHours, isHere: false))
-        }
-        var seen = Set<String>()
-        return places.filter { seen.insert($0.id).inserted }
-    }
-
-    private var place: Place { places.first { $0.id == timeZoneID } ?? here }
-
-    /// Narrows to their working hours only for somewhere else; ours are the limit anyway.
-    private var limitsToTheirHours: Bool { bothWorking && !place.isHere }
-
-    private var plan: Availability.Plan {
-        Availability.plan(span, events: events, now: Date(), calendar: calendar, workingHours: workingHours,
-                          recipient: limitsToTheirHours ? .init(timeZone: place.timeZone, workingHours: place.workingHours) : nil,
-                          minimum: TimeInterval(minimumMinutes * 60), readsUntil: controller.window.end)
-    }
-
-    /// English, as the rest of the app, with the dates and times of the user's region.
-    private static var locale: Locale {
-        Locale(languageCode: .english, languageRegion: Locale.current.region)
-    }
-
-    private var text: String {
-        Availability.text(of: plan, timeZone: place.timeZone, placeName: place.name, locale: Self.locale, calendar: calendar)
-    }
+    private var places: [AvailabilityShare.Place] { share.places }
+    private var place: AvailabilityShare.Place { share.place }
+    private var limitsToTheirHours: Bool { share.limitsToTheirHours }
+    private var plan: Availability.Plan { share.plan(events) }
+    private var text: String { share.text(events) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -157,7 +115,7 @@ struct AvailabilityView: View {
         .frame(minHeight: 36)
     }
 
-    private func label(_ place: Place) -> String {
+    private func label(_ place: AvailabilityShare.Place) -> String {
         [place.flag, place.isHere ? "\(place.name) (mine)" : place.name].compactMap { $0 }.joined(separator: " ")
     }
 
@@ -229,8 +187,7 @@ struct AvailabilityView: View {
     }
 
     private func copy() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        AvailabilityShare.copy(text)
         copied = true
         Task {
             try? await Task.sleep(for: .seconds(1.5))
@@ -238,13 +195,122 @@ struct AvailabilityView: View {
         }
     }
 
-    /// Reads the main calendar from today to the end of next week, the furthest a span reaches.
     private func reload() {
+        if let fetched = AvailabilityShare.events(settings: settings, controller: controller) { events = fetched }
+    }
+}
+
+/// What Share availability is set to and the text it makes, for the panel and for the menu bar
+/// item's right-click menu, which copies with the panel's last choices.
+@MainActor
+struct AvailabilityShare {
+    let settings: SettingsStore
+    let controller: SyncController
+    var span: Availability.Span
+    /// The other person's time zone, or empty for ours.
+    var timeZoneID: String
+    /// The name for a time zone picked by searching, not one of the World Clocks.
+    var otherName: String
+    var minimumMinutes: Int
+    var bothWorking: Bool
+
+    /// The panel's choices, as saved in `defaults`.
+    init(settings: SettingsStore, controller: SyncController, defaults: UserDefaults = .standard) {
+        self.init(settings: settings, controller: controller,
+                  span: defaults.string(forKey: "availabilitySpan").flatMap(Availability.Span.init(rawValue:)) ?? .nextDays,
+                  timeZoneID: defaults.string(forKey: "availabilityTimeZone") ?? "",
+                  otherName: defaults.string(forKey: "availabilityPlaceName") ?? "",
+                  minimumMinutes: defaults.object(forKey: "availabilityMinimum") as? Int ?? 30,
+                  bothWorking: defaults.object(forKey: "availabilityBothWorking") as? Bool ?? true)
+    }
+
+    init(settings: SettingsStore, controller: SyncController, span: Availability.Span, timeZoneID: String,
+         otherName: String, minimumMinutes: Int, bothWorking: Bool) {
+        self.settings = settings
+        self.controller = controller
+        self.span = span
+        self.timeZoneID = timeZoneID
+        self.otherName = otherName
+        self.minimumMinutes = minimumMinutes
+        self.bothWorking = bothWorking
+    }
+
+    var calendar: Calendar { settings.menuCalendar.applied(to: .current) }
+    var workingHours: WorkingHours { settings.menuCalendar.workingHours }
+
+    /// Someone the text can be for: here, a World Clocks city, or a time zone searched for.
+    struct Place: Hashable, Identifiable {
+        var id: String
+        var name: String
+        var timeZone: TimeZone
+        var workingHours: WorkingHours
+        var isHere: Bool
+
+        var flag: String? { WorldClocks.flag(of: timeZone.identifier) }
+    }
+
+    var here: Place {
+        Place(id: "", name: settings.worldClocks.localName(in: .current), timeZone: .current,
+              workingHours: workingHours, isHere: true)
+    }
+
+    var places: [Place] {
+        var places = [here] + settings.worldClocks.clocks.map {
+            Place(id: $0.timeZoneID, name: $0.name, timeZone: $0.timeZone,
+                  workingHours: $0.workingHours ?? workingHours, isHere: false)
+        }
+        // A time zone found by searching stays in the list while it's picked.
+        if !timeZoneID.isEmpty, !places.contains(where: { $0.id == timeZoneID }), let zone = TimeZone(identifier: timeZoneID) {
+            places.append(Place(id: timeZoneID, name: otherName.isEmpty ? WorldClocks.cityName(of: timeZoneID) : otherName,
+                                timeZone: zone, workingHours: workingHours, isHere: false))
+        }
+        var seen = Set<String>()
+        return places.filter { seen.insert($0.id).inserted }
+    }
+
+    var place: Place { places.first { $0.id == timeZoneID } ?? here }
+
+    /// Narrows to their working hours only for somewhere else; ours are the limit anyway.
+    var limitsToTheirHours: Bool { bothWorking && !place.isHere }
+
+    func plan(_ events: [SourceEvent]) -> Availability.Plan {
+        Availability.plan(span, events: events, now: Date(), calendar: calendar, workingHours: workingHours,
+                          recipient: limitsToTheirHours ? .init(timeZone: place.timeZone, workingHours: place.workingHours) : nil,
+                          minimum: TimeInterval(minimumMinutes * 60), readsUntil: controller.window.end)
+    }
+
+    /// English, as the rest of the app, with the dates and times of the user's region.
+    static var locale: Locale {
+        Locale(languageCode: .english, languageRegion: Locale.current.region)
+    }
+
+    func text(_ events: [SourceEvent]) -> String {
+        Availability.text(of: plan(events), timeZone: place.timeZone, placeName: place.name, locale: Self.locale,
+                          calendar: calendar)
+    }
+
+    /// The main calendar from today to the end of next week, the furthest a span reaches, or
+    /// nil when it can't be read.
+    static func events(settings: SettingsStore, controller: SyncController) -> [SourceEvent]? {
+        let calendar = settings.menuCalendar.applied(to: .current)
         let today = calendar.startOfDay(for: Date())
         guard let targetID = settings.targetCalendarID,
               let end = calendar.date(byAdding: .day, value: 15, to: today),
               case .success(let fetched) = controller.eventKit.sourceEvents(calendarID: targetID, from: today, to: end)
-        else { return }
-        events = fetched.filter { !$0.isCancelled }
+        else { return nil }
+        return fetched.filter { !$0.isCancelled }
     }
+
+    static func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+/// Whether the menu shows Share availability in place of the calendar views. Shared so the
+/// menu bar item's right-click menu can open the menu at it.
+@MainActor
+final class MenuPanel: ObservableObject {
+    static let shared = MenuPanel()
+    @Published var sharingAvailability = false
 }
