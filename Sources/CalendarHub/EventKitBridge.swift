@@ -142,6 +142,23 @@ final class EventKitBridge {
         }
     }
 
+    /// The Busy blocks this app wrote in the main calendar for days that reached the meeting
+    /// limit (see `MeetingLimit`): recognised by their marker, and saved like copies, with no
+    /// attendees and no repeat.
+    func limitBlocks(targetID: String, from start: Date, to end: Date) -> [ExistingCopy]? {
+        guard let calendar = store.calendar(withIdentifier: targetID) else { return nil }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [calendar])
+        return store.events(matching: predicate).compactMap { event in
+            guard Self.isOwn(event), !event.hasRecurrenceRules, !event.isAllDay,
+                  MeetingLimit.isBlock(notes: event.notes), let eventID = event.eventIdentifier,
+                  let start = event.startDate as Date?, let end = event.endDate as Date?
+            else { return nil }
+            return ExistingCopy(eventID: eventID, marker: nil, title: event.title ?? "", start: start, end: end,
+                                isAllDay: false, url: event.url, notes: Self.storedNotes(event),
+                                location: event.location, hasAlerts: event.hasAlarms)
+        }
+    }
+
     /// Whether `event` could have been saved by this app: no attendees, and no organizer other
     /// than the user (a server can name the user as organizer of their own events).
     static func isOwn(_ event: EKEvent) -> Bool {
