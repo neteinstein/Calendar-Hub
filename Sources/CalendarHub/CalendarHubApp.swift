@@ -16,6 +16,8 @@ struct CalendarHubApp: App {
 
     /// Held until the process ends. See `InstanceLock`.
     private static var instanceLock: InstanceLock?
+    /// The menu bar item's right-click menu, kept for as long as the app runs.
+    private static var rightClickMenu: MenuBarRightClickMenu?
 
     init() {
         // The demo (sample calendars, for screenshots) runs next to the real app and leaves
@@ -41,6 +43,7 @@ struct CalendarHubApp: App {
         _taskNotes = StateObject(wrappedValue: TaskNotesWindows(settings: settings, controller: controller, tasks: tasks))
         _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
                                                                  tasks: tasks, checks: demo == nil))
+        Self.rightClickMenu = MenuBarRightClickMenu(settings: settings, controller: controller)
         if let demo, Snapshots.folder != nil {
             Snapshots.context = .init(settings: settings, controller: controller, updates: updates, tasks: tasks,
                                       timeTracker: timeTracker, defaults: demo.defaults)
