@@ -24,6 +24,8 @@ final class SyncController: ObservableObject {
     /// Copies in the main calendar, from today on, of secondary calendars that aren't set up
     /// here (see `SyncPlanner.orphanedCopies`), minus the ones the user chose to keep.
     @Published private(set) var orphanedCopies: [ExistingCopy] = []
+    /// The days of the sync window that reach the daily meeting limit, as the last sync found them.
+    @Published private(set) var fullDays: [MeetingLimit.FullDay] = []
 
     struct BusyPreview: Identifiable {
         let id: UUID
@@ -87,6 +89,13 @@ final class SyncController: ObservableObject {
             lastSync = Date().addingTimeInterval(-2 * 60)
             lastSummary = "Up to date (27 copied meetings)"
             sourceStatus = demo.sourceStatus
+            if let targetID = settings.targetCalendarID {
+                let (start, end) = window
+                fullDays = MeetingLimit.fullDays(
+                    MeetingLimit.days(from: start, to: end, calendar: .current),
+                    events: demo.events(calendarID: targetID, from: start, to: end), options: settings.meetingLimit,
+                    calendar: .current, workingHours: settings.menuCalendar.workingHours)
+            }
             return
         }
         // The status, not the request's answer, so `hasCalendarAccess` always matches what
@@ -268,6 +277,10 @@ final class SyncController: ObservableObject {
             ignoreStoreChangesUntil = .now + .seconds(5)
         }
 
+        // The days that reach the meeting limit, and their Busy blocks. Before the Busy events
+        // below, which take the blocks to the secondary calendars that mark full days.
+        let limitPlan = updateMeetingLimit(targetID: targetID, from: start, to: end, apply: apply, problems: &problems)
+
         // Then, when syncing both ways, show the main calendar (now including the new copies)
         // as Busy in the secondary calendars that ask for it, and take the Busy events back from
         // ones that no longer do.
@@ -334,6 +347,9 @@ final class SyncController: ObservableObject {
             if busyChanges > 0 {
                 lastSummary += ". Busy events: \(busyChanges) changed"
             }
+            if let limitPlan, !limitPlan.isEmpty {
+                lastSummary += ". Full days: \(limitPlan.actions.count) Busy blocks changed"
+            }
         } else {
             preview = plan
             busyPreview = busyPlans
@@ -346,6 +362,47 @@ final class SyncController: ObservableObject {
         for problem in problems.sorted() { AppLog.write("Calendar Hub: problem: \(problem)") }
         self.problems = problems.sorted()
         unreadSources = unread.sorted { $0.name < $1.name }
+        return plan
+    }
+
+    /// Finds the days that reach the meeting limit, and plans (and with `apply`, writes) their
+    /// Busy blocks in the main calendar. With blocks turned off, any left are removed, as far
+    /// ahead as copies are. Returns the plan, or nil when there was none to make or the main
+    /// calendar couldn't be read.
+    private func updateMeetingLimit(targetID: String, from start: Date, to end: Date, apply: Bool,
+                                    problems: inout [String]) -> SyncPlan? {
+        let calendar = Calendar.current
+        let limit = settings.meetingLimit
+        let workingHours = settings.menuCalendar.workingHours
+        guard case .success(let events) = eventKit.sourceEvents(calendarID: targetID, from: start, to: end) else { return nil }
+        let days = MeetingLimit.days(from: start, to: end, calendar: calendar)
+        fullDays = MeetingLimit.fullDays(days, events: events, options: limit, calendar: calendar, workingHours: workingHours)
+
+        // With blocks off, and none left from the last sync, there's nothing to look for.
+        guard limit.writesBlocks || !settings.meetingLimitState.written.isEmpty else { return nil }
+        let blockEnd = limit.writesBlocks ? end : cleanupWindow.end
+        guard let blocks = eventKit.limitBlocks(targetID: targetID, from: start, to: blockEnd) else { return nil }
+        var state = settings.meetingLimitState.pruned(before: MeetingLimit.dayKey(start, calendar: calendar))
+        let deleted = MeetingLimit.deletedByHand(existing: blocks, written: state.written, calendar: calendar)
+        if !deleted.subtracting(state.skippedDays).isEmpty {
+            AppLog.write("Calendar Hub: Busy blocks deleted by hand on \(deleted.sorted().joined(separator: ", ")); those days get no new ones")
+        }
+        state.skippedDays.formUnion(deleted)
+        let plan = MeetingLimit.planBlocks(
+            mainEvents: events, existing: blocks, days: days, now: Date(), options: limit,
+            workingHours: workingHours, skippedDays: state.skippedDays, calendar: calendar)
+        guard apply else { return plan }
+
+        var after = blocks
+        if !plan.isEmpty {
+            ignoreStoreChangesUntil = .now + .seconds(5)
+            problems += eventKit.apply(plan, targetID: targetID).map { "Meeting limit: \($0)" }
+            ignoreStoreChangesUntil = .now + .seconds(5)
+            after = eventKit.limitBlocks(targetID: targetID, from: start, to: blockEnd) ?? []
+            AppLog.write("Calendar Hub: full days: \(plan.creates) Busy blocks added, \(plan.updates) moved, \(plan.deletes) removed")
+        }
+        state.written = MeetingLimit.blockCounts(after, calendar: calendar)
+        settings.meetingLimitState = state
         return plan
     }
 
