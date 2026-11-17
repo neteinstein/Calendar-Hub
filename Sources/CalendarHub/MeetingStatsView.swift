@@ -9,6 +9,8 @@ struct MeetingStatsView: View {
     let stats: MeetingStats.Summary
     let calendar: Calendar
     let workingHours: WorkingHours
+    /// What the stats count, first in the note at the bottom.
+    var counted = "Timed meetings in your main calendar."
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Off until the view appears, then on with an animation: the numbers and bars grow from zero.
@@ -27,25 +29,11 @@ struct MeetingStatsView: View {
         return (hours == hours.rounded() ? String(Int(hours)) : String(format: "%.1f", hours)) + "-hour"
     }
 
-    /// Height of everything in the scroll view, to show all of it when the screen has room.
-    @State private var contentHeight: CGFloat = 0
-    /// The most the scroll view can grow to before the menu runs off the bottom of the screen.
-    @State private var roomOnScreen: CGFloat = 0
-
     /// Every stat at once, without scrolling, for screenshots.
     static var showsEverything = false
 
-    /// Tall enough for all the stats when the screen has room; scrolls otherwise, never shorter
-    /// than it used to be.
-    private var height: CGFloat {
-        let minimum: CGFloat = 380
-        guard contentHeight > minimum else { return minimum }
-        if Self.showsEverything { return contentHeight }
-        return min(contentHeight, max(minimum, roomOnScreen))
-    }
-
     var body: some View {
-        ScrollView {
+        StatsScroll {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 6) {
                     dayTile("Yesterday", stats.yesterday)
@@ -55,51 +43,18 @@ struct MeetingStatsView: View {
                 chart
                 insights
                 yearCard
-                Text("Timed meetings in your main calendar. All-day, declined and out-of-office events don't count, and time in overlapping meetings counts once. Meeting-free time and out of office are measured within working hours, from Monday to Friday.")
+                Text("\(counted) All-day, declined and out-of-office events don't count, and time in overlapping meetings counts once. Meeting-free time and out of office are measured within working hours, from Monday to Friday.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 2)
-            // Read straight from the geometry: a preference from inside the scroll view
-            // arrived as 0, which kept the view at its minimum height.
-            .background(GeometryReader { proxy in
-                Color.clear
-                    .onAppear { contentHeight = proxy.size.height }
-                    .onChange(of: proxy.size.height) { _, height in contentHeight = height }
-            })
         }
-        .frame(height: height)
-        .background(ScreenRoom { roomOnScreen = $0 })
         .onAppear {
             guard !shown else { return }
             if reduceMotion {
                 shown = true
             } else {
                 withAnimation(.smooth(duration: 0.8).delay(0.05)) { shown = true }
-            }
-        }
-    }
-
-    /// Reports how tall the view it backs could get: its height plus the screen's height the
-    /// window isn't using, less a small margin above the Dock. Growing the view grows the window
-    /// by as much, so the answer doesn't change as the view takes up the room.
-    private struct ScreenRoom: NSViewRepresentable {
-        let report: (CGFloat) -> Void
-
-        func makeNSView(context: Context) -> ReportingView { ReportingView() }
-        func updateNSView(_ view: ReportingView, context: Context) { view.report = report }
-
-        final class ReportingView: NSView {
-            var report: ((CGFloat) -> Void)?
-
-            override func layout() {
-                super.layout()
-                // A window off screen (screenshots) gets the main screen's room.
-                guard let window, let screen = window.screen ?? NSScreen.main else { return }
-                let spare = screen.visibleFrame.height - window.frame.height - 12
-                let room = (bounds.height + spare).rounded(.down)
-                DispatchQueue.main.async { [report] in report?(room) }
             }
         }
     }
@@ -395,6 +350,72 @@ struct MeetingStatsView: View {
     }
 
     private func sectionTitle(_ title: String) -> some View {
+        StatsSectionTitle(title: title)
+    }
+}
+
+/// The Stats view's scrolling column: as tall as everything in it when the screen has room,
+/// scrolling otherwise, and never shorter than it used to be.
+struct StatsScroll<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    /// Height of everything in the scroll view, to show all of it when the screen has room.
+    @State private var contentHeight: CGFloat = 0
+    /// The most the scroll view can grow to before the menu runs off the bottom of the screen.
+    @State private var roomOnScreen: CGFloat = 0
+
+    private var height: CGFloat {
+        let minimum: CGFloat = 380
+        guard contentHeight > minimum else { return minimum }
+        if MeetingStatsView.showsEverything { return contentHeight }
+        return min(contentHeight, max(minimum, roomOnScreen))
+    }
+
+    var body: some View {
+        ScrollView {
+            content
+                .padding(.vertical, 2)
+                // Read straight from the geometry: a preference from inside the scroll view
+                // arrived as 0, which kept the view at its minimum height.
+                .background(GeometryReader { proxy in
+                    Color.clear
+                        .onAppear { contentHeight = proxy.size.height }
+                        .onChange(of: proxy.size.height) { _, height in contentHeight = height }
+                })
+        }
+        .frame(height: height)
+        .background(ScreenRoom { roomOnScreen = $0 })
+    }
+
+    /// Reports how tall the view it backs could get: its height plus the screen's height the
+    /// window isn't using, less a small margin above the Dock. Growing the view grows the window
+    /// by as much, so the answer doesn't change as the view takes up the room.
+    private struct ScreenRoom: NSViewRepresentable {
+        let report: (CGFloat) -> Void
+
+        func makeNSView(context: Context) -> ReportingView { ReportingView() }
+        func updateNSView(_ view: ReportingView, context: Context) { view.report = report }
+
+        final class ReportingView: NSView {
+            var report: ((CGFloat) -> Void)?
+
+            override func layout() {
+                super.layout()
+                // A window off screen (screenshots) gets the main screen's room.
+                guard let window, let screen = window.screen ?? NSScreen.main else { return }
+                let spare = screen.visibleFrame.height - window.frame.height - 12
+                let room = (bounds.height + spare).rounded(.down)
+                DispatchQueue.main.async { [report] in report?(room) }
+            }
+        }
+    }
+}
+
+/// A small all-caps heading over a part of the Stats view.
+struct StatsSectionTitle: View {
+    let title: String
+
+    var body: some View {
         Text(title.uppercased())
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
@@ -403,7 +424,7 @@ struct MeetingStatsView: View {
 }
 
 /// Hours as a large number and a small unit, "4 h" or "45 min", rolling as the number changes.
-private struct AmountText: View {
+struct AmountText: View {
     let hours: Double
     let size: CGFloat
 

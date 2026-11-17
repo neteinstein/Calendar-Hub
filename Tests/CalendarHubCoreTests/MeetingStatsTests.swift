@@ -211,4 +211,71 @@ final class MeetingStatsTests: XCTestCase {
     func testNoFreeTimeAfterWorkingHours() {
         XCTAssertNil(MeetingStats.summary(of: [], now: date(11, 3, 19), calendar: utc).longestFreeToday)
     }
+
+    // MARK: - By calendar
+
+    func copy(_ start: Date, _ end: Date, from source: UUID, declined: Bool = false) -> SourceEvent {
+        SourceEvent(key: UUID().uuidString, title: "[A] M", start: start, end: end, isAllDay: false,
+                    isDeclined: declined, notes: CopyMarker(sourceID: source, key: UUID().uuidString).encoded)
+    }
+
+    func testBreakdownSplitsByCalendar() {
+        // Tuesday 3 November 2026. Last week is 26 October to 1 November; last month October.
+        let now = date(11, 3, 12)
+        let (a, x) = (UUID(), UUID())
+        let events = [
+            meeting(date(10, 26, 9), date(10, 26, 10)),         // internal, last week
+            copy(date(10, 27, 9), date(10, 27, 11), from: a),   // A, last week
+            copy(date(10, 27, 10), date(10, 27, 12), from: x),  // X, overlaps A by an hour
+            copy(date(10, 5, 9), date(10, 5, 12), from: a),     // A, last month only
+            copy(date(10, 6, 9), date(10, 6, 10), from: x, declined: true),
+        ]
+        let breakdown = MeetingStats.breakdown(of: events, calendars: [a, x], now: now, calendar: utc)
+        XCTAssertEqual(breakdown.groups.map(\.calendar), [nil, a, x])
+        XCTAssertEqual(breakdown.groups.map(\.lastWeek.hours), [1, 2, 2])
+        XCTAssertEqual(breakdown.groups.map(\.lastMonth.hours), [1, 5, 2])
+        // Time in meetings from two calendars counts once in the total.
+        XCTAssertEqual(breakdown.lastWeek.hours, 4)
+        XCTAssertEqual(breakdown.lastWeek.countingOverlap, 5)
+        XCTAssertEqual(breakdown.lastMonth.hours, 7)
+    }
+
+    func testBreakdownDaysMatchTheChart() {
+        let now = date(11, 3, 12)
+        let a = UUID()
+        let events = [meeting(date(11, 2, 9), date(11, 2, 10)), copy(date(11, 2, 14), date(11, 2, 15, 30), from: a)]
+        let breakdown = MeetingStats.breakdown(of: events, calendars: [a], now: now, calendar: utc)
+        let summary = MeetingStats.summary(of: events, now: now, calendar: utc)
+        XCTAssertEqual(breakdown.days, summary.recentDays.map(\.day))
+        let yesterday = breakdown.days.firstIndex(of: date(11, 2, 0))!
+        XCTAssertEqual(breakdown.groups.map { $0.recentDays[yesterday].hours }, [1, 1.5])
+        XCTAssertTrue(breakdown.groups.allSatisfy { $0.recentDays.count == breakdown.days.count })
+    }
+
+    func testBreakdownLeavesOutRemovedCalendars() {
+        let now = date(11, 3, 12)
+        let (a, removed) = (UUID(), UUID())
+        let events = [copy(date(10, 27, 9), date(10, 27, 11), from: a),
+                      copy(date(10, 28, 9), date(10, 28, 11), from: removed)]
+        let breakdown = MeetingStats.breakdown(of: events, calendars: [a], now: now, calendar: utc)
+        XCTAssertEqual(breakdown.groups.map(\.calendar), [nil, a])
+        XCTAssertEqual(breakdown.groups.map(\.lastWeek.hours), [0, 2])
+        XCTAssertEqual(breakdown.lastWeek.hours, 2)
+    }
+
+    func testBreakdownCountsAnotherMacsCopiesAsThisOnes() {
+        let now = date(11, 3, 12)
+        let (a, otherMac) = (UUID(), UUID())
+        let events = [copy(date(10, 27, 9), date(10, 27, 11), from: a),
+                      copy(date(10, 28, 9), date(10, 28, 10), from: otherMac)]
+        let breakdown = MeetingStats.breakdown(of: events, calendars: [a], aliases: [otherMac: a], now: now, calendar: utc)
+        XCTAssertEqual(breakdown.groups.map(\.calendar), [nil, a])
+        XCTAssertEqual(breakdown.groups.map(\.lastWeek.hours), [0, 3])
+    }
+
+    func testInternalMeetingsAreTheOnesWithoutAMarker() {
+        let own = meeting(date(11, 3, 9), date(11, 3, 10))
+        let events = [own, copy(date(11, 3, 11), date(11, 3, 12), from: UUID())]
+        XCTAssertEqual(MeetingStats.internalMeetings(events), [own])
+    }
 }
