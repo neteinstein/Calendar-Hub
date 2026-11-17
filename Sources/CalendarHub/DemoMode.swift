@@ -270,7 +270,7 @@ final class DemoCalendars {
 
 // MARK: - Screenshots
 
-/// Renders the menu, the alert, the menu bar item and every Settings pane to PNG files, in
+/// Renders the menu, Share availability, the alert, the menu bar item and every Settings pane to PNG files, in
 /// light and dark, then quits. Run by `scripts/screenshots.sh` with `CALENDAR_HUB_SNAPSHOTS`
 /// set to the folder to write to. Uses the demo calendars, never the user's.
 @MainActor
@@ -322,6 +322,11 @@ enum Snapshots {
         context.defaults.set(MenuCalendarView.StatsChoice.byCalendar, forKey: "meetingStatsCalendar")
         await shoot(environment(MenuDesk { MenuView() }), "menu-stats-calendars-\(suffix)", appearance, to: folder)
         context.defaults.set("", forKey: "meetingStatsCalendar")
+        // Share availability, for someone in New York.
+        context.defaults.set("America/New_York", forKey: "availabilityTimeZone")
+        MenuPanel.shared.sharingAvailability = true
+        await shoot(environment(MenuDesk { MenuView() }), "menu-availability-\(suffix)", appearance, to: folder)
+        MenuPanel.shared.sharingAvailability = false
         if var next = context.controller.menuBarMeeting(now: Date()) {
             // As the alert first shows: a minute before the start.
             let length = next.end.timeIntervalSince(next.start)

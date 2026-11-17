@@ -24,7 +24,7 @@ To build and run the app, see [From source](install.md#from-source).
 scripts/screenshots.sh
 ```
 
-Renders `docs/screenshots/*.webp`: the menu (Month, List, Tasks, World Clocks, Stats and Stats by calendar), the meeting alert, a task's notes window, the menu bar item and each Settings pane, in light and dark. The app draws them itself, with sample calendars (Work, Calendar A and Client X) and sample tasks in place of yours, so nothing from your own calendars ends up in them, and it runs next to a copy you already have open, and next to runs from other checkouts. Today's sample meetings sit around the current time, so run it during the day. It needs `cwebp` (`brew install webp`). Run it after changing how the menu, the alert or Settings look, and commit the new images.
+Renders `docs/screenshots/*.webp`: the menu (Month, List, Tasks, World Clocks, Stats, Stats by calendar and Share availability), the meeting alert, a task's notes window, the menu bar item and each Settings pane, in light and dark. The app draws them itself, with sample calendars (Work, Calendar A and Client X) and sample tasks in place of yours, so nothing from your own calendars ends up in them, and it runs next to a copy you already have open, and next to runs from other checkouts. Today's sample meetings sit around the current time, so run it during the day. It needs `cwebp` (`brew install webp`). Run it after changing how the menu, the alert or Settings look, and commit the new images.
 
 To try the app with the sample calendars, start it with `CALENDAR_HUB_DEMO=1`:
 

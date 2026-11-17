@@ -13,6 +13,8 @@ struct MenuView: View {
     #endif
     /// Today's main-calendar events, for the Up next card.
     @State private var today: [SourceEvent] = []
+    /// Whether Share availability shows in place of the calendar views.
+    @ObservedObject private var panel = MenuPanel.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -20,28 +22,32 @@ struct MenuView: View {
                 Text("Calendar Hub").font(.headline)
             }
 
-            // A TimelineView is fine in the menu; only in the menu bar label does it loop.
-            TimelineView(.everyMinute) { context in
-                if let next = MenuCalendar.upNext(in: today, now: context.date, calendar: .current) {
-                    UpNextCard(event: next, now: context.date,
-                               origin: EventOrigin.of(next, settings: settings, eventKit: controller.eventKit))
-                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            if panel.sharingAvailability {
+                AvailabilityView { panel.sharingAvailability = false }
+            } else {
+                // A TimelineView is fine in the menu; only in the menu bar label does it loop.
+                TimelineView(.everyMinute) { context in
+                    if let next = MenuCalendar.upNext(in: today, now: context.date, calendar: .current) {
+                        UpNextCard(event: next, now: context.date,
+                                   origin: EventOrigin.of(next, settings: settings, eventKit: controller.eventKit))
+                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    }
                 }
-            }
 
-            if settings.menuHasViews {
-                MenuCalendarView()
-            }
-
-            if settings.meetingLimit.isEnabled {
-                let today = Calendar.current.startOfDay(for: Date())
-                let full = controller.fullDays.filter { $0.day >= today }
-                if !full.isEmpty {
-                    FullDaysCard(days: full, limit: settings.meetingLimit.hours) { showSettings(at: .meetingLimit) }
+                if settings.menuHasViews {
+                    MenuCalendarView()
                 }
-            }
 
-            problemCards
+                if settings.meetingLimit.isEnabled {
+                    let today = Calendar.current.startOfDay(for: Date())
+                    let full = controller.fullDays.filter { $0.day >= today }
+                    if !full.isEmpty {
+                        FullDaysCard(days: full, limit: settings.meetingLimit.hours) { showSettings(at: .meetingLimit) }
+                    }
+                }
+
+                problemCards
+            }
 
             Divider()
 
@@ -182,6 +188,12 @@ struct MenuView: View {
             }
             IconButton("heart", help: "Donate") {
                 NSWorkspace.shared.open(UpdateChecker.donatePage)
+            }
+            // In the menu rather than a popover: the menu window closes when another window
+            // takes the keyboard.
+            IconButton("calendar.badge.clock", help: panel.sharingAvailability ? "Back to the calendar" : "Share availability",
+                       tint: panel.sharingAvailability ? .accentColor : nil) {
+                panel.sharingAvailability.toggle()
             }
             IconButton("arrow.triangle.2.circlepath", help: "Sync now (⌘R)", shortcut: "r") {
                 Task { await controller.syncNow() }

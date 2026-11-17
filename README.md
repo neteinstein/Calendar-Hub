@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.42](https://img.shields.io/badge/version-2.0.42-2563EB)](Support/Info.plist)
+[![Version 2.0.43](https://img.shields.io/badge/version-2.0.43-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -108,6 +108,17 @@ When your meetings live in a secondary calendar (another company's account, a se
 <b>Stats by calendar.</b> Each calendar side by side, your main calendar's own meetings included: where your hours go across clients.
 </td>
 </tr>
+<tr>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-availability-dark.webp">
+  <img src="docs/screenshots/menu-availability-light.webp" alt="Share availability: the next three days' free times in New York time, within both people's working hours, ready to copy">
+</picture>
+<b>Share availability.</b> Answer "when are you free?" in one click: the free time in all your calendars over the next days, in the other person's time zone, as text to paste into an email or chat. Or right-click the menu bar item to copy it without opening the menu.
+</td>
+<td width="50%" valign="top">
+</td>
+</tr>
 </table>
 
 ### Task notes
@@ -203,6 +214,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
 - **Limits your meetings a day**, if you like: when a day reaches the hours you set, across every calendar, the menu says so ("Tomorrow: 5h 20m of meetings, over your 5h limit"), and the free time left in its working hours can become **Busy** in your main calendar, and in the secondary calendars you pick, so nobody books more.
 - **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
+- **Shares your availability:** your free times across every calendar, for the next three working days, this week or next week, in the other person's time zone and, if you like, only while they're working too, copied as text to paste anywhere. Right-click the menu bar item to copy it straight away. Nothing leaves your Mac until you paste it.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## What leaves your Mac, and where it ends up
@@ -317,7 +329,7 @@ To turn debug logging off again, use **Turn off** in Settings › Logs, or run `
 
 ### Meetings show up twice, and I use the app on two Macs
 
-Each Mac gives a secondary calendar its own id, so before 2.0.36 two Macs copying the same calendar into one main calendar each made their own copy of every meeting, and before 2.0.37 two Macs syncing both ways each added their own Busy events to the secondary calendar. Now each Mac uses the other's copies and Busy events: update both Macs and the duplicates go on the next sync. Give the calendar the **same name** on both Macs, since copies are only recognised by a calendar of the same name, and keep its settings the same, or each Mac will update the copies its own way. See [how it works](docs/how-it-works.md#copies).
+Each Mac gives a secondary calendar its own id, so before 2.0.36 two Macs copying the same calendar into one main calendar each made their own copy of every meeting. Now each Mac uses the other's copies: update both Macs and the duplicates go on the next sync. Give the calendar the **same name** on both Macs, since copies are only recognised by a calendar of the same name, and keep its settings the same, or each Mac will update the copies its own way. See [how it works](docs/how-it-works.md#copies).
 
 ## Learn more
 
