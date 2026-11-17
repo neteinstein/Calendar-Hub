@@ -25,7 +25,8 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
 public enum EventAlertPlanner {
     /// Events whose alert should be showing at `now`: from `leadMinutes` before the start
     /// until the event ends (so a meeting already under way still alerts, say after the Mac
-    /// wakes), skipping all-day, declined and cancelled events and ones in `shown`.
+    /// wakes), skipping all-day, declined and cancelled events, a full day's Busy blocks, and
+    /// ones in `shown`.
     /// Soonest start first.
     public static func dueAlerts(
         events: [SourceEvent],
@@ -36,7 +37,7 @@ public enum EventAlertPlanner {
         events
             .filter { event in
                 !event.isAllDay && !event.isDeclined && !event.isCancelled
-                    && !shown.contains(event.key)
+                    && !MeetingLimit.isBlock(event) && !shown.contains(event.key)
                     && now >= event.start.addingTimeInterval(-60 * Double(max(0, leadMinutes)))
                     && now < event.end
             }
@@ -53,7 +54,7 @@ public enum EventAlertPlanner {
         leadMinutes: Int
     ) -> Date? {
         events
-            .filter { !$0.isAllDay && !$0.isDeclined && !$0.isCancelled && !shown.contains($0.key) }
+            .filter { !$0.isAllDay && !$0.isDeclined && !$0.isCancelled && !MeetingLimit.isBlock($0) && !shown.contains($0.key) }
             .map { $0.start.addingTimeInterval(-60 * Double(max(0, leadMinutes))) }
             .filter { $0 > now }
             .min()

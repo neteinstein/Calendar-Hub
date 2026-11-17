@@ -76,6 +76,14 @@ Turn on **Meeting Stats** in Settings › Meeting Stats and the menu gains a **S
 
 Only timed meetings in your main calendar count: all-day, declined and out-of-office events don't. Overlapping meetings count once, with the total counting overlap next to it, like "20 hours (25 counting overlap)". Out of office counts the time it covers within working hours, Monday to Friday. Working hours are 9:00 to 17:00 unless you set your own in Settings.
 
+## Meeting limit
+
+People working across several calendars get booked from all sides, and each organizer sees only one of them. Turn on **Limit meetings to a number of hours a day** in Settings › Meeting limit and set the hours (5 to start with). Hours are counted as Meeting Stats counts them: timed meetings in the main calendar, so across every calendar, overlap once, and declined, all-day and out-of-office events left out. Weekends and days you're out of office during working hours have no limit. When today or a day in the sync window reaches the limit, the menu says so, like "Tomorrow: 5h 20m of meetings, over your 5h limit"; click it for the settings.
+
+Calendar Hub can't stop invitations (they arrive in Outlook or Google, not in the app), so with **Mark the rest of the day as Busy when it's reached** on, it makes the day look full instead. On each sync, the free time left in that day's working hours (gaps of 15 minutes or more, from now on) becomes events titled **Busy** in your main calendar. Their description says Calendar Hub added them and ends with a tag, `calsync:v1:limit:<day>`, so the app knows them as its own and never copies them or counts them as meetings; they have no alerts. They never stop anyone from booking: a meeting booked over one wins, and the next sync redraws the blocks around it. When the day drops below the limit (a meeting cancelled or moved), they're removed on the next sync, and turning the option off removes them all. Delete one by hand and that day gets no new ones.
+
+With **Two way sync** on, the main calendar's events go to your secondary calendars as Busy, and so would these blocks. A secondary calendar gets them only when you turn on **Mark full days in** it in Meeting limit: some clients shouldn't see you as unavailable, others should. Without two way sync, the blocks stay in the main calendar.
+
 ## Share availability
 
 - **From the menu.** The calendar button in the menu's footer, next to the heart, shows **Share availability** in place of the calendar views. Pick **Next 3 days**, **This week** or **Next week**, whose time it's for (yours, a World Clocks city, or any other found by searching), the shortest slot worth sharing, and whether to keep to their working hours too. **Copy** puts the text on the clipboard, ready to paste into an email or chat: `My availability (New York time, GMT−5):` and a line per day with its free times.
@@ -93,4 +101,5 @@ When there is one, a blue **update** button appears next to **Sync now** in the 
 ## Known limits
 
 - Calendar.app refreshes accounts every few minutes, so changes made in a secondary calendar show up with that delay.
+- Two Macs running Calendar Hub on the same main calendar both write a full day's Busy blocks. Each recognises the other's by their tag, so they settle on the same blocks, but a block deleted by hand is only remembered on the Mac that noticed it.
 - If you remove a secondary calendar from the app, the copies already made from it stay in your calendar, and the Busy events two way sync added to it stay in the secondary calendar. Delete them in Calendar if you no longer want them. To have the app take the Busy events back, turn off **Show my main calendar here** (or **Sync both ways**) and let it sync before removing the calendar.
