@@ -291,7 +291,7 @@ final class SyncController: ObservableObject {
                     known: known,
                     otherMacIDs: settings.otherMacIDs)
                 : SyncPlanner.planBusyRemoval(
-                    existing: existingBusy, addedHere: settings.busyCalendarIDs.contains(calendarID))
+                    for: source, existing: existingBusy, addedHere: settings.busyCalendarIDs.contains(calendarID))
             problems += busy.failedSources.values.map { "\(calendar.title) (Busy): \($0)" }
             if apply {
                 // Recorded before writing, so the Busy events are taken back later even if
@@ -516,7 +516,7 @@ final class SyncController: ObservableObject {
                 otherMacIDs: settings.otherMacIDs)
             // Busy events made by 2.0.0 to 2.0.5 carry no token, and only ones added to this
             // calendar are recognised at all.
-            : SyncPlanner.planBusyRemoval(existing: existingBusy, addedHere: true)
+            : SyncPlanner.planBusyRemoval(for: source, existing: existingBusy, addedHere: true)
         problems += busy.failedSources.values.map { "\(name) (Busy): \($0)" }
         if apply {
             // Recorded before writing, so the Busy events are taken back later even if some
