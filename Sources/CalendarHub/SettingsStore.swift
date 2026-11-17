@@ -19,6 +19,8 @@ final class SettingsStore: ObservableObject {
     @Published var taskOptions: TaskOptions { didSet { save(taskOptions, "taskOptions") } }
     /// The menu's World Clocks view and its cities.
     @Published var worldClocks: WorldClockOptions { didSet { save(worldClocks, "worldClocks") } }
+    /// The menu's Time Tracking view, its timer and its nudge. Off until turned on.
+    @Published var timeTracking: TimeTrackingOptions { didSet { save(timeTracking, "timeTracking") } }
     @Published var targetCalendarID: String? { didSet { defaults.set(targetCalendarID, forKey: "targetCalendarID") } }
     @Published var intervalMinutes: Int { didSet { defaults.set(intervalMinutes, forKey: "intervalMinutes") } }
     /// The main calendar is also shown as Busy in the secondary calendars, in each one whose
@@ -65,6 +67,7 @@ final class SettingsStore: ObservableObject {
         menuCalendar = Self.load(MenuCalendarOptions.self, "menuCalendar", defaults) ?? MenuCalendarOptions()
         taskOptions = Self.load(TaskOptions.self, "taskOptions", defaults) ?? TaskOptions()
         worldClocks = Self.load(WorldClockOptions.self, "worldClocks", defaults) ?? WorldClockOptions()
+        timeTracking = Self.load(TimeTrackingOptions.self, "timeTracking", defaults) ?? TimeTrackingOptions()
         targetCalendarID = defaults.string(forKey: "targetCalendarID")
         let interval = defaults.integer(forKey: "intervalMinutes")
         intervalMinutes = interval > 0 ? interval : 15
@@ -79,10 +82,14 @@ final class SettingsStore: ObservableObject {
     /// The menu shows Month or List, and the menu bar icon today's date.
     var menuShowsCalendar: Bool { menuShowsMonth || menuShowsList }
 
-    /// The menu has at least one view: Month, List, Tasks, World Clocks or Stats.
+    /// The menu has at least one view: Month, List, Tasks, World Clocks, Stats or Time Tracking.
     var menuHasViews: Bool {
         menuShowsCalendar || taskOptions.showsInMenu || worldClocks.showsInMenu || menuCalendar.showsMeetingStats
+            || timeTracking.isEnabled
     }
+
+    /// Every client time can be logged to: the secondary calendars, those added by hand, Internal.
+    var timeClients: [TimeClient] { TimeTracking.clients(sources: sources, options: timeTracking) }
 
     /// How an Outlook on the web calendar is kept in `busyCalendarIDs`.
     static func outlookBusyKey(_ sourceID: UUID) -> String {

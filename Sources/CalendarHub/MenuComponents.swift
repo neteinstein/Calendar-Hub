@@ -136,55 +136,95 @@ struct QuietJoinButton: View {
 
 /// Picks one of a few views, with a highlight that slides to the picked one.
 ///
-/// Only the highlight's offset along the strip animates. The views it switches between have
-/// different heights, so picking one resizes the menu window in the same update (see
+/// Only the highlight's offset and width along the strip animate. The views it switches between
+/// have different heights, so picking one resizes the menu window in the same update (see
 /// `WindowTopAnchor`); anything animated by its place in the window, as a matched geometry
 /// effect or an animation over the whole strip is, flies in from where the resize left it
 /// for a moment, over the Up next card. An offset within the strip can't be moved by that.
+///
+/// Each segment is as wide as its title, and the room left is shared out evenly, so a long
+/// title such as Time Tracking fits next to short ones like List.
 struct SlidingSegments<Value: Hashable>: View {
     let options: [(value: Value, title: String)]
     @Binding var selection: Value
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Where each segment sits in the strip, for the highlight.
+    @State private var frames: [Int: CGRect] = [:]
 
     var body: some View {
         let index = options.firstIndex { $0.value == selection } ?? 0
-        HStack(spacing: 0) {
-            ForEach(options, id: \.value) { option in
+        SegmentsLayout {
+            ForEach(Array(options.enumerated()), id: \.element.value) { offset, option in
                 let isSelected = option.value == selection
                 Button {
                     selection = option.value
                 } label: {
                     Text(option.title)
                         .font(.system(size: 12, weight: .medium))
-                        // A longer title, such as World Clocks, shrinks a little to fit.
+                        // Shrinks a little when even the shared-out room is too narrow.
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundStyle(isSelected ? .primary : .secondary)
                         .animation(.easeOut(duration: 0.2), value: isSelected)
+                        .padding(.horizontal, 3)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: SegmentFrames.self, value: [offset: proxy.frame(in: .named(Self.space))])
+                })
             }
         }
-        // The segments share the width equally, so the highlight is one segment wide and moves
-        // a segment's width per step.
-        .background(alignment: .leading) {
-            GeometryReader { proxy in
-                let width = proxy.size.width / CGFloat(max(options.count, 1))
+        .coordinateSpace(name: Self.space)
+        .onPreferenceChange(SegmentFrames.self) { frames = $0 }
+        .background(alignment: .topLeading) {
+            if let frame = frames[index] {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(colorScheme == .dark ? Color.white.opacity(0.16) : .white)
                     .shadow(color: .black.opacity(0.12), radius: 1.5, y: 0.5)
-                    .frame(width: width, height: proxy.size.height)
-                    .offset(x: width * CGFloat(index))
-                    .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: index)
+                    .frame(width: frame.width, height: frame.height)
+                    .offset(x: frame.minX, y: frame.minY)
+                    .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: frame)
             }
         }
         .padding(2)
         .background(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private static var space: String { "segments" }
+
+    private struct SegmentFrames: PreferenceKey {
+        static var defaultValue: [Int: CGRect] { [:] }
+        static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
+            value.merge(nextValue()) { $1 }
+        }
+    }
+}
+
+/// Lays segments out in a row, each as wide as its title plus an even share of the room
+/// left; when there's too little room, each gives up its share of the shortfall.
+private struct SegmentsLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+        return CGSize(width: proposal.width ?? ideal.map(\.width).reduce(0, +),
+                      height: ideal.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified).width }
+        let total = ideal.reduce(0, +)
+        guard total > 0 else { return }
+        let extra = (bounds.width - total) / CGFloat(subviews.count)
+        var x = bounds.minX
+        for (subview, width) in zip(subviews, ideal) {
+            let shown = extra >= 0 ? width + extra : width * bounds.width / total
+            subview.place(at: CGPoint(x: x, y: bounds.minY), proposal: ProposedViewSize(width: shown, height: bounds.height))
+            x += shown
+        }
     }
 }
 

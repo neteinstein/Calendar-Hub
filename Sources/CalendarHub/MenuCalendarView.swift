@@ -3,7 +3,7 @@ import CalendarHubCore
 import SwiftUI
 
 /// The views at the top of the menu, each turned on in Settings: the month grid, the event
-/// list, Tasks, World Clocks and Meeting Stats. Events come from the main calendar, where secondary-calendar meetings are already copied.
+/// list, Tasks, World Clocks, Meeting Stats and Time Tracking. Events come from the main calendar, where secondary-calendar meetings are already copied.
 struct MenuCalendarView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
@@ -28,12 +28,17 @@ struct MenuCalendarView: View {
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
 
     enum Mode: String {
-        case month, list, tasks, clocks, stats
+        case month, list, tasks, clocks, stats, time
     }
+
+    /// The view to show whatever was left open, for screenshots: a mode set in the defaults
+    /// just before was sometimes read stale, and the screenshot showed another view.
+    static var fixedMode: Mode?
 
     /// The saved mode, or the first one shown when the saved one is now off.
     private var shownMode: Mode {
         let shown = modes.map(\.value)
+        let mode = Self.fixedMode ?? mode
         return shown.contains(mode) ? mode : shown.first ?? .month
     }
 
@@ -71,6 +76,8 @@ struct MenuCalendarView: View {
                                          calendar: calendar, workingHours: workingHours)
                     }
                     .transition(.opacity)
+                case .time:
+                    TimeTrackingView(events: events, calendar: calendar).transition(.opacity)
                 }
             }
         }
@@ -78,6 +85,7 @@ struct MenuCalendarView: View {
         .onChange(of: shownMonth) { _, _ in reload() }
         .onChange(of: settings.menuCalendar) { _, _ in reload() }
         .onChange(of: settings.taskOptions.showsInMenu) { _, _ in reload() }
+        .onChange(of: settings.timeTracking) { _, _ in reload() }
         .onChange(of: shownMode) { _, _ in reload() }
         .onChange(of: controller.lastSync) { _, _ in reload() }
     }
@@ -88,6 +96,7 @@ struct MenuCalendarView: View {
             + (settings.taskOptions.showsInMenu ? [(.tasks, "Tasks")] : [])
             + (settings.worldClocks.showsInMenu ? [(.clocks, "World Clocks")] : [])
             + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
+            + (settings.timeTracking.isEnabled ? [(.time, "Time Tracking")] : [])
     }
 
     // MARK: - Data
@@ -120,6 +129,10 @@ struct MenuCalendarView: View {
         case .stats:
             let window = MeetingStats.window(now: Date(), calendar: calendar)
             (from, to) = (window.start, window.end)
+        case .time:
+            // This week, for today's time and the week's.
+            guard let week = calendar.dateInterval(of: .weekOfYear, for: Date()) else { return }
+            (from, to) = (week.start, week.end)
         }
         if case .success(let fetched) = controller.eventKit.sourceEvents(calendarID: targetID, from: from, to: to) {
             events = fetched.filter { !$0.isCancelled }
