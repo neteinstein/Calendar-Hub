@@ -244,7 +244,13 @@ final class SyncController: ObservableObject {
             mainEvents = []
         }
         let plan = SyncPlanner.plan(sources: results, existing: existing, options: settings.options,
-                                    mainEvents: mainEvents, lastRead: known)
+                                    mainEvents: mainEvents, lastRead: known,
+                                    setUpHere: Set(settings.sources.map(\.id)))
+        for (otherID, id) in plan.otherMacIDs where settings.otherMacIDs[otherID] != id {
+            AppLog.write("Calendar Hub: another Mac copies \(settings.sources.first { $0.id == id }?.calendarName ?? "a calendar") "
+                         + "into the main calendar too (as \(otherID.uuidString)); its copies are used instead of adding more.")
+            settings.otherMacIDs[otherID] = id
+        }
 
         var unread = plan.failedSources.map { id, reason in
             UnreadSource(id: id, name: settings.sources.first { $0.id == id }?.calendarName ?? "Source", reason: reason)
@@ -282,7 +288,8 @@ final class SyncController: ObservableObject {
                     existing: existingBusy,
                     options: settings.options,
                     clearingAlerts: !settings.busyAlertsCleared,
-                    known: known)
+                    known: known,
+                    otherMacIDs: settings.otherMacIDs)
                 : SyncPlanner.planBusyRemoval(
                     existing: existingBusy, addedHere: settings.busyCalendarIDs.contains(calendarID))
             problems += busy.failedSources.values.map { "\(calendar.title) (Busy): \($0)" }
@@ -387,6 +394,7 @@ final class SyncController: ObservableObject {
     private func refreshOrphanedCopies(targetID: String) {
         let (start, end) = cleanupWindow
         let known = Set(settings.sources.map(\.id)).union(settings.keptOrphanSourceIDs)
+            .union(settings.otherMacIDs.keys.filter { settings.source(forCopiesOf: $0) != nil })
         let orphans = SyncPlanner.orphanedCopies(
             in: eventKit.existingCopies(targetID: targetID, from: start, to: end) ?? [], known: known)
         if orphans.count != orphanedCopies.count {
@@ -439,7 +447,7 @@ final class SyncController: ObservableObject {
         var copies: [UUID: Int] = [:]
         var owner: [String: UUID] = [:]
         for copy in existing {
-            guard let sourceID = copy.marker?.sourceID else { continue }
+            guard let sourceID = copy.marker.flatMap({ settings.source(forCopiesOf: $0.sourceID)?.id }) else { continue }
             copies[sourceID, default: 0] += 1
             owner[copy.eventID] = sourceID
         }
@@ -504,7 +512,8 @@ final class SyncController: ObservableObject {
                 mainEvents: eventKit.sourceEvents(calendarID: targetID, from: start, to: end),
                 existing: existingBusy,
                 options: settings.options,
-                known: known)
+                known: known,
+                otherMacIDs: settings.otherMacIDs)
             // Busy events made by 2.0.0 to 2.0.5 carry no token, and only ones added to this
             // calendar are recognised at all.
             : SyncPlanner.planBusyRemoval(existing: existingBusy, addedHere: true)

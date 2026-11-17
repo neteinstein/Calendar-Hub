@@ -3,10 +3,26 @@ import Foundation
 /// Turns a source event into the copy that should exist in the target calendar.
 public enum CopyFormatter {
     public static func title(for event: SourceEvent, source: SourceConfig) -> String {
-        let calendar = source.calendarName.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = source.hideMeetingName ? "Busy" : event.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let meeting = name.isEmpty ? "Busy" : name
-        return calendar.isEmpty ? meeting : "[\(calendar)] \(meeting)"
+        return titlePrefix(of: source) + (name.isEmpty ? "Busy" : name)
+    }
+
+    /// What every copy of `source` is titled with first: "[Calendar A] ", or nothing for a
+    /// calendar without a name.
+    public static func titlePrefix(of source: SourceConfig) -> String {
+        let calendar = source.calendarName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return calendar.isEmpty ? "" : "[\(calendar)] "
+    }
+
+    /// `spec` carrying `marker` instead of its own, for a copy that keeps the marker it has:
+    /// one another Mac made (see `SyncPlanner.plan`), rewritten here without taking it over.
+    public static func spec(_ spec: CopySpec, taggedWith marker: CopyMarker) -> CopySpec {
+        var spec = spec
+        if let old = spec.marker, spec.notes.hasSuffix(old.encoded) {
+            spec.notes = String(spec.notes.dropLast(old.encoded.count)) + marker.encoded
+        }
+        spec.marker = marker
+        return spec
     }
 
     /// A copy's title without the "[Calendar A] " prefix `title(for:source:)` adds, for places
