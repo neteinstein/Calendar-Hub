@@ -50,9 +50,12 @@ final class BusyPlannerTests: XCTestCase {
     func testTokenIsPerCalendar() {
         XCTAssertEqual(CopyFormatter.busyToken(sourceID: secondaryA.id), CopyFormatter.busyToken(sourceID: secondaryA.id))
         XCTAssertNotEqual(CopyFormatter.busyToken(sourceID: secondaryA.id), CopyFormatter.busyToken(sourceID: secondaryB.id))
-        // Another calendar's token isn't this calendar's Busy event.
+        // Another token is another Mac's Busy event in this calendar, known by that token.
         let other = CopyFormatter.busyNotes(sourceID: secondaryB.id)
-        XCTAssertNil(CopyFormatter.busyMatch(title: "Busy", notes: other, sourceID: secondaryA.id))
+        guard case .tagged(let marker) = CopyFormatter.busyMatch(title: "Busy", notes: other, sourceID: secondaryA.id)
+        else { return XCTFail() }
+        XCTAssertEqual(CopyFormatter.busyToken(of: marker), CopyFormatter.busyToken(sourceID: secondaryB.id))
+        XCTAssertNotEqual(marker, CopyFormatter.busyMarker(sourceID: secondaryA.id))
     }
 
     func testOutOfOfficeStyleCarriesNoDetailsEither() {
@@ -254,16 +257,16 @@ final class BusyPlannerTests: XCTestCase {
         existing.append(ExistingCopy(eventID: "legacy", marker: marker, title: "Busy", start: base, end: base + 3600,
                                      isAllDay: false, url: nil, notes: marker.encoded))
 
-        let plan = SyncPlanner.planBusyRemoval(existing: existing, addedHere: true)
+        let plan = SyncPlanner.planBusyRemoval(for: secondaryA, existing: existing, addedHere: true)
         let deleted = plan.actions.compactMap { if case .delete(let id, _, _) = $0 { id } else { nil } }
         XCTAssertEqual(Set(deleted), ["busy-0", "busy-1", "legacy"])
-        XCTAssertTrue(SyncPlanner.planBusyRemoval(existing: [], addedHere: true).isEmpty)
+        XCTAssertTrue(SyncPlanner.planBusyRemoval(for: secondaryA, existing: [], addedHere: true).isEmpty)
 
         // In a calendar no Busy events were added to since 2.0.0, a look-alike without a marker
         // is the user's own: only the marked ones are taken back.
         existing.append(ExistingCopy(eventID: "lookalike", marker: nil, title: "Busy", start: base + 7200, end: base + 3 * 3600,
                                      isAllDay: false, url: nil, notes: "Busy"))
-        let untouched = SyncPlanner.planBusyRemoval(existing: existing, addedHere: false)
+        let untouched = SyncPlanner.planBusyRemoval(for: secondaryA, existing: existing, addedHere: false)
         XCTAssertEqual(Set(untouched.actions.compactMap { if case .delete(let id, _, _) = $0 { id } else { nil } }),
                        ["busy-0", "busy-1", "legacy"])
     }

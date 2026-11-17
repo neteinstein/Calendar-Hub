@@ -83,7 +83,11 @@ public enum CopyFormatter {
 
     /// A Busy event's whole description: "Busy", then the calendar's token.
     public static func busyNotes(sourceID: UUID) -> String {
-        busyNotes + "\n\n" + busyToken(sourceID: sourceID)
+        busyNotes(token: busyToken(sourceID: sourceID))
+    }
+
+    static func busyNotes(token: String) -> String {
+        busyNotes + "\n\n" + token
     }
 
     /// The code every Busy event in the calendar of `sourceID` carries: a hash of the source
@@ -97,6 +101,28 @@ public enum CopyFormatter {
     /// Busy events of 1.x had. It is never written to the event; `busyNotes(sourceID:)` is.
     public static func busyMarker(sourceID: UUID) -> CopyMarker {
         CopyMarker(sourceID: sourceID, key: busyKeyPrefix + busyToken(sourceID: sourceID))
+    }
+
+    /// The token a Busy event's marker stands for, mine or another Mac's: nil for one without
+    /// a token (made by 1.x, or by 2.0.0 to 2.0.5).
+    public static func busyToken(of marker: CopyMarker?) -> String? {
+        guard let key = marker?.key, key.hasPrefix(busyKeyPrefix) else { return nil }
+        let token = String(key.dropFirst(busyKeyPrefix.count))
+        return isToken(token) ? token : nil
+    }
+
+    /// Whether `word` has the form of a token: 32 lowercase hex digits.
+    static func isToken<S: StringProtocol>(_ word: S) -> Bool {
+        word.count == 32 && word.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
+    }
+
+    /// The Busy event `spec` describes, carrying `token` (another Mac's) instead of this
+    /// Mac's: one that Mac made, kept up to date here without being taken over.
+    public static func busySpec(_ spec: CopySpec, token: String) -> CopySpec {
+        var spec = spec
+        spec.marker = spec.marker.map { CopyMarker(sourceID: $0.sourceID, key: busyKeyPrefix + token) }
+        spec.notes = busyNotes(token: token)
+        return spec
     }
 
     /// Whether `spec` is a Busy event rather than a copy.
@@ -114,6 +140,11 @@ public enum CopyFormatter {
     }
 
     /// Whether an event in the calendar of `sourceID` is a Busy event, and how surely.
+    ///
+    /// One carrying another token is too: another Mac's, which gave the calendar an id of its
+    /// own (or this Mac's, under an id the calendar had before it was set up again). Only a
+    /// Mac syncing this calendar both ways adds Busy events to it, so they're the calendar's.
+    /// Its marker then has `sourceID` and that token (see `busyToken(of:)`).
     public static func busyMatch(title: String?, notes: String?, sourceID: UUID) -> BusyMatch? {
         if let marker = CopyMarker.find(in: notes) {
             return marker.key.hasPrefix(busyKeyPrefix) ? .tagged(marker) : nil
@@ -122,7 +153,9 @@ public enum CopyFormatter {
         guard BusyStyle.allCases.contains(where: { $0.title == title }) else { return nil }
         // Calendar servers can hand the description back as HTML, with line breaks of their own.
         let words = HTMLText.words(of: HTMLText.plainText(from: notes ?? ""))
-        if words == [busyNotes[...], busyToken(sourceID: sourceID)[...]] { return .tagged(busyMarker(sourceID: sourceID)) }
+        if words.count == 2, words[0] == busyNotes, isToken(words[1]) {
+            return .tagged(CopyMarker(sourceID: sourceID, key: busyKeyPrefix + words[1]))
+        }
         return words == [busyNotes[...]] ? .untagged : nil
     }
 
