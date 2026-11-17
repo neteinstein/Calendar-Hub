@@ -53,7 +53,7 @@ final class DemoCalendars {
         settings.targetCalendarID = main.calendarIdentifier
         settings.sources = [
             SourceConfig(id: sourceA, kind: .eventKit(calendarID: calendarA.calendarIdentifier), calendarName: "Calendar A",
-                         showBusyInSecondary: true),
+                         showBusyInSecondary: true, marksFullDays: true),
             SourceConfig(id: sourceX, kind: .outlookWeb, calendarName: "Client X", name: "Client X"),
         ]
         settings.twoWaySync = true
@@ -68,6 +68,7 @@ final class DemoCalendars {
         ])
         settings.menuBar.showsNextMeeting = true
         settings.options.daysAhead = 14
+        settings.meetingLimit = MeetingLimitOptions(isEnabled: true, hours: 4, marksBusy: true)
         return settings
     }
 
@@ -287,7 +288,7 @@ enum Snapshots {
                     "menu-bar-\(suffix)", appearance, to: folder)
         for pane in SettingsPane.allCases where pane != .preview && pane != .logs {
             context.defaults.set(pane.rawValue, forKey: SettingsPane.defaultsKey)
-            await shoot(environment(WindowFrame(title: pane.title) { SettingsView() }),
+            await shoot(environment(WindowFrame(title: pane.title) { SettingsView(fixedPane: pane) }),
                         "settings-\(pane.rawValue)-\(suffix)", appearance, to: folder)
         }
     }

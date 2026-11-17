@@ -57,12 +57,15 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     public var copyUnaccepted: Bool
     /// How often this calendar is read, in minutes. `nil` uses the app-wide interval.
     public var intervalMinutes: Int?
+    /// While it shows the main calendar as Busy, the Busy blocks of a day that reached the
+    /// meeting limit are shown here too (see `MeetingLimit`). The main calendar always has them.
+    public var marksFullDays: Bool
 
     // `showBusyInSecondary` keeps the key older versions saved it under.
     enum CodingKeys: String, CodingKey {
         case id, kind, calendarName, name, hideMeetingName, isEnabled
         case showBusyInSecondary = "showBusyInClient"
-        case busyStyle, copyDetails, copyMeetingLink, copyUnaccepted, intervalMinutes
+        case busyStyle, copyDetails, copyMeetingLink, copyUnaccepted, intervalMinutes, marksFullDays
     }
 
     public init(
@@ -77,7 +80,8 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         copyDetails: Bool = false,
         copyMeetingLink: Bool = true,
         copyUnaccepted: Bool = true,
-        intervalMinutes: Int? = nil
+        intervalMinutes: Int? = nil,
+        marksFullDays: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -91,6 +95,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         self.copyMeetingLink = copyMeetingLink
         self.copyUnaccepted = copyUnaccepted
         self.intervalMinutes = intervalMinutes
+        self.marksFullDays = marksFullDays
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -108,6 +113,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         copyMeetingLink = try c.decodeIfPresent(Bool.self, forKey: .copyMeetingLink) ?? true
         copyUnaccepted = try c.decodeIfPresent(Bool.self, forKey: .copyUnaccepted) ?? true
         intervalMinutes = try c.decodeIfPresent(Int.self, forKey: .intervalMinutes)
+        marksFullDays = try c.decodeIfPresent(Bool.self, forKey: .marksFullDays) ?? false
     }
 }
 
