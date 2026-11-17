@@ -86,6 +86,14 @@ Calendar Hub can't stop invitations (they arrive in Outlook or Google, not in th
 
 With **Two way sync** on, the main calendar's events go to your secondary calendars as Busy, and so would these blocks. A secondary calendar gets them only when you turn on **Mark full days in** it in Meeting limit: some clients shouldn't see you as unavailable, others should. Without two way sync, the blocks stay in the main calendar.
 
+## Share availability
+
+- **From the menu.** The calendar button in the menu's footer, next to the heart, shows **Share availability** in place of the calendar views. Pick **Next 3 days**, **This week** or **Next week**, whose time it's for (yours, a World Clocks city, or any other found by searching), the shortest slot worth sharing, and whether to keep to their working hours too. **Copy** puts the text on the clipboard, ready to paste into an email or chat: `My availability (New York time, GMT−5):` and a line per day with its free times.
+- **From the menu bar.** Right-click (or Control-click) the menu bar item to copy the next 3 days, this week or next week straight away, with the time zone and slot length last picked in the panel, or to open the panel.
+- **Free means free everywhere.** It reads the main calendar, which already has every copy. Meetings you haven't accepted count as busy, and so does out of office, all-day too; declined meetings and other all-day events don't. Free time is within your working hours on your weekdays, from the next quarter hour today; with **Only when we're both working**, within theirs too, in their own time.
+- **Only as far as it syncs.** Days past what Calendar Hub reads (today plus the days set in Settings › General) are left out, and the panel says so.
+- **Nothing leaves your Mac** until you paste it.
+
 ## Time Tracking
 
 For timesheets, billing or your manager: where your working day went, client by client. It's off until you turn on **Time Tracking** in Settings › Time Tracking; until then, nothing is recorded. The menu then gains a **Time Tracking** view, after Stats, with today's time per client, the time nobody logged, and this week's time with **Export CSV**.
