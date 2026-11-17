@@ -188,6 +188,56 @@ struct SlidingSegments<Value: Hashable>: View {
     }
 }
 
+/// Picks one of a few options, each as wide as its title needs: Meeting Stats' calendars,
+/// whose names vary in length. Looks like `SlidingSegments`, a little smaller, and its titles
+/// never shrink, so it doesn't change how the views above it are drawn.
+struct CompactSegments<Value: Hashable>: View {
+    let options: [(value: Value, title: String)]
+    @Binding var selection: Value
+    @Environment(\.colorScheme) private var colorScheme
+
+    private static var font: NSFont { .systemFont(ofSize: 10.5, weight: .medium) }
+    private static var titlePadding: CGFloat { 8 }
+
+    /// Whether `titles` fit side by side in `width`.
+    static func fit(_ titles: [String], in width: CGFloat) -> Bool {
+        let needed = titles.map { ($0 as NSString).size(withAttributes: [.font: font]).width.rounded(.up) + 2 * titlePadding }
+        return needed.reduce(4, +) <= width
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.value) { option in
+                let isSelected = option.value == selection
+                Button {
+                    selection = option.value
+                } label: {
+                    Text(option.title)
+                        .font(Font(Self.font))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .padding(.horizontal, Self.titlePadding)
+                        .padding(.vertical, 3)
+                        .frame(maxWidth: .infinity)
+                        .background {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(colorScheme == .dark ? Color.white.opacity(0.16) : .white)
+                                    .shadow(color: .black.opacity(0.12), radius: 1.5, y: 0.5)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+            }
+        }
+        .padding(2)
+        .background(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
 /// Arrows that spin while something runs.
 struct Spinner: View {
     var symbol = "arrow.triangle.2.circlepath"
