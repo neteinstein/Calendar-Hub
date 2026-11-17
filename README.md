@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.36](https://img.shields.io/badge/version-2.0.36-2563EB)](Support/Info.plist)
+[![Version 2.0.38](https://img.shields.io/badge/version-2.0.38-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -101,6 +101,11 @@ When your meetings live in a secondary calendar (another company's account, a se
 <b>Stats.</b> Where your week goes: hours in meetings, the last two weeks, your busiest day, the free time left today, and a year of it pictured as a trip.
 </td>
 <td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-availability-dark.webp">
+  <img src="docs/screenshots/menu-availability-light.webp" alt="Share availability: the next three days' free times in New York time, within both people's working hours, ready to copy">
+</picture>
+<b>Share availability.</b> Answer "when are you free?" in one click: the free time in all your calendars over the next days, in the other person's time zone, as text to paste into an email or chat.
 </td>
 </tr>
 </table>
@@ -193,6 +198,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
 - **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
+- **Shares your availability:** your free times across every calendar, for the next three working days, this week or next week, in the other person's time zone and, if you like, only while they're working too, copied as text to paste anywhere. Nothing leaves your Mac until you paste it.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## What leaves your Mac, and where it ends up

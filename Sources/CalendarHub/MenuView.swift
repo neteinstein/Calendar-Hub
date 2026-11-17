@@ -13,6 +13,12 @@ struct MenuView: View {
     #endif
     /// Today's main-calendar events, for the Up next card.
     @State private var today: [SourceEvent] = []
+    /// Share availability shows in place of the calendar views.
+    @State private var sharingAvailability: Bool
+
+    init(sharingAvailability: Bool = false) {
+        _sharingAvailability = State(initialValue: sharingAvailability)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -20,20 +26,24 @@ struct MenuView: View {
                 Text("Calendar Hub").font(.headline)
             }
 
-            // A TimelineView is fine in the menu; only in the menu bar label does it loop.
-            TimelineView(.everyMinute) { context in
-                if let next = MenuCalendar.upNext(in: today, now: context.date, calendar: .current) {
-                    UpNextCard(event: next, now: context.date,
-                               origin: EventOrigin.of(next, settings: settings, eventKit: controller.eventKit))
-                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            if sharingAvailability {
+                AvailabilityView { sharingAvailability = false }
+            } else {
+                // A TimelineView is fine in the menu; only in the menu bar label does it loop.
+                TimelineView(.everyMinute) { context in
+                    if let next = MenuCalendar.upNext(in: today, now: context.date, calendar: .current) {
+                        UpNextCard(event: next, now: context.date,
+                                   origin: EventOrigin.of(next, settings: settings, eventKit: controller.eventKit))
+                            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                    }
                 }
-            }
 
-            if settings.menuHasViews {
-                MenuCalendarView()
-            }
+                if settings.menuHasViews {
+                    MenuCalendarView()
+                }
 
-            problemCards
+                problemCards
+            }
 
             Divider()
 
@@ -174,6 +184,12 @@ struct MenuView: View {
             }
             IconButton("heart", help: "Donate") {
                 NSWorkspace.shared.open(UpdateChecker.donatePage)
+            }
+            // In the menu rather than a popover: the menu window closes when another window
+            // takes the keyboard.
+            IconButton("calendar.badge.clock", help: sharingAvailability ? "Back to the calendar" : "Share availability",
+                       tint: sharingAvailability ? .accentColor : nil) {
+                sharingAvailability.toggle()
             }
             IconButton("arrow.triangle.2.circlepath", help: "Sync now (⌘R)", shortcut: "r") {
                 Task { await controller.syncNow() }
