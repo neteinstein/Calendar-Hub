@@ -18,7 +18,7 @@ struct EventOrigin: Hashable {
             return eventKit.calendar(id: settings.targetCalendarID)
                 .map { EventOrigin(name: $0.title, color: Color(cgColor: $0.cgColor)) }
         }
-        guard let source = settings.sources.first(where: { $0.id == originID }) else { return nil }
+        guard let source = settings.source(forCopiesOf: originID) else { return nil }
         return of(source, settings: settings, eventKit: eventKit)
     }
 
