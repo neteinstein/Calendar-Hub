@@ -71,9 +71,11 @@ public enum MeetingStats {
     /// Days before today the average is taken over.
     static let averageDays = 28
 
-    /// Only timed meetings count: not all-day events, out of office, or meetings declined or cancelled.
+    /// Only timed meetings count: not all-day events, out of office, meetings declined or
+    /// cancelled, or the Busy blocks of a day that reached the meeting limit.
     static func counts(_ event: SourceEvent) -> Bool {
         !event.isAllDay && !isOutOfOffice(event) && !event.isDeclined && !event.isCancelled && event.end > event.start
+            && !MeetingLimit.isBlock(event)
     }
 
     /// Shown as out of office, or titled like it: calendars without that status (iCloud, Google)
