@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Sample calendars and meetings shown in place of the user's own, for screenshots and demos:
 /// set `CALENDAR_HUB_DEMO` (or `CALENDAR_HUB_SNAPSHOTS`) in the environment. Nothing is read
-/// from or written to Calendar.app, and settings go to a separate defaults domain.
+/// from or written to Calendar.app, and settings go to a defaults domain of the demo's own.
 @MainActor
 final class DemoCalendars {
     static var isRequested: Bool {
@@ -39,9 +39,58 @@ final class DemoCalendars {
         reminders = EKCalendar(for: .reminder, eventStore: store)
         reminders.title = "Reminders"
         reminders.cgColor = CGColor(red: 1, green: 0.58, blue: 0, alpha: 1)
-        let suite = "org.neteinstein.calendarhub.demo"
-        defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        Self.removeSuitesOfEndedDemos()
+        defaults = Self.defaults()
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
+                                               queue: .main) { _ in
+            MainActor.assumeIsolated { Self.removeSuites() }
+        }
+    }
+
+    // MARK: - Settings
+
+    /// Each demo keeps its settings in a suite named after its process, apart from the real
+    /// app's and from other demos': screenshot runs from several checkouts at once would
+    /// otherwise switch each other's menu view or Settings pane mid-run.
+    private static let suitePrefix = "org.neteinstein.calendarhub.demo."
+    private static let suiteName = suitePrefix + String(getpid())
+    /// The suites this demo made, removed when it quits.
+    private static var suites: Set<String> = []
+
+    /// One of this demo's suites, empty the first time: its settings, or `name`'s.
+    static func defaults(_ name: String? = nil) -> UserDefaults {
+        let suite = name.map { "\(suiteName).\($0)" } ?? suiteName
+        if suites.insert(suite).inserted {
+            // Left by an earlier process with the same ID that didn't get to quit.
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+        }
+        return UserDefaults(suiteName: suite)!
+    }
+
+    private static func removeSuites() {
+        suites.forEach(remove)
+    }
+
+    /// The suites of demos that ended without quitting (killed, or crashed), and files the
+    /// preferences daemon wrote after a demo quit.
+    private static func removeSuitesOfEndedDemos() {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: preferences.path)) ?? []
+        for file in files where file.hasPrefix(suitePrefix) && file.hasSuffix(".plist") {
+            let suite = String(file.dropLast(".plist".count))
+            let process = suite.dropFirst(suitePrefix.count).prefix { $0 != "." }
+            guard let pid = pid_t(process), pid != getpid(), kill(pid, 0) == -1, errno == ESRCH else { continue }
+            remove(suite)
+        }
+    }
+
+    /// Emptying a suite leaves an empty file behind, one more per run, so the file goes too.
+    private static func remove(_ suite: String) {
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: preferences.appendingPathComponent(suite + ".plist"))
+    }
+
+    private static var preferences: URL {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("Preferences")
     }
 
     var calendars: [EKCalendar] { [main, calendarA, personal] }
@@ -449,8 +498,7 @@ private struct MenuBarStrips: View {
     }
 
     private func strip(showsNextMeeting: Bool, showsMeetingProgress: Bool = false, showsTimer: Bool = false) -> some View {
-        let shown = SettingsStore(defaults: UserDefaults(
-            suiteName: "org.neteinstein.calendarhub.demo.strip\(showsNextMeeting)\(showsMeetingProgress)\(showsTimer)")!)
+        let shown = SettingsStore(defaults: DemoCalendars.defaults("strip\(showsNextMeeting)\(showsMeetingProgress)\(showsTimer)"))
         shown.targetCalendarID = settings.targetCalendarID
         shown.menuBar.showsNextMeeting = showsNextMeeting
         shown.menuBar.showsMeetingProgress = showsMeetingProgress
