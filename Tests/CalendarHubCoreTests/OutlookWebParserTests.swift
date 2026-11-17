@@ -30,6 +30,50 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertTrue(events[2].isCancelled)
     }
 
+    func testCancelledMeetingsWithoutTheFlag() {
+        // The week view often leaves IsCancelled out: Exchange retitles the meeting, and OWA
+        // sets the cancelled bit (4) of AppointmentState.
+        let json = """
+        {"Items":[
+          {"ItemId":{"Id":"c1"},"Subject":"Canceled: Design review","Start":"2026-10-23T09:00:00Z","End":"2026-10-23T10:00:00Z"},
+          {"ItemId":{"Id":"c2"},"Subject":"Retro","Start":"2026-10-23T11:00:00Z","End":"2026-10-23T12:00:00Z","AppointmentState":7},
+          {"ItemId":{"Id":"c3"},"Subject":"Cancelado: Reunião","Start":"2026-10-23T13:00:00Z","End":"2026-10-23T14:00:00Z"},
+          {"ItemId":{"Id":"ok"},"Subject":"Planning","Start":"2026-10-23T15:00:00Z","End":"2026-10-23T16:00:00Z","AppointmentState":3}
+        ]}
+        """
+        let events = OutlookWebParser.events(fromPayloads: [Data(json.utf8)])
+        XCTAssertEqual(events.map(\.isCancelled), [true, true, true, false])
+
+        // Loaded in full, the meeting can say so when the week view didn't.
+        let week = #"{"Items":[{"ItemId":{"Id":"d1"},"Subject":"Sync","Start":"2026-10-23T09:00:00Z","End":"2026-10-23T10:00:00Z"}]}"#
+        let detail = #"{"Items":[{"ItemId":{"Id":"d1"},"IsCancelled":true,"Body":{"BodyType":"Text","Value":"Moved"}}]}"#
+        XCTAssertEqual(OutlookWebParser.events(fromPayloads: [Data(week.utf8)], details: [Data(detail.utf8)]).map(\.isCancelled), [true])
+    }
+
+    func testCancelledTitles() {
+        for title in ["Canceled: Standup", "Cancelled: Standup", "CANCELED:Standup", "Cancelado: Daily",
+                      "Annulé : Point", "Abgesagt: Termin", "Annullato: Riunione", "Geannuleerd: Overleg"] {
+            XCTAssertTrue(SourceEvent.isCancelledTitle(title), title)
+        }
+        for title in ["Standup", "Q&A: cancelled features", "Retro: what got canceled", "Not canceled: Standup", ""] {
+            XCTAssertFalse(SourceEvent.isCancelledTitle(title), title)
+        }
+    }
+
+    func testCancelledMeetingIsNotCopied() {
+        let source = SourceConfig(kind: .outlookWeb, calendarName: "Client X")
+        let json = """
+        {"Items":[
+          {"ItemId":{"Id":"c1"},"Subject":"Canceled: Design review","Start":"2026-10-23T09:00:00Z","End":"2026-10-23T10:00:00Z"},
+          {"ItemId":{"Id":"ok"},"Subject":"Planning","Start":"2026-10-23T15:00:00Z","End":"2026-10-23T16:00:00Z"}
+        ]}
+        """
+        let plan = SyncPlanner.plan(sources: [(source, .success(OutlookWebParser.events(fromPayloads: [Data(json.utf8)])))],
+                                    existing: [], options: SyncOptions())
+        XCTAssertEqual(plan.actions.compactMap { if case .create(let spec) = $0 { spec.title } else { nil } },
+                       ["[Client X] Planning"])
+    }
+
     func testGraphShapeWithWindowsTimeZoneAndSeriesKey() throws {
         let json = """
         {"value":[{"id":"occ-1","subject":"Standup","type":"occurrence",

@@ -278,6 +278,28 @@ public struct SourceEvent: Hashable, Sendable {
     /// Accepted, or not an invitation at all: your own events and the ones you organise.
     public var isAccepted: Bool { !isDeclined && !isUnconfirmed }
 
+    /// Whether `title` starts the way Exchange retitles a meeting its organizer cancelled:
+    /// "Canceled: Standup". The meeting stays in the attendee's calendar like that, and
+    /// neither Outlook on the web's week view nor Calendar.app always says it's cancelled.
+    /// The word is in the organizer's language, so the common ones are known; French puts a
+    /// space before the colon.
+    public static func isCancelledTitle(_ title: String) -> Bool {
+        guard let colon = title.firstIndex(of: ":") else { return false }
+        let word = title[..<colon]
+            .trimmingCharacters(in: .whitespaces)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        return cancelledWords.contains(word)
+    }
+
+    private static let cancelledWords: Set<String> = [
+        "canceled", "cancelled", // English
+        "cancelado", "cancelada", // Portuguese, Spanish
+        "annule", "annulee", // French
+        "abgesagt", // German
+        "annullato", "annullata", // Italian
+        "geannuleerd", // Dutch
+    ]
+
     public init(
         key: String,
         title: String,

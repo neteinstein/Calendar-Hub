@@ -74,7 +74,7 @@ final class EventKitBridge {
             isDeclined: myStatus == .declined,
             // Your own events, and the ones you organise, have no status.
             isUnconfirmed: myStatus == .pending || myStatus == .tentative,
-            isCancelled: event.status == .canceled,
+            isCancelled: event.status == .canceled || SourceEvent.isCancelledTitle(event.title ?? ""),
             // Exchange's "Out of office" comes through as unavailable.
             isOutOfOffice: event.availability == .unavailable,
             meetingURL: MeetingLink.find(url: event.url, location: event.location, notes: event.notes),

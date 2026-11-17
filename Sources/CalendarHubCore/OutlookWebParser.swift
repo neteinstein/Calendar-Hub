@@ -195,7 +195,6 @@ public enum OutlookWebParser {
             // tentative until you accept it, so a tentative one counts as not accepted.
             let isUnconfirmed = fields.contains("Tentative")
 
-            let lowered = title.lowercased()
             let key = screenKey(title: title, start: start)
             guard seen.insert(key).inserted else { continue }
             result.append(SourceEvent(
@@ -204,7 +203,7 @@ public enum OutlookWebParser {
                 start: start,
                 end: end,
                 isUnconfirmed: isUnconfirmed,
-                isCancelled: lowered.hasPrefix("canceled:") || lowered.hasPrefix("cancelled:"),
+                isCancelled: SourceEvent.isCancelledTitle(title),
                 isOutOfOffice: isOutOfOffice,
                 meetingURL: MeetingLink.firstMeetingLink(in: rest)
             ))
@@ -253,7 +252,6 @@ public enum OutlookWebParser {
                 ?? obj.string("startTimeZoneId") ?? obj.object("startTimeZone")?.string("id"))
             (start, end) = allDayRange(startField, endField, start: start, end: end, eventZone: eventZone, timeZone: timeZone)
         }
-        let isCancelled = obj.bool("isCancelled") ?? false
 
         let response = (obj.string("responseType")
             ?? obj.string("myResponseType")
@@ -278,6 +276,7 @@ public enum OutlookWebParser {
         let joinURL = first(joinURL)
         let body = first(self.body)
         let notes = body?.text ?? first { $0.string("bodyPreview") ?? $0.string("preview") }
+        let isCancelled = sources.contains(where: isMarkedCancelled) || SourceEvent.isCancelledTitle(subject)
         let meetingURL = MeetingLink.find(url: joinURL.flatMap(URL.init(string:)), location: location, notes: body?.raw ?? notes)
             ?? joinURL.flatMap(URL.init(string:))
             ?? MeetingLink.firstMeetingLink(in: sources.flatMap { $0.allStrings() }.joined(separator: " "))
@@ -298,6 +297,19 @@ public enum OutlookWebParser {
             location: location,
             inviteID: obj.string("iCalUId") ?? obj.string("uid")
         )
+    }
+
+    /// Whether Outlook marks the meeting cancelled: `IsCancelled` (OWA and Graph), or the
+    /// cancelled bit (4) of OWA's `AppointmentState`. The week view often sends neither, so
+    /// `SourceEvent.isCancelledTitle` is checked too.
+    static func isMarkedCancelled(_ obj: Obj) -> Bool {
+        if obj.bool("isCancelled") == true { return true }
+        let state: Int? = switch obj.value("appointmentState") {
+        case let n as NSNumber: n.intValue
+        case let s as String: Int(s)
+        default: nil
+        }
+        return (state ?? 0) & 4 != 0
     }
 
     static func joinURL(_ obj: Obj) -> String? {
