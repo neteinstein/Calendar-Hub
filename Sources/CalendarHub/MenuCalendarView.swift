@@ -135,7 +135,8 @@ struct MenuCalendarView: View {
             (from, to) = (week.start, week.end)
         }
         if case .success(let fetched) = controller.eventKit.sourceEvents(calendarID: targetID, from: from, to: to) {
-            events = fetched.filter { !$0.isCancelled }
+            // A full day's Busy blocks aren't meetings: the menu says the day is full instead.
+            events = fetched.filter { !$0.isCancelled && !MeetingLimit.isBlock($0) }
         }
     }
 
