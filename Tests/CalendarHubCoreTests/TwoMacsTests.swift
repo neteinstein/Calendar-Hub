@@ -188,4 +188,112 @@ final class TwoMacsTests: XCTestCase {
         let unknown = SyncPlanner.planBusy(for: secondary, mainEvents: .success(inMain), existing: [], options: SyncOptions())
         XCTAssertEqual(unknown.creates, 3, "as before, without knowing that Mac's id")
     }
+
+    // MARK: - Busy events added by both Macs
+
+    var busy1: SourceConfig {
+        var c = mac1
+        c.kind = .eventKit(calendarID: "client-a")
+        c.showBusyInSecondary = true
+        return c
+    }
+
+    var busy2: SourceConfig {
+        var c = mac2
+        c.kind = .eventKit(calendarID: "client-a")
+        c.showBusyInSecondary = true
+        return c
+    }
+
+    var mainCalendar: [SourceEvent] { [event("m1", "Lunch", at: 1), event("m2", "Dentist", at: 4)] }
+
+    /// The Busy events in the secondary calendar as `source` reads them after `plan` (see
+    /// `EventKitBridge.busyEvents`).
+    func busyEvents(_ plan: SyncPlan, to existing: [ExistingCopy] = [], prefix: String, readBy source: SourceConfig) -> [ExistingCopy] {
+        applied(plan, to: existing, prefix: prefix).map {
+            var busy = $0
+            if case .tagged(let marker) = CopyFormatter.busyMatch(title: busy.title, notes: busy.notes, sourceID: source.id) {
+                busy.marker = marker
+            }
+            return busy
+        }
+    }
+
+    func planBusy(_ source: SourceConfig, existing: [ExistingCopy], main: [SourceEvent]? = nil,
+                  options: SyncOptions = SyncOptions()) -> SyncPlan {
+        SyncPlanner.planBusy(for: source, mainEvents: .success(main ?? mainCalendar), existing: existing, options: options)
+    }
+
+    func testTheOtherMacsBusyEventsAreUsedInsteadOfDuplicated() {
+        let made = busyEvents(planBusy(busy1, existing: []), prefix: "mac1", readBy: busy2)
+        XCTAssertEqual(made.count, 2)
+        let next = planBusy(busy2, existing: made)
+        XCTAssertTrue(next.isEmpty, "\(next.actions)")
+        XCTAssertEqual(next.unchangedCount, 2)
+    }
+
+    func testBothMacsKeepTheSameOneOfTwoBusyEvents() {
+        let both = applied(planBusy(busy1, existing: []), prefix: "mac1")
+            + applied(planBusy(busy2, existing: []), prefix: "mac2")
+        let read = { (source: SourceConfig) in
+            self.busyEvents(SyncPlan(actions: [], failedSources: [:], unchangedCount: 0), to: both, prefix: "", readBy: source)
+        }
+        let onMac1 = planBusy(busy1, existing: read(busy1))
+        let onMac2 = planBusy(busy2, existing: read(busy2))
+        XCTAssertEqual(onMac1.deletes, 2)
+        XCTAssertEqual(deletedIDs(onMac1), deletedIDs(onMac2), "the same ones, so one is left at each time")
+        XCTAssertEqual(onMac1.actions.count, 2)
+        XCTAssertEqual(onMac2.actions.count, 2)
+        let firstToken = [busy1.id, busy2.id].map { CopyFormatter.busyToken(sourceID: $0) }.min()!
+        let kept = both.filter { !deletedIDs(onMac1).contains($0.eventID) }
+        XCTAssertTrue(kept.allSatisfy { $0.notes.contains(firstToken) })
+    }
+
+    func testTheOtherMacsBusyEventGoesWithItsMeeting() {
+        let made = busyEvents(planBusy(busy1, existing: []), prefix: "mac1", readBy: busy2)
+        let next = planBusy(busy2, existing: made, main: [mainCalendar[0]])
+        XCTAssertEqual(deletedIDs(next), ["mac1-1"])
+        XCTAssertEqual(next.actions.count, 1)
+    }
+
+    func testTheOtherMacsBusyEventKeepsItsToken() {
+        let made = busyEvents(planBusy(busy1, existing: []), prefix: "mac1", readBy: busy2)
+        var outOfOffice = busy2
+        outOfOffice.busyStyle = .outOfOffice
+        let next = planBusy(outOfOffice, existing: made)
+        XCTAssertEqual(next.updates, 2)
+        for case .update(_, let spec) in next.actions {
+            XCTAssertEqual(spec.title, "Out of office")
+            XCTAssertTrue(spec.notes.contains(CopyFormatter.busyToken(sourceID: busy1.id)))
+            XCTAssertFalse(spec.notes.contains(CopyFormatter.busyToken(sourceID: busy2.id)))
+        }
+    }
+
+    func testBusyEventsLeftOutHereAreLeftToTheOtherMac() {
+        var holiday = event("m3", "Holiday", at: 0)
+        holiday.isAllDay = true
+        holiday.end = holiday.start + 86400
+        let main = mainCalendar + [holiday]
+        let made = busyEvents(planBusy(busy1, existing: [], main: main), prefix: "mac1", readBy: busy2)
+        XCTAssertEqual(made.count, 3)
+        let next = planBusy(busy2, existing: made, main: main, options: SyncOptions(skipAllDay: true))
+        XCTAssertTrue(next.isEmpty, "\(next.actions)")
+    }
+
+    func testTurningBusyOffLeavesTheOtherMacsBusyEvents() {
+        let made = busyEvents(planBusy(busy1, existing: []), prefix: "mac1", readBy: busy2)
+        let mine = busyEvents(planBusy(busy2, existing: [], main: [event("m9", "Call", at: 6)]), prefix: "mac2", readBy: busy2)
+        let removal = SyncPlanner.planBusyRemoval(for: busy2, existing: made + mine, addedHere: true)
+        XCTAssertEqual(deletedIDs(removal), Set(mine.map(\.eventID)))
+    }
+
+    func testTheOtherMacsBusyEventsAreNeverCopied() {
+        let made = applied(planBusy(busy1, existing: []), prefix: "mac1")
+        let inSecondary = made.map { SourceEvent(key: $0.eventID, title: $0.title, start: $0.start, end: $0.end, notes: $0.notes) }
+            + [event("s1", "Client call", at: 7)]
+        let copies = plan(busy2, inSecondary, existing: [])
+        XCTAssertEqual(copies.creates, 1)
+        guard case .create(let spec) = copies.actions[0] else { return XCTFail() }
+        XCTAssertEqual(spec.title, "[Client A] Client call")
+    }
 }
