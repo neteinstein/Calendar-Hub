@@ -179,17 +179,36 @@ public enum SyncPlanner {
         }
         desired.sort { $0.start < $1.start }
 
+        // Another Mac syncing this calendar both ways adds Busy events with its own token. Of
+        // two at one time, both Macs keep the same one: the first by token, and one without a
+        // token (an older version's, or a look-alike) last.
+        let ownToken = CopyFormatter.busyToken(sourceID: source.id)
+        let order = { (busy: ExistingCopy) in (busy.start, CopyFormatter.busyToken(of: busy.marker) ?? "~") }
+        let sorted = existing.sorted { order($0) < order($1) }
         var actions: [SyncAction] = []
         var unchanged = 0
-        for busy in existing.sorted(by: { $0.start < $1.start }) {
-            guard let index = desired.firstIndex(where: {
-                $0.isAllDay == busy.isAllDay && sameTimes(busy, $0, calendar: calendar)
-            }) else {
-                // Nothing in the main calendar at that time any more, or a duplicate.
-                actions.append(.delete(eventID: busy.eventID, title: busy.title, start: busy.start))
+        var taken: [CopySpec] = []
+        for busy in sorted {
+            let isAt = { (spec: CopySpec) in spec.isAllDay == busy.isAllDay && sameTimes(busy, spec, calendar: calendar) }
+            let token = CopyFormatter.busyToken(of: busy.marker)
+            let othersToken = token.flatMap { $0 == ownToken ? nil : $0 }
+            guard let index = desired.firstIndex(where: isAt) else {
+                // Another Mac's, at the time of a main-calendar event this Mac shows no Busy for
+                // (its settings leave it out): that Mac's to keep or take back.
+                let othersWanted = othersToken != nil && !taken.contains(where: isAt) && events.contains {
+                    $0.isAllDay == busy.isAllDay
+                        && sameTimes(busy, start: $0.start, end: $0.end, isAllDay: $0.isAllDay, calendar: calendar)
+                }
+                if !othersWanted {
+                    // Nothing in the main calendar at that time any more, or a duplicate.
+                    actions.append(.delete(eventID: busy.eventID, title: busy.title, start: busy.start))
+                }
                 continue
             }
-            let spec = desired.remove(at: index)
+            var spec = desired.remove(at: index)
+            taken.append(spec)
+            // Kept with its own token, so the other Mac doesn't write its back.
+            if let othersToken { spec = CopyFormatter.busySpec(spec, token: othersToken) }
             if needsBusyUpdate(busy, to: spec) || (clearingAlerts && busy.hasAlerts) {
                 actions.append(.update(eventID: busy.eventID, spec))
             } else {
@@ -203,12 +222,19 @@ public enum SyncPlanner {
     /// Takes back the Busy events in a secondary calendar that no longer asks for them. Left
     /// there, they'd go on showing the main calendar as it was when they were last updated.
     ///
-    /// - Parameter addedHere: whether Busy events were added to this calendar since they stopped
-    ///   carrying a marker. If not, only the ones with a marker are taken back, so an event the
-    ///   user made that just looks like a Busy event is left alone.
-    public static func planBusyRemoval(existing: [ExistingCopy], addedHere: Bool) -> SyncPlan {
+    /// Another Mac's Busy events (with another token) stay: that Mac may still show the main
+    /// calendar here.
+    ///
+    /// - Parameters:
+    ///   - source: the secondary calendar the Busy events are in.
+    ///   - addedHere: whether Busy events were added to this calendar since they stopped
+    ///     carrying a marker. If not, only the ones with a marker are taken back, so an event the
+    ///     user made that just looks like a Busy event is left alone.
+    public static func planBusyRemoval(for source: SourceConfig, existing: [ExistingCopy], addedHere: Bool) -> SyncPlan {
+        let ownToken = CopyFormatter.busyToken(sourceID: source.id)
         let actions = existing
             .filter { addedHere || $0.marker != nil }
+            .filter { CopyFormatter.busyToken(of: $0.marker).map { $0 == ownToken } ?? true }
             .sorted { $0.start < $1.start }
             .map { SyncAction.delete(eventID: $0.eventID, title: $0.title, start: $0.start) }
         return SyncPlan(actions: actions, failedSources: [:], unchangedCount: 0)

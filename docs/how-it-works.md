@@ -39,6 +39,8 @@ Optional, in the **Two way sync** pane. Your main calendar's events are added to
 
 The app recognises its Busy events by the code, and matches them to your main calendar by time. Busy events made by versions 2.0.0 to 2.0.5 carried no code: those are recognised by their title (**Busy** or **Out of office**), a description that is just “Busy”, having no attendees and not repeating, and get the code on their next sync. Until then, an event you made yourself that looks exactly like that is treated as one of them in a calendar two way sync writes to.
 
+On two Macs that both show the main calendar in the same secondary calendar, each Mac's Busy events carry a different code, since each Mac has its own id for the calendar. Any Busy event with a code is the app's, whichever Mac added it: a Mac uses the other's Busy event at a time instead of adding its own, keeps it up to date with the code it has, and removes it when nothing in the main calendar is at that time any more. Where both Macs added one (as versions before 2.0.37 did), one goes, and both Macs agree on which. A Mac whose settings leave out an event (all-day ones, say) leaves the other Mac's Busy event for it alone, and turning off **Show my main calendar here** on one Mac takes back only that Mac's Busy events. A Busy event added by another Mac is never copied into the main calendar either. Keep the Busy settings the same on both Macs, or each will update the Busy events its own way.
+
 ## The menu
 
 - **Up next.** The menu leads with the meeting under way, or the next one today if it starts within 4 hours, with a countdown and a **Join** button.
@@ -83,5 +85,4 @@ When there is one, a blue **update** button appears next to **Sync now** in the 
 ## Known limits
 
 - Calendar.app refreshes accounts every few minutes, so changes made in a secondary calendar show up with that delay.
-- With two way sync on two Macs, each Mac adds its own Busy events to a secondary calendar that both show the main calendar in. Turn on **Show my main calendar here** for that calendar on one Mac only.
 - If you remove a secondary calendar from the app, the copies already made from it stay in your calendar, and the Busy events two way sync added to it stay in the secondary calendar. Delete them in Calendar if you no longer want them. To have the app take the Busy events back, turn off **Show my main calendar here** (or **Sync both ways**) and let it sync before removing the calendar.
