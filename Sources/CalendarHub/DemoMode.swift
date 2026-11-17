@@ -68,20 +68,29 @@ final class DemoCalendars {
     }
 
     private static func removeSuites() {
-        suites.forEach(UserDefaults.standard.removePersistentDomain(forName:))
+        suites.forEach(remove)
     }
 
-    /// The suites of demos that ended without quitting (killed, or crashed).
+    /// The suites of demos that ended without quitting (killed, or crashed), and files the
+    /// preferences daemon wrote after a demo quit.
     private static func removeSuitesOfEndedDemos() {
-        let folder = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Preferences")
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: preferences.path)) ?? []
         for file in files where file.hasPrefix(suitePrefix) && file.hasSuffix(".plist") {
             let suite = String(file.dropLast(".plist".count))
             let process = suite.dropFirst(suitePrefix.count).prefix { $0 != "." }
             guard let pid = pid_t(process), pid != getpid(), kill(pid, 0) == -1, errno == ESRCH else { continue }
-            UserDefaults.standard.removePersistentDomain(forName: suite)
+            remove(suite)
         }
+    }
+
+    /// Emptying a suite leaves an empty file behind, one more per run, so the file goes too.
+    private static func remove(_ suite: String) {
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        try? FileManager.default.removeItem(at: preferences.appendingPathComponent(suite + ".plist"))
+    }
+
+    private static var preferences: URL {
+        FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0].appendingPathComponent("Preferences")
     }
 
     var calendars: [EKCalendar] { [main, calendarA, personal] }
