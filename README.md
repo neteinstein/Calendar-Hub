@@ -102,10 +102,21 @@ When your meetings live in a secondary calendar (another company's account, a se
 </td>
 <td width="50%" valign="top">
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-stats-calendars-dark.webp">
+  <img src="docs/screenshots/menu-stats-calendars-light.webp" alt="Meeting Stats by calendar: last week's and last month's hours for Client X, Calendar A and Work's own meetings, and the last two weeks stacked by calendar">
+</picture>
+<b>Stats by calendar.</b> Each calendar side by side, your main calendar's own meetings included: where your hours go across clients.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-time-dark.webp">
   <img src="docs/screenshots/menu-time-light.webp" alt="Time Tracking: the timer running for Client X, today's time per client with two stretches not logged, each with Assign, and this week's time per client with Export CSV">
 </picture>
 <b>Time Tracking.</b> Your day per client, for timesheets: meetings count by themselves, a timer covers the rest, and the time nobody logged is listed to assign. Export a week or a month as CSV. Off until you turn it on.
+</td>
+<td width="50%" valign="top">
 </td>
 </tr>
 </table>
