@@ -79,7 +79,9 @@ final class EventKitBridge {
             isOutOfOffice: event.availability == .unavailable,
             meetingURL: MeetingLink.find(url: event.url, location: event.location, notes: event.notes),
             notes: event.notes,
-            location: event.location
+            location: event.location,
+            // The invitation's UID, shared with the same invitation in other calendars.
+            inviteID: event.calendarItemExternalIdentifier
         )
     }
 

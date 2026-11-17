@@ -57,6 +57,9 @@ final class SyncController: ObservableObject {
     private var timer: Timer?
     /// When each secondary calendar was last read by a sync that applied its changes.
     private var lastRead: [UUID: Date] = [:]
+    /// Each secondary calendar's events as last read, so the same invitation in two calendars
+    /// is recognised even when a sync reads only one of them.
+    private var lastEvents: [UUID: [SourceEvent]] = [:]
     private var storeObserver: NSObjectProtocol?
     private var pendingChangeSync: Task<Void, Never>?
     /// Our own writes also fire EKEventStoreChanged; ignore those. On a clock that setting
@@ -233,7 +236,15 @@ final class SyncController: ObservableObject {
             return nil
         }
         setupProblem = nil
-        let plan = SyncPlanner.plan(sources: results, existing: existing, options: settings.options)
+        let known = knownEvents(read: results, targetID: targetID, from: start, to: end)
+        let mainEvents: [SourceEvent]
+        if case .success(let list) = eventKit.sourceEvents(calendarID: targetID, from: start, to: end) {
+            mainEvents = list
+        } else {
+            mainEvents = []
+        }
+        let plan = SyncPlanner.plan(sources: results, existing: existing, options: settings.options,
+                                    mainEvents: mainEvents, lastRead: known)
 
         var unread = plan.failedSources.map { id, reason in
             UnreadSource(id: id, name: settings.sources.first { $0.id == id }?.calendarName ?? "Source", reason: reason)
@@ -270,7 +281,8 @@ final class SyncController: ObservableObject {
                     mainEvents: eventKit.sourceEvents(calendarID: targetID, from: start, to: end),
                     existing: existingBusy,
                     options: settings.options,
-                    clearingAlerts: !settings.busyAlertsCleared)
+                    clearingAlerts: !settings.busyAlertsCleared,
+                    known: known)
                 : SyncPlanner.planBusyRemoval(
                     existing: existingBusy, addedHere: settings.busyCalendarIDs.contains(calendarID))
             problems += busy.failedSources.values.map { "\(calendar.title) (Busy): \($0)" }
@@ -298,7 +310,7 @@ final class SyncController: ObservableObject {
         // their Busy events are found while reading, and written through the page that read them.
         for source in outlookRead {
             if let busy = await syncOutlookBusy(source, targetID: targetID, from: start, to: end,
-                                                apply: apply, problems: &problems) {
+                                                known: known, apply: apply, problems: &problems) {
                 busyPlans.append(busy)
             }
         }
@@ -320,11 +332,39 @@ final class SyncController: ObservableObject {
             busyPreview = busyPlans
         }
         refreshOrphanedCopies(targetID: targetID)
+        if plan.sameInviteCount > 0 {
+            AppLog.write("Calendar Hub: \(plan.sameInviteCount) meetings not copied: the same invitation is in the main calendar or copied from another calendar")
+        }
         AppLog.write("Calendar Hub: \(apply ? lastSummary : "preview: \(plan.creates) to add, \(plan.updates) to update, \(plan.deletes) to remove")")
         for problem in problems.sorted() { AppLog.write("Calendar Hub: problem: \(problem)") }
         self.problems = problems.sorted()
         unreadSources = unread.sorted { $0.name < $1.name }
         return plan
+    }
+
+    /// Every enabled secondary calendar, in the order they're set up, with its events as last
+    /// read: just now, or by an earlier sync. Calendar.app calendars this sync didn't read are
+    /// read now, which is quick; Outlook on the web ones keep what their last read found.
+    /// Tells the same invitation in two calendars apart (see `SameInvite`).
+    private func knownEvents(
+        read results: [(config: SourceConfig, result: SourceFetchResult)],
+        targetID: String, from start: Date, to end: Date
+    ) -> [(config: SourceConfig, events: [SourceEvent])] {
+        for (source, result) in results {
+            if case .success(let events) = result { lastEvents[source.id] = events }
+        }
+        var known: [(config: SourceConfig, events: [SourceEvent])] = []
+        for source in settings.sources where source.isEnabled {
+            if case .eventKit(let calendarID) = source.kind {
+                if calendarID == targetID { continue }
+                if !results.contains(where: { $0.config.id == source.id }),
+                   case .success(let events) = eventKit.sourceEvents(calendarID: calendarID, from: start, to: end) {
+                    lastEvents[source.id] = events
+                }
+            }
+            if let events = lastEvents[source.id] { known.append((source, events)) }
+        }
+        return known
     }
 
     // MARK: - Copies of calendars no longer synced
@@ -445,6 +485,7 @@ final class SyncController: ObservableObject {
     /// anything to show.
     private func syncOutlookBusy(
         _ source: SourceConfig, targetID: String, from start: Date, to end: Date,
+        known: [(config: SourceConfig, events: [SourceEvent])],
         apply: Bool, problems: inout [String]
     ) async -> BusyPreview? {
         let key = SettingsStore.outlookBusyKey(source.id)
@@ -462,7 +503,8 @@ final class SyncController: ObservableObject {
                 for: source,
                 mainEvents: eventKit.sourceEvents(calendarID: targetID, from: start, to: end),
                 existing: existingBusy,
-                options: settings.options)
+                options: settings.options,
+                known: known)
             // Busy events made by 2.0.0 to 2.0.5 carry no token, and only ones added to this
             // calendar are recognised at all.
             : SyncPlanner.planBusyRemoval(existing: existingBusy, addedHere: true)

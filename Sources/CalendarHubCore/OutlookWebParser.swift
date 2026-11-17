@@ -295,7 +295,8 @@ public enum OutlookWebParser {
             isOutOfOffice: isOutOfOffice,
             meetingURL: meetingURL,
             notes: notes,
-            location: location
+            location: location,
+            inviteID: obj.string("iCalUId") ?? obj.string("uid")
         )
     }
 

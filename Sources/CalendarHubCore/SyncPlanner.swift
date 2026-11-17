@@ -12,6 +12,9 @@ public struct SyncPlan: Sendable {
     /// Sources that couldn't be read this run, with the reason. Their copies are untouched.
     public var failedSources: [UUID: String]
     public var unchangedCount: Int
+    /// Meetings left out because the same invitation is already in the main calendar, or is
+    /// copied from (or, for Busy events, already in) another calendar. See `SameInvite`.
+    public var sameInviteCount = 0
 
     public var creates: Int { actions.filter { if case .create = $0 { true } else { false } }.count }
     public var updates: Int { actions.filter { if case .update = $0 { true } else { false } }.count }
@@ -26,17 +29,31 @@ public enum SyncPlanner {
     ///   - sources: every configured source with the result of reading it for the sync window.
     ///   - existing: copies currently in the target calendar for the same window (anything
     ///     carrying a marker).
+    ///   - mainEvents: the main calendar's own events for the sync window. A meeting already
+    ///     there, invited to both calendars, isn't copied (see `SameInvite`).
+    ///   - lastRead: every enabled secondary calendar, in the order they're set up, with its
+    ///     events as last read, also those not read this time. When one invitation reached
+    ///     several of them, only the first one copies it. Nil uses `sources`.
     ///   - calendar: whose days all-day events are compared by.
     public static func plan(
         sources: [(config: SourceConfig, result: SourceFetchResult)],
         existing: [ExistingCopy],
         options: SyncOptions,
+        mainEvents: [SourceEvent] = [],
+        lastRead: [(config: SourceConfig, events: [SourceEvent])]? = nil,
         calendar: Calendar = .current
     ) -> SyncPlan {
         var desired: [CopyMarker: CopySpec] = [:]
         var desiredOrder: [CopyMarker] = []
         var syncedSourceIDs: Set<UUID> = []
         var failed: [UUID: String] = [:]
+        var sameInvite = 0
+
+        let lastRead = (lastRead ?? sources.compactMap { source in
+            guard case .success(let events) = source.result else { return nil }
+            return (source.config, events)
+        }).filter { $0.config.isEnabled }
+        let mainOriginals = mainEvents.filter(SameInvite.isOriginal)
 
         for (config, result) in sources where config.isEnabled {
             switch result {
@@ -44,7 +61,17 @@ public enum SyncPlanner {
                 failed[config.id] = reason
             case .success(let events):
                 syncedSourceIDs.insert(config.id)
+                // What the calendars set up before this one copy: the same invitation is theirs.
+                let index = lastRead.firstIndex { $0.config.id == config.id } ?? lastRead.count
+                let copiedEarlier = lastRead[..<index].flatMap { earlier in
+                    earlier.events.filter { shouldCopy($0, from: earlier.config, options: options) }
+                }
                 for event in events where shouldCopy(event, from: config, options: options) {
+                    let isElsewhere = { (other: SourceEvent) in SameInvite.matches(event, other, calendar: calendar) }
+                    if mainOriginals.contains(where: isElsewhere) || copiedEarlier.contains(where: isElsewhere) {
+                        sameInvite += 1
+                        continue
+                    }
                     let spec = CopyFormatter.spec(for: event, source: config)
                     if let marker = spec.marker, desired[marker] == nil {
                         desired[marker] = spec
@@ -56,7 +83,7 @@ public enum SyncPlanner {
 
         let (actions, unchanged) = diff(desired: desired, order: desiredOrder, existing: existing,
                                         owners: syncedSourceIDs, calendar: calendar)
-        return SyncPlan(actions: actions, failedSources: failed, unchangedCount: unchanged)
+        return SyncPlan(actions: actions, failedSources: failed, unchangedCount: unchanged, sameInviteCount: sameInvite)
     }
 
     /// Plans the "Busy" events that show the main calendar inside one secondary calendar.
@@ -65,6 +92,9 @@ public enum SyncPlanner {
     /// time: one per distinct time, and a meeting that moves gets its Busy event removed and
     /// another added at the new time.
     ///
+    /// A meeting the secondary calendar has itself, invited to both calendars, gets no Busy
+    /// event there: the meeting already shows that time as taken.
+    ///
     /// - Parameters:
     ///   - source: the secondary calendar to write into.
     ///   - mainEvents: the main calendar's events for the sync window.
@@ -72,6 +102,9 @@ public enum SyncPlanner {
     ///   - clearingAlerts: whether Busy events that have alerts are rewritten, which takes the
     ///     alerts off. Done once, for Busy events saved by older versions: a calendar that adds
     ///     its default alerts back would otherwise have them rewritten on every sync.
+    ///   - known: the secondary calendars' events as last read, this one's included. This one's
+    ///     are its own meetings; the others' tell which meeting a copy in the main calendar
+    ///     stands for.
     ///   - calendar: whose days all-day events are compared by.
     public static func planBusy(
         for source: SourceConfig,
@@ -79,6 +112,7 @@ public enum SyncPlanner {
         existing: [ExistingCopy],
         options: SyncOptions,
         clearingAlerts: Bool = false,
+        known: [(config: SourceConfig, events: [SourceEvent])] = [],
         calendar: Calendar = .current
     ) -> SyncPlan {
         let events: [SourceEvent]
@@ -90,8 +124,31 @@ public enum SyncPlanner {
             events = list
         }
 
+        // This calendar's own meetings, and the meeting behind each copy in the main calendar.
+        let own = (known.first { $0.config.id == source.id }?.events ?? []).filter {
+            SameInvite.isOriginal($0) && !CopyFormatter.isBusyEvent(title: $0.title, notes: $0.notes, sourceID: source.id)
+        }
+        var originals: [CopyMarker: SourceEvent] = [:]
+        if !own.isEmpty {
+            for (config, list) in known {
+                for event in list { originals[CopyMarker.hashed(sourceID: config.id, key: event.key)] = event }
+            }
+        }
+
         var desired: [CopySpec] = []
+        var sameInvite = 0
         for event in events where shouldShowBusy(event, in: source, options: options) {
+            if !own.isEmpty {
+                let original: SourceEvent? = if let marker = CopyMarker.find(in: event.notes) {
+                    originals[marker] ?? originals[marker.hashedIfLegacy]
+                } else {
+                    event
+                }
+                if let original, own.contains(where: { SameInvite.matches(original, $0, calendar: calendar) }) {
+                    sameInvite += 1
+                    continue
+                }
+            }
             let spec = CopyFormatter.busySpec(for: event, source: source)
             if !desired.contains(where: { $0.start == spec.start && $0.end == spec.end && $0.isAllDay == spec.isAllDay }) {
                 desired.append(spec)
@@ -117,7 +174,7 @@ public enum SyncPlanner {
             }
         }
         actions += desired.map { .create($0) }
-        return SyncPlan(actions: actions, failedSources: [:], unchangedCount: unchanged)
+        return SyncPlan(actions: actions, failedSources: [:], unchangedCount: unchanged, sameInviteCount: sameInvite)
     }
 
     /// Takes back the Busy events in a secondary calendar that no longer asks for them. Left
