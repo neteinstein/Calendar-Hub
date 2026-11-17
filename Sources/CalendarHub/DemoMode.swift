@@ -265,10 +265,14 @@ enum Snapshots {
                 .environmentObject(context.tasks)
                 .defaultAppStorage(context.defaults)
         }
+        context.defaults.set("", forKey: "meetingStatsCalendar")
         for mode in ["month", "list", "tasks", "clocks", "stats"] {
             context.defaults.set(mode, forKey: "menuCalendarMode")
             await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode)-\(suffix)", appearance, to: folder)
         }
+        context.defaults.set(MenuCalendarView.StatsChoice.byCalendar, forKey: "meetingStatsCalendar")
+        await shoot(environment(MenuDesk { MenuView() }), "menu-stats-calendars-\(suffix)", appearance, to: folder)
+        context.defaults.set("", forKey: "meetingStatsCalendar")
         // Share availability, for someone in New York.
         context.defaults.set("America/New_York", forKey: "availabilityTimeZone")
         MenuPanel.shared.sharingAvailability = true
