@@ -64,7 +64,7 @@ When your meetings live in a secondary calendar (another company's account, a se
 <td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-month-dark.webp">
-  <img src="docs/screenshots/menu-month-light.webp" alt="The menu's month view: the next meeting with a Join button above a month grid with a dot per calendar">
+  <img src="docs/screenshots/menu-month-light.webp" alt="The menu's month view: the next meeting with a Join button above a month grid with a dot per calendar, and a note that today's meetings reach the 4h limit">
 </picture>
 <b>Month.</b> The next meeting with a countdown and <b>Join</b>, and the month with a dot for each calendar that has meetings that day. Click a day for its meetings.
 </td>
@@ -187,6 +187,10 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-alerts-dark.webp">
   <img src="docs/screenshots/settings-alerts-light.webp" width="640" alt="Settings, Meeting alerts: the full-screen alert and how early it shows">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-meetingStats-dark.webp">
+  <img src="docs/screenshots/settings-meetingStats-light.webp" width="640" alt="Settings, Meeting Stats: the Stats view in the menu, and the working hours meetings are measured against">
 </picture>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-meetingLimit-dark.webp">
