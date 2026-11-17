@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.36](https://img.shields.io/badge/version-2.0.36-2563EB)](Support/Info.plist)
+[![Version 2.0.38](https://img.shields.io/badge/version-2.0.38-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -315,6 +315,10 @@ Starting the app from Terminal prints everything, crash messages included:
 ```
 
 To turn debug logging off again, use **Turn off** in Settings › Logs, or run `defaults write org.neteinstein.calendarhub debugLogging -bool false`.
+
+### Meetings show up twice, and I use the app on two Macs
+
+Each Mac gives a secondary calendar its own id, so before 2.0.36 two Macs copying the same calendar into one main calendar each made their own copy of every meeting, and before 2.0.37 two Macs syncing both ways each added their own Busy events to the secondary calendar. Now each Mac uses the other's copies and Busy events: update both Macs and the duplicates go on the next sync. Give the calendar the **same name** on both Macs, since copies are only recognised by a calendar of the same name, and keep its settings the same, or each Mac will update the copies its own way. See [how it works](docs/how-it-works.md#copies).
 
 ## Learn more
 
