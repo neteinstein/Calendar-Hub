@@ -6,13 +6,18 @@ struct MenuView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
     @EnvironmentObject private var updates: UpdateChecker
+    @EnvironmentObject private var timeTracker: TimeTracker
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if compiler(>=6.0)
     // Not in the SDK of Xcode 15 and older toolchains, which build with the SettingsLink below.
     @Environment(\.openSettings) private var openSettings
     #endif
-    /// Today's main-calendar events, for the Up next card.
+    /// Today's main-calendar events, for the Up next card and the untracked time.
     @State private var today: [SourceEvent] = []
+    /// The view the menu shows, to open Time Tracking from its nudge.
+    @AppStorage("menuCalendarMode") private var menuMode: MenuCalendarView.Mode = .month
+    /// The day ("2026-11-17") the untracked-time nudge was put away for.
+    @AppStorage("timeNudgeDismissed") private var nudgeDismissed = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -34,6 +39,10 @@ struct MenuView: View {
             }
 
             problemCards
+
+            TimelineView(.everyMinute) { context in
+                untrackedTimeCard(now: context.date)
+            }
 
             Divider()
 
@@ -68,6 +77,57 @@ struct MenuView: View {
             return
         }
         today = events.filter { !$0.isCancelled }
+    }
+
+    // MARK: - Untracked time
+
+    /// Once the working day is over, the time within it nobody logged, with a button to open
+    /// Time Tracking to give it to a client. Until put away for the day, and not while Time
+    /// Tracking already shows it.
+    @ViewBuilder
+    private func untrackedTimeCard(now: Date) -> some View {
+        let options = settings.timeTracking
+        let calendar = Calendar.current
+        let day = Self.dayKey(now, calendar: calendar)
+        if options.isEnabled, options.nudgesUntracked, menuMode != .time, nudgeDismissed != day,
+           TimeTracking.isAfterWorkingDay(now, workingHours: settings.menuCalendar.workingHours, calendar: calendar),
+           let interval = calendar.dateInterval(of: .day, for: now) {
+            let entries = timeTracker.entries(events: today, in: interval, now: now)
+            let untracked = TimeTracking.untrackedGaps(on: now, entries: entries,
+                                                       workingHours: settings.menuCalendar.workingHours,
+                                                       now: now, calendar: calendar)
+                .map(\.duration).reduce(0, +)
+            if untracked > 0 {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "stopwatch.fill")
+                        .foregroundStyle(Color.accentColor)
+                        .font(.system(size: 13))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(TimeTracking.duration(untracked)) of today isn't logged")
+                            .font(.system(size: 12.5, weight: .semibold))
+                        Text("Give it to a client while you still remember where it went.")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Button("Review") { menuMode = .time }
+                            Button("Not Today") { nudgeDismissed = day }
+                        }
+                        .controlSize(.small)
+                        .padding(.top, 4)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 11))
+                .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 0.5))
+            }
+        }
+    }
+
+    private static func dayKey(_ date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
     // MARK: - Problems
