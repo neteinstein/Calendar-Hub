@@ -281,6 +281,9 @@ public enum SyncPlanner {
         if event.isCancelled { return false }
         if options.skipDeclined && event.isDeclined { return false }
         if options.skipAllDay && event.isAllDay { return false }
+        // A full day's Busy blocks reach only the calendars that mark full days: some clients
+        // shouldn't see the user as unavailable.
+        if MeetingLimit.isBlock(event) { return source.marksFullDays && event.end > event.start }
         // Copies of this calendar's own meetings are already in its calendar. Copies from other
         // secondary calendars are shown, so each one sees time booked by the others.
         if let id = CopyMarker.find(in: event.notes)?.sourceID, id == source.id || otherMacIDs[id] == source.id {

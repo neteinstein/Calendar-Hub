@@ -92,9 +92,11 @@ public enum MenuCalendar {
 
     // MARK: - Next meeting
 
-    /// A meeting worth counting down to: timed, and not declined, cancelled or out of office.
+    /// A meeting worth counting down to: timed, and not declined, cancelled, out of office or
+    /// a full day's Busy block.
     static func isMeeting(_ event: SourceEvent) -> Bool {
         !event.isAllDay && !event.isDeclined && !event.isCancelled && !MeetingStats.isOutOfOffice(event)
+            && !MeetingLimit.isBlock(event)
     }
 
     /// How close the next meeting has to be for the menu to show it in the Up next card.
