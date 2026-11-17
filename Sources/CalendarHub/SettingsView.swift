@@ -10,8 +10,8 @@ struct SettingsView: View {
     @AppStorage(SettingsPane.defaultsKey) private var pane: SettingsPane = .general
     /// Logs is listed only while debug logging is on.
     @AppStorage(AppLog.enabledKey) private var logging = false
-    /// The pane to show whatever was left open, for screenshots: a pane set in the defaults
-    /// just before was sometimes read stale, and the screenshot showed the pane before it.
+    /// Shows this pane whatever was left open: for the README's screenshots, which mustn't
+    /// wait for the saved pane to reach the view.
     var fixedPane: SettingsPane?
 
     private var shown: SettingsPane { fixedPane ?? (pane == .logs && !logging ? .general : pane) }
@@ -54,7 +54,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, alerts, menuBar, tasks, worldClocks, meetingStats, timeTracking, preview, about, logs
+    case general, calendars, twoWaySync, alerts, meetingStats, meetingLimit, menuBar, tasks, worldClocks, timeTracking, preview, about, logs
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -71,6 +71,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .tasks: "Tasks"
         case .worldClocks: "World Clocks"
         case .meetingStats: "Meeting Stats"
+        case .meetingLimit: "Meeting limit"
         case .timeTracking: "Time Tracking"
         case .preview: "Preview"
         case .about: "About"
@@ -88,6 +89,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .tasks: "checklist"
         case .worldClocks: "globe"
         case .meetingStats: "chart.bar.fill"
+        case .meetingLimit: "hourglass"
         case .timeTracking: "stopwatch.fill"
         case .preview: "eye.fill"
         case .about: "info"
@@ -105,6 +107,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .tasks: .green
         case .worldClocks: .indigo
         case .meetingStats: .pink
+        case .meetingLimit: .yellow
         case .timeTracking: .cyan
         case .preview: .orange
         case .logs: .brown
@@ -122,6 +125,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .tasks: TasksTab()
         case .worldClocks: WorldClocksTab()
         case .meetingStats: MeetingStatsTab()
+        case .meetingLimit: MeetingLimitTab()
         case .timeTracking: TimeTrackingTab()
         case .preview: PreviewTab()
         case .about: AboutTab()
@@ -274,7 +278,70 @@ private struct MeetingStatsTab: View {
     }
 }
 
-/// From and to, in half hours: the working day Meeting Stats and World Clocks use.
+// MARK: - Meeting limit
+
+/// How many hours of meetings a day the user takes, and whether a full day is marked Busy.
+private struct MeetingLimitTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var controller: SyncController
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Limit meetings to a number of hours a day", isOn: $settings.meetingLimit.isEnabled)
+                    .onChange(of: settings.meetingLimit.isEnabled) { _, _ in Task { await controller.sync() } }
+                if settings.meetingLimit.isEnabled {
+                    Stepper("Up to \(MeetingLimit.format(hours: settings.meetingLimit.hours)) of meetings a day",
+                            value: $settings.meetingLimit.hours, in: 0.5...12, step: 0.5)
+                        .onChange(of: settings.meetingLimit.hours) { _, _ in Task { await controller.sync() } }
+                }
+            } footer: {
+                Text("When today or a day ahead reaches it, the menu says so. Hours are counted as Meeting Stats counts them: timed meetings across all your calendars, overlap once, leaving out declined, all-day and out-of-office events. Weekends and days you're out of office have no limit.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if settings.meetingLimit.isEnabled {
+                Section {
+                    Toggle("Mark the rest of the day as Busy when it's reached", isOn: $settings.meetingLimit.marksBusy)
+                        .onChange(of: settings.meetingLimit.marksBusy) { _, _ in Task { await controller.sync() } }
+                    LabeledContent("Working hours") {
+                        HStack(spacing: 4) {
+                            WorkingHoursPicker(hours: $settings.menuCalendar.workingHours)
+                        }
+                    }
+                } footer: {
+                    Text("Calendar Hub can't stop invitations, which arrive in Outlook or Google, so it makes the day look full instead: the free time left in your working hours becomes “Busy” events in your main calendar. They never stop anyone from booking: a meeting booked over one wins, and the blocks around it are redrawn. They go when the day drops below the limit. Delete one by hand and that day gets no more.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if settings.meetingLimit.writesBlocks {
+                Section {
+                    let showing = settings.sources.filter(\.showBusyInSecondary)
+                    if !settings.twoWaySync || showing.isEmpty {
+                        Text("Turn on Sync both ways, and show your main calendar in a secondary calendar, to mark full days there too.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach($settings.sources) { $source in
+                            if source.showBusyInSecondary {
+                                Toggle("Mark full days in \(source.name ?? source.calendarName)", isOn: $source.marksFullDays)
+                                    .onChange(of: source.marksFullDays) { _, _ in Task { await controller.sync() } }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Secondary calendars")
+                } footer: {
+                    Text("Your main calendar always gets the Busy events. A secondary calendar gets them only when you turn it on here: some clients shouldn't see you as unavailable, others should.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+/// From and to, in half hours: the working day Meeting Stats, World Clocks and the meeting limit use.
 private struct WorkingHoursPicker: View {
     @Binding var hours: WorkingHours
 

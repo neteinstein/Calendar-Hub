@@ -19,6 +19,14 @@ final class SettingsStore: ObservableObject {
     @Published var taskOptions: TaskOptions { didSet { save(taskOptions, "taskOptions") } }
     /// The menu's World Clocks view and its cities.
     @Published var worldClocks: WorldClockOptions { didSet { save(worldClocks, "worldClocks") } }
+    /// The daily meeting limit, and whether a full day's free time is marked Busy. Off until
+    /// turned on.
+    @Published var meetingLimit: MeetingLimitOptions { didSet { save(meetingLimit, "meetingLimit") } }
+    /// Not a setting: what the last sync left of the meeting limit's Busy blocks, and the days
+    /// whose blocks the user deleted by hand.
+    var meetingLimitState: MeetingLimitState {
+        didSet { if meetingLimitState != oldValue { save(meetingLimitState, "meetingLimitState") } }
+    }
     /// The menu's Time Tracking view, its timer and its nudge. Off until turned on.
     @Published var timeTracking: TimeTrackingOptions { didSet { save(timeTracking, "timeTracking") } }
     @Published var targetCalendarID: String? { didSet { defaults.set(targetCalendarID, forKey: "targetCalendarID") } }
@@ -78,6 +86,8 @@ final class SettingsStore: ObservableObject {
         menuCalendar = Self.load(MenuCalendarOptions.self, "menuCalendar", defaults) ?? MenuCalendarOptions()
         taskOptions = Self.load(TaskOptions.self, "taskOptions", defaults) ?? TaskOptions()
         worldClocks = Self.load(WorldClockOptions.self, "worldClocks", defaults) ?? WorldClockOptions()
+        meetingLimit = Self.load(MeetingLimitOptions.self, "meetingLimit", defaults) ?? MeetingLimitOptions()
+        meetingLimitState = Self.load(MeetingLimitState.self, "meetingLimitState", defaults) ?? MeetingLimitState()
         timeTracking = Self.load(TimeTrackingOptions.self, "timeTracking", defaults) ?? TimeTrackingOptions()
         targetCalendarID = defaults.string(forKey: "targetCalendarID")
         let interval = defaults.integer(forKey: "intervalMinutes")

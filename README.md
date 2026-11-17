@@ -173,6 +173,10 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
   <img src="docs/screenshots/settings-alerts-light.webp" width="640" alt="Settings, Meeting alerts: the full-screen alert and how early it shows">
 </picture>
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-meetingLimit-dark.webp">
+  <img src="docs/screenshots/settings-meetingLimit-light.webp" width="640" alt="Settings, Meeting limit: the hours of meetings a day, marking the rest of a full day as Busy, and the secondary calendars that get it too">
+</picture>
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-tasks-dark.webp">
   <img src="docs/screenshots/settings-tasks-light.webp" width="640" alt="Settings, Tasks: the Tasks view in the menu, the Reminders list tasks are kept in, and the nudges new tasks get">
 </picture>
@@ -201,6 +205,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
+- **Limits your meetings a day**, if you like: when a day reaches the hours you set, across every calendar, the menu says so ("Tomorrow: 5h 20m of meetings, over your 5h limit"), and the free time left in its working hours can become **Busy** in your main calendar, and in the secondary calendars you pick, so nobody books more.
 - **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
 - **Tracks your time per client**, if you turn it on: meetings logged to the calendar they came from, a timer for the rest, the working time nobody logged listed to assign, and a week or a month as CSV for your timesheet.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
@@ -216,6 +221,7 @@ Copying a meeting from one calendar into another puts data from one organization
 | The join link (Teams, Zoom, Google Meet, Webex) | Same | Unless **Copy the meeting link** is off for that calendar. A Teams link names the organization and the organizer, and a Zoom link can carry the passcode. |
 | The meeting's location and description | Same | Only with **Copy location and description** on, and never while names are hidden. |
 | A **Busy** block with the time and a description that says "Busy" plus an opaque code | Each secondary calendar you chose | Only with **Two way sync** on. No title, link, location, attendees or alerts, and nothing that names the app. |
+| A **Busy** block over a full day's free time, with a description that names Calendar Hub and the day | Your main calendar's server, and each secondary calendar you chose to mark full days in (there as a plain Busy event, like the ones above) | Only with **Mark the rest of the day as Busy** on in Meeting limit, on a day that reaches your limit. |
 | A task's title and notes, and the name and start of the meeting it's for | Your Reminders account (iCloud, say) | Only for tasks you make in the Tasks view. |
 | Time Tracking's log: the timer's time, time you assigned and meetings you gave to another client, each with its client's name | A file in the app's Application Support folder, on this Mac only, readable only by you | Only with **Time Tracking** on, once you log something. Turning it off asks whether to keep or delete it. |
 | A CSV of your logged time, with your meetings' titles | Where you save it | Only when you **Export CSV**. Calendars with **Hide meeting names** on have no titles in it. |
@@ -323,7 +329,7 @@ Each Mac gives a secondary calendar its own id, so before 2.0.36 two Macs copyin
 ## Learn more
 
 - [Install and update](docs/install.md): Homebrew in detail, opening at login, building from source, a separate admin account, and a missing menu bar icon.
-- [How it works](docs/how-it-works.md): how copies are made and matched, two way sync, the menu, the alert, tasks and Meeting Stats in detail, and known limits.
+- [How it works](docs/how-it-works.md): how copies are made and matched, two way sync, the menu, the alert, tasks, Meeting Stats and the meeting limit in detail, and known limits.
 - [Outlook on the web](docs/outlook-on-the-web.md): how the app reads (and can write to) a browser-only Outlook calendar, and what to check first.
 - [Development](docs/development.md): tests, how the code is laid out, screenshots and releases.
 
