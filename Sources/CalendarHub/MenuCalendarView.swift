@@ -24,8 +24,17 @@ struct MenuCalendarView: View {
     /// Today's finished meetings in the List view, folded into one row until opened.
     @State private var showsEarlier = false
     /// Which calendar Meeting Stats counts: empty for the main calendar, which holds every
-    /// meeting, or a secondary calendar's id for the meetings copied from it.
+    /// meeting, a secondary calendar's id for the meetings copied from it, or one of
+    /// `StatsChoice`'s.
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
+
+    /// Meeting Stats' picks besides All and each secondary calendar.
+    enum StatsChoice {
+        /// Every calendar side by side.
+        static let byCalendar = "byCalendar"
+        /// The main calendar's own meetings, without the copies.
+        static let `internal` = "internal"
+    }
 
     enum Mode: String {
         case month, list, tasks, clocks, stats, time
@@ -70,10 +79,17 @@ struct MenuCalendarView: View {
                         if settings.sources.isEmpty == false {
                             statsCalendarPicker
                         }
-                        let workingHours = settings.menuCalendar.workingHours
-                        MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar,
-                                                                     workingHours: workingHours),
-                                         calendar: calendar, workingHours: workingHours)
+                        if shownStatsCalendar == StatsChoice.byCalendar {
+                            calendarBreakdown
+                        } else {
+                            let workingHours = settings.menuCalendar.workingHours
+                            MeetingStatsView(stats: MeetingStats.summary(of: statsEvents, now: Date(), calendar: calendar,
+                                                                         workingHours: workingHours),
+                                             calendar: calendar, workingHours: workingHours,
+                                             counted: shownStatsCalendar == StatsChoice.internal
+                                                ? "Timed meetings in your main calendar, without the copies from other calendars."
+                                                : "Timed meetings in your main calendar.")
+                        }
                     }
                     .transition(.opacity)
                 case .time:
@@ -142,39 +158,71 @@ struct MenuCalendarView: View {
 
     // MARK: - Stats
 
-    /// The picked calendar, or all of them when the picked one was removed.
+    /// The picked calendar, or all of them when the picked one was removed. By calendar and
+    /// Internal only with a secondary calendar to compare with.
     private var shownStatsCalendar: String {
-        settings.sources.contains(where: { $0.id.uuidString == statsCalendar }) ? statsCalendar : ""
+        guard !settings.sources.isEmpty else { return "" }
+        if statsCalendar == StatsChoice.byCalendar || statsCalendar == StatsChoice.internal { return statsCalendar }
+        return settings.sources.contains(where: { $0.id.uuidString == statsCalendar }) ? statsCalendar : ""
     }
 
-    /// The events Meeting Stats counts: all of them, or those of the picked calendar.
+    /// The events Meeting Stats counts: all of them, the main calendar's own, or those of the
+    /// picked calendar.
     private var statsEvents: [SourceEvent] {
         switch shownStatsCalendar {
-        case "": events
+        case "", StatsChoice.byCalendar: events
+        case StatsChoice.internal: MeetingStats.internalMeetings(events)
         case let id: events.filter { event in
             MenuCalendar.originID(of: event).flatMap { settings.source(forCopiesOf: $0)?.id.uuidString } == id
         }
         }
     }
 
-    /// All (the main calendar, which holds every meeting) | each secondary calendar.
-    /// Segmented while the names fit, else a menu.
-    private var statsCalendarPicker: some View {
-        let mainName = controller.eventKit.calendar(id: settings.targetCalendarID)?.title
-        let options = [("", mainName.map { "All (\($0))" } ?? "All")]
-            + settings.sources.map { ($0.id.uuidString, $0.calendarName) }
-        let picker = Picker("Calendar", selection: Binding(get: { shownStatsCalendar }, set: { statsCalendar = $0 })) {
-            ForEach(options, id: \.0) { tag, name in
-                Text(name).tag(tag)
-            }
+    /// The main calendar's name and color, for its own meetings.
+    private var mainOrigin: EventOrigin? {
+        controller.eventKit.calendar(id: settings.targetCalendarID)
+            .map { EventOrigin(name: $0.title, color: Color(cgColor: $0.cgColor)) }
+    }
+
+    /// Every calendar side by side, each in its own color.
+    private var calendarBreakdown: some View {
+        let breakdown = MeetingStats.breakdown(of: events, calendars: settings.sources.map(\.id),
+                                               aliases: settings.otherMacIDs, now: Date(), calendar: calendar)
+        let rows = breakdown.groups.map { group -> CalendarBreakdownView.Row in
+            let origin = group.calendar == nil
+                ? mainOrigin
+                : settings.sources.first(where: { $0.id == group.calendar })
+                    .map { EventOrigin.of($0, settings: settings, eventKit: controller.eventKit) }
+            return CalendarBreakdownView.Row(group: group, name: origin?.name ?? "Main calendar",
+                                             color: origin?.color ?? .accentColor)
         }
-        .labelsHidden()
+        return CalendarBreakdownView(breakdown: breakdown, rows: rows, calendar: calendar) { origin in
+            statsCalendar = origin?.uuidString ?? StatsChoice.internal
+        }
+    }
+
+    /// All (the main calendar, which holds every meeting) | By calendar | the main calendar's
+    /// own meetings, by its name | each secondary calendar, in the order of the By calendar
+    /// rows. Segments while the names fit; else a menu.
+    private var statsCalendarPicker: some View {
+        let options: [(value: String, title: String)] =
+            [("", "All"), (StatsChoice.byCalendar, "By calendar"), (StatsChoice.internal, mainOrigin?.name ?? "Internal")]
+            + settings.sources.map { ($0.id.uuidString, $0.calendarName) }
+        let selection = Binding(get: { shownStatsCalendar }, set: { statsCalendar = $0 })
         return Group {
-            if options.count <= 4 && options.map(\.1.count).reduce(0, +) <= 36 {
-                picker.pickerStyle(.segmented)
+            // The menu is 360 points wide, less its padding.
+            if CompactSegments<String>.fit(options.map(\.title), in: 360 - 2 * 14) {
+                CompactSegments(options: options, selection: selection)
             } else {
-                picker.pickerStyle(.menu).fixedSize()
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Picker("Calendar", selection: selection) {
+                    ForEach(options, id: \.value) { option in
+                        Text(option.title).tag(option.value)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

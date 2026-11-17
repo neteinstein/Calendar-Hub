@@ -18,6 +18,9 @@ struct MenuView: View {
     @AppStorage("menuCalendarMode") private var menuMode: MenuCalendarView.Mode = .month
     /// The day ("2026-11-17") the untracked-time nudge was put away for.
     @AppStorage("timeNudgeDismissed") private var nudgeDismissed = ""
+    /// Off for the README's screenshots, which would show it in every view when taken after
+    /// the working day.
+    static var showsUntrackedTimeNudge = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -97,7 +100,8 @@ struct MenuView: View {
         let options = settings.timeTracking
         let calendar = Calendar.current
         let day = Self.dayKey(now, calendar: calendar)
-        if options.isEnabled, options.nudgesUntracked, menuMode != .time, nudgeDismissed != day,
+        if Self.showsUntrackedTimeNudge, options.isEnabled, options.nudgesUntracked, menuMode != .time,
+           nudgeDismissed != day,
            TimeTracking.isAfterWorkingDay(now, workingHours: settings.menuCalendar.workingHours, calendar: calendar),
            let interval = calendar.dateInterval(of: .day, for: now) {
             let entries = timeTracker.entries(events: today, in: interval, now: now)

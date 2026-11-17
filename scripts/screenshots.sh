@@ -1,5 +1,5 @@
 #!/bin/bash
-# Renders the README's screenshots into docs/screenshots: the menu (Month, List, Tasks, World Clocks, Stats, Time Tracking), the
+# Renders the README's screenshots into docs/screenshots: the menu (Month, List, Tasks, World Clocks, Stats, Stats by calendar, Time Tracking), the
 # meeting alert, a task's notes window, the menu bar item and each Settings pane, in light and
 # dark, as WebP.
 #

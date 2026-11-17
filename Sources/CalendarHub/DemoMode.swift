@@ -283,6 +283,7 @@ enum Snapshots {
     static func runIfRequested() {
         guard let folder, let context else { return }
         MeetingStatsView.showsEverything = true
+        MenuView.showsUntrackedTimeNudge = false
         Task {
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             // Let the demo sync settle first.
@@ -305,10 +306,15 @@ enum Snapshots {
                 .environmentObject(context.timeTracker)
                 .defaultAppStorage(context.defaults)
         }
+        context.defaults.set("", forKey: "meetingStatsCalendar")
         for mode: MenuCalendarView.Mode in [.month, .list, .tasks, .clocks, .stats, .time] {
             MenuCalendarView.fixedMode = mode
             await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode.rawValue)-\(suffix)", appearance, to: folder)
         }
+        MenuCalendarView.fixedMode = .stats
+        context.defaults.set(MenuCalendarView.StatsChoice.byCalendar, forKey: "meetingStatsCalendar")
+        await shoot(environment(MenuDesk { MenuView() }), "menu-stats-calendars-\(suffix)", appearance, to: folder)
+        context.defaults.set("", forKey: "meetingStatsCalendar")
         MenuCalendarView.fixedMode = nil
         if var next = context.controller.menuBarMeeting(now: Date()) {
             // As the alert first shows: a minute before the start.
