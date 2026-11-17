@@ -33,6 +33,14 @@ struct MenuView: View {
                 MenuCalendarView()
             }
 
+            if settings.meetingLimit.isEnabled {
+                let today = Calendar.current.startOfDay(for: Date())
+                let full = controller.fullDays.filter { $0.day >= today }
+                if !full.isEmpty {
+                    FullDaysCard(days: full, limit: settings.meetingLimit.hours) { showSettings(at: .meetingLimit) }
+                }
+            }
+
             problemCards
 
             Divider()
@@ -67,7 +75,7 @@ struct MenuView: View {
             today = []
             return
         }
-        today = events.filter { !$0.isCancelled }
+        today = events.filter { !$0.isCancelled && !MeetingLimit.isBlock($0) }
     }
 
     // MARK: - Problems
@@ -491,6 +499,37 @@ private struct ProblemCard: View {
         .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 11))
         .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Color.orange.opacity(0.4), lineWidth: 0.5))
         .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+}
+
+/// The days that reach the daily meeting limit, one line each: "Tomorrow: 5h 20m of meetings,
+/// over your 5h limit". Clicking it opens the limit's settings.
+private struct FullDaysCard: View {
+    let days: [MeetingLimit.FullDay]
+    let limit: Double
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "hourglass")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 13, weight: .semibold))
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(days, id: \.day) { day in
+                        Text(MeetingLimit.message(for: day, limit: limit, now: Date(), calendar: .current))
+                            .font(.system(size: 12))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
+            .contentShape(RoundedRectangle(cornerRadius: 11))
+        }
+        .buttonStyle(.plain)
+        .help("Meeting limit settings")
     }
 }
 
