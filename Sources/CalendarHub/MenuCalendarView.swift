@@ -107,12 +107,16 @@ struct MenuCalendarView: View {
     }
 
     private var modes: [(value: Mode, title: String)] {
-        (settings.menuShowsMonth ? [(.month, "Month")] : [])
-            + (settings.menuShowsList ? [(.list, "List")] : [])
-            + (settings.taskOptions.showsInMenu ? [(.tasks, "Tasks")] : [])
-            + (settings.worldClocks.showsInMenu ? [(.clocks, "World Clocks")] : [])
-            + (settings.menuCalendar.showsMeetingStats ? [(.stats, "Stats")] : [])
-            + (settings.timeTracking.isEnabled ? [(.time, "Time Tracking")] : [])
+        // Built step by step: one long chain of `+` on optional arrays is too slow for the
+        // compiler to type-check.
+        var modes: [(value: Mode, title: String)] = []
+        if settings.menuShowsMonth { modes.append((.month, "Month")) }
+        if settings.menuShowsList { modes.append((.list, "List")) }
+        if settings.taskOptions.showsInMenu { modes.append((.tasks, "Tasks")) }
+        if settings.worldClocks.showsInMenu { modes.append((.clocks, "World Clocks")) }
+        if settings.menuCalendar.showsMeetingStats { modes.append((.stats, "Stats")) }
+        if settings.timeTracking.isEnabled { modes.append((.time, "Time Tracking")) }
+        return modes
     }
 
     // MARK: - Data
