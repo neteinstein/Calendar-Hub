@@ -265,10 +265,14 @@ enum Snapshots {
                 .environmentObject(context.tasks)
                 .defaultAppStorage(context.defaults)
         }
+        context.defaults.set("", forKey: "meetingStatsCalendar")
         for mode in ["month", "list", "tasks", "clocks", "stats"] {
             context.defaults.set(mode, forKey: "menuCalendarMode")
             await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode)-\(suffix)", appearance, to: folder)
         }
+        context.defaults.set(MenuCalendarView.StatsChoice.byCalendar, forKey: "meetingStatsCalendar")
+        await shoot(environment(MenuDesk { MenuView() }), "menu-stats-calendars-\(suffix)", appearance, to: folder)
+        context.defaults.set("", forKey: "meetingStatsCalendar")
         if var next = context.controller.menuBarMeeting(now: Date()) {
             // As the alert first shows: a minute before the start.
             let length = next.end.timeIntervalSince(next.start)
