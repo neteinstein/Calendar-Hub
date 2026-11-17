@@ -134,16 +134,21 @@ struct QuietJoinButton: View {
     }
 }
 
-/// Picks one of a few views, with a highlight that slides to the picked one. Only the highlight
-/// animates: the views it switches between have different heights, and the menu window
-/// mustn't resize inside an animation (see `WindowTopAnchor`).
+/// Picks one of a few views, with a highlight that slides to the picked one.
+///
+/// Only the highlight's offset along the strip animates. The views it switches between have
+/// different heights, so picking one resizes the menu window in the same update (see
+/// `WindowTopAnchor`); anything animated by its place in the window, as a matched geometry
+/// effect or an animation over the whole strip is, flies in from where the resize left it
+/// for a moment, over the Up next card. An offset within the strip can't be moved by that.
 struct SlidingSegments<Value: Hashable>: View {
     let options: [(value: Value, title: String)]
     @Binding var selection: Value
-    @Namespace private var highlight
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let index = options.firstIndex { $0.value == selection } ?? 0
         HStack(spacing: 0) {
             ForEach(options, id: \.value) { option in
                 let isSelected = option.value == selection
@@ -156,25 +161,30 @@ struct SlidingSegments<Value: Hashable>: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .foregroundStyle(isSelected ? .primary : .secondary)
+                        .animation(.easeOut(duration: 0.2), value: isSelected)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
-                        .background {
-                            if isSelected {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(colorScheme == .dark ? Color.white.opacity(0.16) : .white)
-                                    .shadow(color: .black.opacity(0.12), radius: 1.5, y: 0.5)
-                                    .matchedGeometryEffect(id: "highlight", in: highlight)
-                            }
-                        }
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
             }
         }
+        // The segments share the width equally, so the highlight is one segment wide and moves
+        // a segment's width per step.
+        .background(alignment: .leading) {
+            GeometryReader { proxy in
+                let width = proxy.size.width / CGFloat(max(options.count, 1))
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(colorScheme == .dark ? Color.white.opacity(0.16) : .white)
+                    .shadow(color: .black.opacity(0.12), radius: 1.5, y: 0.5)
+                    .frame(width: width, height: proxy.size.height)
+                    .offset(x: width * CGFloat(index))
+                    .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: index)
+            }
+        }
         .padding(2)
         .background(Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06), in: RoundedRectangle(cornerRadius: 8))
-        .animation(.snappy(duration: 0.3), value: selection)
     }
 }
 
