@@ -168,16 +168,16 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
   <img src="docs/screenshots/settings-alerts-light.webp" width="640" alt="Settings, Meeting alerts: the full-screen alert and how early it shows">
 </picture>
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-meetingLimit-dark.webp">
+  <img src="docs/screenshots/settings-meetingLimit-light.webp" width="640" alt="Settings, Meeting limit: the hours of meetings a day, marking the rest of a full day as Busy, and the secondary calendars that get it too">
+</picture>
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-tasks-dark.webp">
   <img src="docs/screenshots/settings-tasks-light.webp" width="640" alt="Settings, Tasks: the Tasks view in the menu, the Reminders list tasks are kept in, and the nudges new tasks get">
 </picture>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-worldClocks-dark.webp">
   <img src="docs/screenshots/settings-worldClocks-light.webp" width="640" alt="Settings, World Clocks: the World Clocks view in the menu, your working hours, and the cities, starting with where you are, each with its name, time zone, time and working hours">
-</picture>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-meetingLimit-dark.webp">
-  <img src="docs/screenshots/settings-meetingLimit-light.webp" width="640" alt="Settings, Meeting limit: the hours of meetings a day, marking the rest of a full day as Busy, and the secondary calendars that get it too">
 </picture>
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">
