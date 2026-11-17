@@ -46,7 +46,7 @@ On two Macs that both show the main calendar in the same secondary calendar, eac
 - **Up next.** The menu leads with the meeting under way, or the next one today if it starts within 4 hours, with a countdown and a **Join** button.
 - **Month view.** On unless you turn off **Show month calendar** (Settings › Menu bar). While the month or the list is shown, the icon shows **today's date** (add the **week day** next to it if you like). The month shows a dot for each calendar with meetings that day; click a day for its events. Start the week on **Sunday or Monday**, and hide **weekends** if you like.
 - **List view.** On unless you turn off **Show event list**. A scrolling list of your main calendar's events. It opens at today, with a line at the current time, today's finished meetings folded into one row, and each day's header kept in view while you scroll. Copies show the meeting's own name, with the calendar it came from under it, and a **Join** button appears from 15 minutes before a meeting. A meeting with tasks shows how many; right-click one to **add a task** for it.
-- **Tasks view.** Your tasks, by when they're due: overdue, today, tomorrow, later and no date, with the ones done this week folded away. Month and List show each day's tasks too. Tasks, World Clocks and Stats can each be shown without Month or List. See [Tasks](#tasks).
+- **Tasks view.** Your tasks, by when they're due: overdue, today, tomorrow, later and no date, with the ones done this week folded away. Month and List show each day's tasks too. Tasks, World Clocks, Stats and Time Tracking can each be shown without Month or List. See [Tasks](#tasks).
 - **Colors.** The lists tint each event with the **color of the calendar it came from**, shade **all-day events**, and group each day's **morning** and **afternoon** into colored blocks. Each of these can be turned off.
 - **Status.** A pill says when the last sync ran. Anything that went wrong shows as a card with its fix, like **Open Outlook** for a calendar that signed you out; click the pill's count to see it in Settings.
 - **Next meeting in the menu bar.** Turn on **Show the next meeting in the menu bar** and, from 15 minutes before a meeting until it ends, the icon shows its name and the minutes left, like `Design review · 12m`. With that on, **Show the meeting's progress under its title** adds a bar under the name that fills as the meeting runs; it stays off and greyed out while the next meeting isn't shown.
@@ -93,6 +93,20 @@ With **Two way sync** on, the main calendar's events go to your secondary calend
 - **Free means free everywhere.** It reads the main calendar, which already has every copy. Meetings you haven't accepted count as busy, and so does out of office, all-day too; declined meetings and other all-day events don't. Free time is within your working hours on your weekdays, from the next quarter hour today; with **Only when we're both working**, within theirs too, in their own time.
 - **Only as far as it syncs.** Days past what Calendar Hub reads (today plus the days set in Settings › General) are left out, and the panel says so.
 - **Nothing leaves your Mac** until you paste it.
+
+## Time Tracking
+
+For timesheets, billing or your manager: where your working day went, client by client. It's off until you turn on **Time Tracking** in Settings › Time Tracking; until then, nothing is recorded. The menu then gains a **Time Tracking** view, after Stats, with today's time per client, the time nobody logged, and this week's time with **Export CSV**.
+
+Your clients are your secondary calendars, plus **Internal** for your main calendar's own meetings (rename it in Settings), so there's no list to keep up to date. Add a client by hand for work no calendar has, such as a proposal for a prospect. Three parts, each with its own switch:
+
+- **Count meetings automatically.** Meetings in your main calendar are logged as they happen: a copy to the secondary calendar it came from, your own meetings to Internal. Declined, cancelled, all-day and out-of-office events aren't. Open **Today's entries** and use a meeting's menu to give it to another client (an internal meeting about Client A, say). Meetings are read from your calendar each time, so a meeting cancelled later leaves the log by itself.
+- **Timer.** **Start timer** and pick a client; **Stop** when you're done, or switch it to another client. It can show in the menu bar too, with a stopwatch, the client and the time (a meeting about to start still comes first). It survives quitting the app. If it's still running two hours after your working day ends, it stops at the end of the day and asks whether to keep the rest; if your Mac slept for a while with it running, it asks whether to keep that time.
+- **List untracked time.** The stretches of today's working hours with nothing logged, each with **Assign** to give it to a client. Once your working day is over, the menu points them out until you review them or choose **Not today**.
+
+Time is never counted twice: in overlapping meetings it goes to the one that started first, and a timer running through a meeting leaves that time to the meeting. **Export CSV** saves this week, last week, this month or last month with the date, client, start, end, duration, hours, source (meeting, timer or assigned) and title of each entry, ready to paste into your company's timesheet. Meetings from calendars with **Hide meeting names** on have no title in it.
+
+The timer's time, the time you assign and the meetings you give to another client are kept in `time-tracking.json` in `~/Library/Application Support/org.neteinstein.calendarhub`, readable only by you and sent nowhere; there's no file until you log something. Turning Time Tracking off asks whether to keep that or delete it, and Settings can delete it at any time.
 
 ## Updates
 

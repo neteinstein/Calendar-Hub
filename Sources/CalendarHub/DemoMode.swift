@@ -116,9 +116,47 @@ final class DemoCalendars {
             WorldClock(name: "Berlin", timeZoneID: "Europe/Berlin"),
         ])
         settings.menuBar.showsNextMeeting = true
+        settings.timeTracking = TimeTrackingOptions(isEnabled: true, extraClients: [
+            TimeClient(id: "manual-demo-prospect", name: "Prospect Y"),
+        ])
         settings.options.daysAhead = 14
         settings.meetingLimit = MeetingLimitOptions(isEnabled: true, hours: 4, marksBusy: true)
         return settings
+    }
+
+    // MARK: - Time Tracking
+
+    /// A morning on the timer for Client X and Calendar A with an hour nobody logged, the timer
+    /// running for Client X since a few minutes ago, and the timer's time on the week's earlier
+    /// days. Today's meetings are counted by themselves.
+    func sampleTimeLog() -> TimeLog {
+        let calendar = Calendar.current
+        let now = Date()
+        // The same clock as today's sample meetings.
+        let t0 = Date(timeIntervalSinceReferenceDate: (now.timeIntervalSinceReferenceDate / 300).rounded(.down) * 300)
+        func at(_ minutes: Int) -> Date { t0.addingTimeInterval(Double(minutes) * 60) }
+        let clientX = TimeClient(id: sourceX.uuidString, name: "Client X")
+        let clientA = TimeClient(id: sourceA.uuidString, name: "Calendar A")
+        var entries = [
+            TimeEntry(client: clientX, start: at(-300), end: at(-215), source: .timer),
+            TimeEntry(client: clientA, start: at(-215), end: at(-160), source: .assigned),
+        ]
+        var day = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+        var index = 0
+        while !calendar.isDateInToday(day) && day < now {
+            if !calendar.isDateInWeekend(day) {
+                func on(_ hour: Int, _ minute: Int = 0) -> Date {
+                    calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)!
+                }
+                entries.append(TimeEntry(client: index % 2 == 0 ? clientX : clientA, start: on(9, 45), end: on(12, 30),
+                                         source: .timer))
+                entries.append(TimeEntry(client: index % 3 == 0 ? clientA : clientX, start: on(13, 30), end: on(17),
+                                         source: .timer))
+                index += 1
+            }
+            day = calendar.date(byAdding: .day, value: 1, to: day)!
+        }
+        return TimeLog(entries: entries, running: RunningTimer(client: clientX, start: at(-12)))
     }
 
     /// What the menu and Settings show for the last sync.
@@ -280,6 +318,7 @@ enum Snapshots {
         let controller: SyncController
         let updates: UpdateChecker
         let tasks: TaskStore
+        let timeTracker: TimeTracker
         let defaults: UserDefaults
     }
 
@@ -293,6 +332,7 @@ enum Snapshots {
     static func runIfRequested() {
         guard let folder, let context else { return }
         MeetingStatsView.showsEverything = true
+        MenuView.showsUntrackedTimeNudge = false
         Task {
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             // Let the demo sync settle first.
@@ -312,16 +352,19 @@ enum Snapshots {
                 .environmentObject(context.controller)
                 .environmentObject(context.updates)
                 .environmentObject(context.tasks)
+                .environmentObject(context.timeTracker)
                 .defaultAppStorage(context.defaults)
         }
         context.defaults.set("", forKey: "meetingStatsCalendar")
-        for mode in ["month", "list", "tasks", "clocks", "stats"] {
-            context.defaults.set(mode, forKey: "menuCalendarMode")
-            await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode)-\(suffix)", appearance, to: folder)
+        for mode: MenuCalendarView.Mode in [.month, .list, .tasks, .clocks, .stats, .time] {
+            MenuCalendarView.fixedMode = mode
+            await shoot(environment(MenuDesk { MenuView() }), "menu-\(mode.rawValue)-\(suffix)", appearance, to: folder)
         }
+        MenuCalendarView.fixedMode = .stats
         context.defaults.set(MenuCalendarView.StatsChoice.byCalendar, forKey: "meetingStatsCalendar")
         await shoot(environment(MenuDesk { MenuView() }), "menu-stats-calendars-\(suffix)", appearance, to: folder)
         context.defaults.set("", forKey: "meetingStatsCalendar")
+        MenuCalendarView.fixedMode = nil
         // Share availability, for someone in New York.
         context.defaults.set("America/New_York", forKey: "availabilityTimeZone")
         MenuPanel.shared.sharingAvailability = true
@@ -342,7 +385,8 @@ enum Snapshots {
                 TaskNotesView(draft: TaskNotesDraft(task: task, tasks: context.tasks)).frame(width: 480, height: 470)
             }), "task-notes-\(suffix)", appearance, to: folder)
         }
-        await shoot(environment(MenuBarStrips(settings: context.settings, controller: context.controller)),
+        await shoot(environment(MenuBarStrips(settings: context.settings, controller: context.controller,
+                                              timeTracker: context.timeTracker)),
                     "menu-bar-\(suffix)", appearance, to: folder)
         for pane in SettingsPane.allCases where pane != .preview && pane != .logs {
             context.defaults.set(pane.rawValue, forKey: SettingsPane.defaultsKey)
@@ -393,12 +437,13 @@ private struct MenuDesk<Content: View>: View {
     @ViewBuilder let content: Content
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
+    @EnvironmentObject private var timeTracker: TimeTracker
 
     var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 14) {
                 Spacer()
-                MenuBarItemPreview(settings: settings, controller: controller, highlighted: true)
+                MenuBarItemPreview(settings: settings, controller: controller, timeTracker: timeTracker, highlighted: true)
                 Image(systemName: "wifi")
                 Image(systemName: "battery.75percent")
                 Text(Date(), format: .dateTime.weekday().day().month().hour().minute())
@@ -426,41 +471,47 @@ private struct MenuDesk<Content: View>: View {
 private struct MenuBarItemPreview: View {
     @ObservedObject var settings: SettingsStore
     @ObservedObject var controller: SyncController
+    @ObservedObject var timeTracker: TimeTracker
     var highlighted = false
     @StateObject private var clock = Clock()
 
     var body: some View {
-        CalendarHubApp.MenuBarLabel(settings: settings, controller: controller, clock: clock)
+        CalendarHubApp.MenuBarLabel(settings: settings, controller: controller, clock: clock, timeTracker: timeTracker)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(highlighted ? Color.primary.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 5))
     }
 }
 
-/// The menu bar item with the date, then with the next meeting, then with its progress bar too.
+/// The menu bar item with the date, then with the next meeting, then with its progress bar too,
+/// then with Time Tracking's running timer.
 private struct MenuBarStrips: View {
     @ObservedObject var settings: SettingsStore
     @ObservedObject var controller: SyncController
+    @ObservedObject var timeTracker: TimeTracker
 
     var body: some View {
         VStack(spacing: 12) {
             strip(showsNextMeeting: false)
             strip(showsNextMeeting: true)
             strip(showsNextMeeting: true, showsMeetingProgress: true)
+            strip(showsNextMeeting: false, showsTimer: true)
         }
         .padding(20)
         .frame(width: 520)
         .background(Wallpaper())
     }
 
-    private func strip(showsNextMeeting: Bool, showsMeetingProgress: Bool = false) -> some View {
-        let shown = SettingsStore(defaults: DemoCalendars.defaults("strip\(showsNextMeeting)\(showsMeetingProgress)"))
+    private func strip(showsNextMeeting: Bool, showsMeetingProgress: Bool = false, showsTimer: Bool = false) -> some View {
+        let shown = SettingsStore(defaults: DemoCalendars.defaults("strip\(showsNextMeeting)\(showsMeetingProgress)\(showsTimer)"))
         shown.targetCalendarID = settings.targetCalendarID
         shown.menuBar.showsNextMeeting = showsNextMeeting
         shown.menuBar.showsMeetingProgress = showsMeetingProgress
+        shown.timeTracking.isEnabled = showsTimer
+        shown.timeTracking.showsTimerInMenuBar = showsTimer
         return HStack(spacing: 14) {
             Spacer()
-            MenuBarItemPreview(settings: shown, controller: controller)
+            MenuBarItemPreview(settings: shown, controller: controller, timeTracker: timeTracker)
             Image(systemName: "wifi")
             Image(systemName: "battery.75percent")
             Text(Date(), format: .dateTime.weekday().day().month().hour().minute())

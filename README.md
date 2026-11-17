@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.0.43](https://img.shields.io/badge/version-2.0.43-2563EB)](Support/Info.plist)
+[![Version 2.0.44](https://img.shields.io/badge/version-2.0.44-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -117,6 +117,11 @@ When your meetings live in a secondary calendar (another company's account, a se
 <b>Share availability.</b> Answer "when are you free?" in one click: the free time in all your calendars over the next days, in the other person's time zone, as text to paste into an email or chat. Or right-click the menu bar item to copy it without opening the menu.
 </td>
 <td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-time-dark.webp">
+  <img src="docs/screenshots/menu-time-light.webp" alt="Time Tracking: the timer running for Client X, today's time per client with two stretches not logged, each with Assign, and this week's time per client with Export CSV">
+</picture>
+<b>Time Tracking.</b> Your day per client, for timesheets: meetings count by themselves, a timer covers the rest, and the time nobody logged is listed to assign. Export a week or a month as CSV. Off until you turn it on.
 </td>
 </tr>
 </table>
@@ -143,10 +148,10 @@ The screen blurs and a card counts down to the start, with the meeting's open ta
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-bar-dark.webp">
-  <img src="docs/screenshots/menu-bar-light.webp" width="520" alt="The menu bar item showing the date, showing Design review · 13m, and the same with a progress bar under it">
+  <img src="docs/screenshots/menu-bar-light.webp" width="520" alt="The menu bar item showing the date, showing Design review · 13m, the same with a progress bar under it, and Time Tracking's timer for Client X">
 </picture>
 
-Today's date, or, if you like, the next meeting and the minutes left when it's 15 minutes away, with a bar under it that fills as the meeting runs.
+Today's date, or, if you like, the next meeting and the minutes left when it's 15 minutes away, with a bar under it that fills as the meeting runs, and Time Tracking's running timer.
 
 ### Settings
 
@@ -196,6 +201,10 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
   <img src="docs/screenshots/settings-worldClocks-light.webp" width="640" alt="Settings, World Clocks: the World Clocks view in the menu, your working hours, and the cities, starting with where you are, each with its name, time zone, time and working hours">
 </picture>
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-timeTracking-dark.webp">
+  <img src="docs/screenshots/settings-timeTracking-light.webp" width="640" alt="Settings, Time Tracking: the Time Tracking view in the menu, and what's tracked: meetings, the timer, the timer in the menu bar and untracked time">
+</picture>
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">
   <img src="docs/screenshots/settings-about-light.webp" width="640" alt="Settings, About: version, update check, feedback and donations">
 </picture>
@@ -215,6 +224,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Limits your meetings a day**, if you like: when a day reaches the hours you set, across every calendar, the menu says so ("Tomorrow: 5h 20m of meetings, over your 5h limit"), and the free time left in its working hours can become **Busy** in your main calendar, and in the secondary calendars you pick, so nobody books more.
 - **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
 - **Shares your availability:** your free times across every calendar, for the next three working days, this week or next week, in the other person's time zone and, if you like, only while they're working too, copied as text to paste anywhere. Right-click the menu bar item to copy it straight away. Nothing leaves your Mac until you paste it.
+- **Tracks your time per client**, if you turn it on: meetings logged to the calendar they came from, a timer for the rest, the working time nobody logged listed to assign, and a week or a month as CSV for your timesheet.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## What leaves your Mac, and where it ends up
@@ -230,6 +240,8 @@ Copying a meeting from one calendar into another puts data from one organization
 | A **Busy** block with the time and a description that says "Busy" plus an opaque code | Each secondary calendar you chose | Only with **Two way sync** on. No title, link, location, attendees or alerts, and nothing that names the app. |
 | A **Busy** block over a full day's free time, with a description that names Calendar Hub and the day | Your main calendar's server, and each secondary calendar you chose to mark full days in (there as a plain Busy event, like the ones above) | Only with **Mark the rest of the day as Busy** on in Meeting limit, on a day that reaches your limit. |
 | A task's title and notes, and the name and start of the meeting it's for | Your Reminders account (iCloud, say) | Only for tasks you make in the Tasks view. |
+| Time Tracking's log: the timer's time, time you assigned and meetings you gave to another client, each with its client's name | A file in the app's Application Support folder, on this Mac only, readable only by you | Only with **Time Tracking** on, once you log something. Turning it off asks whether to keep or delete it. |
+| A CSV of your logged time, with your meetings' titles | Where you save it | Only when you **Export CSV**. Calendars with **Hide meeting names** on have no titles in it. |
 | Your Outlook on the web sign-in | The app's own WebKit folder in your Library, on this Mac | Only for Outlook on the web calendars. See [Outlook on the web](docs/outlook-on-the-web.md). |
 | One request for the newest version number | GitHub, over HTTPS | Once a day, and when you check in Settings › About. GitHub sees your IP address, nothing else. |
 

@@ -9,6 +9,7 @@ struct CalendarHubApp: App {
     @StateObject private var updates: UpdateChecker
     @StateObject private var tasks: TaskStore
     @StateObject private var taskNotes: TaskNotesWindows
+    @StateObject private var timeTracker: TimeTracker
     @StateObject private var clock = Clock()
     @StateObject private var menuBarItem = MenuBarItem.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -32,17 +33,20 @@ struct CalendarHubApp: App {
         let controller = SyncController(settings: settings, demo: demo)
         let updates = UpdateChecker(defaults: demo?.defaults ?? .standard)
         let tasks = TaskStore(settings: settings, controller: controller)
+        let timeTracker = TimeTracker(settings: settings, fileURL: demo == nil ? TimeTracker.defaultFileURL : nil,
+                                      log: demo?.sampleTimeLog())
         _settings = StateObject(wrappedValue: settings)
         _controller = StateObject(wrappedValue: controller)
         _updates = StateObject(wrappedValue: updates)
         _tasks = StateObject(wrappedValue: tasks)
+        _timeTracker = StateObject(wrappedValue: timeTracker)
         _taskNotes = StateObject(wrappedValue: TaskNotesWindows(settings: settings, controller: controller, tasks: tasks))
         _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
                                                                  tasks: tasks, checks: demo == nil))
         Self.rightClickMenu = MenuBarRightClickMenu(settings: settings, controller: controller)
         if let demo, Snapshots.folder != nil {
             Snapshots.context = .init(settings: settings, controller: controller, updates: updates, tasks: tasks,
-                                      defaults: demo.defaults)
+                                      timeTracker: timeTracker, defaults: demo.defaults)
             // Screenshots need no menu bar icon of their own.
             MenuBarItem.shared.isInserted = false
         }
@@ -137,7 +141,9 @@ struct CalendarHubApp: App {
     /// The icon in the menu bar: a calendar glyph, plus today's date when the menu calendar
     /// is on, and with it the week day when that is on too. With "Show the next meeting" on, a
     /// meeting about to start or under way takes the date's place, with a bar under it that fills
-    /// as the meeting runs when that is on too. A badge on the glyph marks a
+    /// as the meeting runs when that is on too. With Time Tracking's timer shown in the menu bar,
+    /// a stopwatch takes the glyph's place while the timer runs, and its client and time take
+    /// the date's (a close meeting still comes first). A badge on the glyph marks a
     /// sync with problems; menu bar labels are drawn in one color, so it's part of the symbol.
     /// `Clock` keeps the date and the minutes right as the minutes pass. Not a TimelineView: in a
     /// menu bar label it re-renders the button in an endless loop and the app hangs at launch.
@@ -145,6 +151,7 @@ struct CalendarHubApp: App {
         @ObservedObject var settings: SettingsStore
         @ObservedObject var controller: SyncController
         @ObservedObject var clock: Clock
+        @ObservedObject var timeTracker: TimeTracker
 
         /// "26 Oct", or "Mon 26 Oct" with the week day, in the locale's own field order.
         private var dateStyle: Date.FormatStyle {
@@ -166,17 +173,24 @@ struct CalendarHubApp: App {
             return MenuCalendar.menuBarProgress(for: meeting, now: clock.now)
         }
 
+        /// "Client A · 1h 12m", while the timer runs and the menu bar shows it.
+        private var timerText: String? {
+            guard settings.timeTracking.showsTimerInMenuBar, let running = timeTracker.running else { return nil }
+            return TimeTracking.menuBarText(for: running, now: clock.now)
+        }
+
         var body: some View {
             let hasProblems = !controller.problems.isEmpty || controller.setupProblem != nil
             let text = meetingText
+            let timer = timerText
+            let symbol = hasProblems ? Self.problemIcon : timer != nil ? "stopwatch" : "calendar"
             if let text, let progress = meetingProgress {
-                Image(nsImage: Self.progressImage(symbol: hasProblems ? Self.problemIcon : "calendar",
-                                                  text: text, progress: progress))
+                Image(nsImage: Self.progressImage(symbol: symbol, text: text, progress: progress))
                     .renderingMode(.template)
-            } else if settings.menuShowsCalendar || text != nil {
+            } else if settings.menuShowsCalendar || text != nil || timer != nil {
                 HStack(spacing: 3) {
-                    Image(systemName: hasProblems ? Self.problemIcon : "calendar")
-                    if let text {
+                    Image(systemName: symbol)
+                    if let text = text ?? timer {
                         Text(text)
                     } else {
                         Text(clock.now, format: dateStyle)
@@ -226,9 +240,10 @@ struct CalendarHubApp: App {
                 .environmentObject(controller)
                 .environmentObject(updates)
                 .environmentObject(tasks)
+                .environmentObject(timeTracker)
                 .environment(\.openTaskNotes, OpenTaskNotesAction { [taskNotes] in taskNotes.show($0) })
         } label: {
-            MenuBarLabel(settings: settings, controller: controller, clock: clock)
+            MenuBarLabel(settings: settings, controller: controller, clock: clock, timeTracker: timeTracker)
         }
         .menuBarExtraStyle(.window)
 
@@ -238,6 +253,7 @@ struct CalendarHubApp: App {
                 .environmentObject(controller)
                 .environmentObject(updates)
                 .environmentObject(tasks)
+                .environmentObject(timeTracker)
         }
     }
 }

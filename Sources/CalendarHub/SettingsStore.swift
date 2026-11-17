@@ -27,6 +27,8 @@ final class SettingsStore: ObservableObject {
     var meetingLimitState: MeetingLimitState {
         didSet { if meetingLimitState != oldValue { save(meetingLimitState, "meetingLimitState") } }
     }
+    /// The menu's Time Tracking view, its timer and its nudge. Off until turned on.
+    @Published var timeTracking: TimeTrackingOptions { didSet { save(timeTracking, "timeTracking") } }
     @Published var targetCalendarID: String? { didSet { defaults.set(targetCalendarID, forKey: "targetCalendarID") } }
     @Published var intervalMinutes: Int { didSet { defaults.set(intervalMinutes, forKey: "intervalMinutes") } }
     /// The main calendar is also shown as Busy in the secondary calendars, in each one whose
@@ -86,6 +88,7 @@ final class SettingsStore: ObservableObject {
         worldClocks = Self.load(WorldClockOptions.self, "worldClocks", defaults) ?? WorldClockOptions()
         meetingLimit = Self.load(MeetingLimitOptions.self, "meetingLimit", defaults) ?? MeetingLimitOptions()
         meetingLimitState = Self.load(MeetingLimitState.self, "meetingLimitState", defaults) ?? MeetingLimitState()
+        timeTracking = Self.load(TimeTrackingOptions.self, "timeTracking", defaults) ?? TimeTrackingOptions()
         targetCalendarID = defaults.string(forKey: "targetCalendarID")
         let interval = defaults.integer(forKey: "intervalMinutes")
         intervalMinutes = interval > 0 ? interval : 15
@@ -102,9 +105,10 @@ final class SettingsStore: ObservableObject {
     /// The menu shows Month or List, and the menu bar icon today's date.
     var menuShowsCalendar: Bool { menuShowsMonth || menuShowsList }
 
-    /// The menu has at least one view: Month, List, Tasks, World Clocks or Stats.
+    /// The menu has at least one view: Month, List, Tasks, World Clocks, Stats or Time Tracking.
     var menuHasViews: Bool {
         menuShowsCalendar || taskOptions.showsInMenu || worldClocks.showsInMenu || menuCalendar.showsMeetingStats
+            || timeTracking.isEnabled
     }
 
     /// The calendar set up here whose copies carry `id`: its own id, or one another Mac gave
@@ -112,6 +116,9 @@ final class SettingsStore: ObservableObject {
     func source(forCopiesOf id: UUID) -> SourceConfig? {
         sources.first { $0.id == id } ?? otherMacIDs[id].flatMap { here in sources.first { $0.id == here } }
     }
+
+    /// Every client time can be logged to: the secondary calendars, those added by hand, Internal.
+    var timeClients: [TimeClient] { TimeTracking.clients(sources: sources, options: timeTracking) }
 
     /// How an Outlook on the web calendar is kept in `busyCalendarIDs`.
     static func outlookBusyKey(_ sourceID: UUID) -> String {

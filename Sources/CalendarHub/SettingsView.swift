@@ -54,7 +54,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, alerts, meetingStats, meetingLimit, menuBar, tasks, worldClocks, preview, about, logs
+    case general, calendars, twoWaySync, alerts, meetingStats, meetingLimit, menuBar, tasks, worldClocks, timeTracking, preview, about, logs
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -72,6 +72,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: "World Clocks"
         case .meetingStats: "Meeting Stats"
         case .meetingLimit: "Meeting limit"
+        case .timeTracking: "Time Tracking"
         case .preview: "Preview"
         case .about: "About"
         case .logs: "Logs"
@@ -89,6 +90,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: "globe"
         case .meetingStats: "chart.bar.fill"
         case .meetingLimit: "hourglass"
+        case .timeTracking: "stopwatch.fill"
         case .preview: "eye.fill"
         case .about: "info"
         case .logs: "doc.text.magnifyingglass"
@@ -106,6 +108,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: .indigo
         case .meetingStats: .pink
         case .meetingLimit: .yellow
+        case .timeTracking: .cyan
         case .preview: .orange
         case .logs: .brown
         }
@@ -123,6 +126,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .worldClocks: WorldClocksTab()
         case .meetingStats: MeetingStatsTab()
         case .meetingLimit: MeetingLimitTab()
+        case .timeTracking: TimeTrackingTab()
         case .preview: PreviewTab()
         case .about: AboutTab()
         case .logs: LogsTab()
@@ -205,7 +209,7 @@ private struct MenuBarTab: View {
             } header: {
                 Text("Menu")
             } footer: {
-                Text("The menu bar button opens a month view — click a day for its events — and a scrolling list of your main calendar's events. Tasks, World Clocks and Meeting Stats have their own panes and can be shown without them.")
+                Text("The menu bar button opens a month view — click a day for its events — and a scrolling list of your main calendar's events. Tasks, World Clocks, Meeting Stats and Time Tracking have their own panes and can be shown without them.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -266,7 +270,7 @@ private struct MeetingStatsTab: View {
                     }
                 }
             } footer: {
-                Text("Monday to Friday, and the same as World Clocks uses.")
+                Text("Monday to Friday, and the same as World Clocks and Time Tracking use.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -356,6 +360,176 @@ private struct WorkingHoursPicker: View {
         }
         .labelsHidden()
         .fixedSize()
+    }
+}
+
+// MARK: - Time Tracking
+
+private struct TimeTrackingTab: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var controller: SyncController
+    @EnvironmentObject private var tracker: TimeTracker
+    @State private var newClient = ""
+    @State private var askingToKeep = false
+    @State private var askingToDelete = false
+
+    private var options: TimeTrackingOptions { settings.timeTracking }
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Show Time Tracking in the menu", isOn: Binding(get: { options.isEnabled }, set: setEnabled))
+            } footer: {
+                Text("Adds a Time Tracking view to the menu, after Stats: where your working day went, client by client. Meetings are logged by themselves, a timer covers the rest, and the working time nobody logged is listed so you can give it to a client. Export a week or a month as CSV for your timesheet. Off, nothing is recorded.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            if options.isEnabled {
+                Section {
+                    Toggle("Count meetings automatically", isOn: $settings.timeTracking.countsMeetings)
+                    Toggle("Timer", isOn: Binding(get: { options.timerEnabled }, set: { on in
+                        if !on { tracker.stop() }
+                        settings.timeTracking.timerEnabled = on
+                    }))
+                    Toggle("Show the running timer in the menu bar", isOn: Binding(
+                        get: { options.timerEnabled && options.showsTimerInMenuBar },
+                        set: { settings.timeTracking.showsTimerInMenuBar = $0 }
+                    ))
+                    .disabled(!options.timerEnabled)
+                    Toggle("List untracked time", isOn: $settings.timeTracking.nudgesUntracked)
+                } header: {
+                    Text("What's tracked")
+                } footer: {
+                    Text("Meetings from a secondary calendar are logged to it, and your main calendar's own meetings to \(options.internalClient.name); give one to another client from its menu. Declined, cancelled, all-day and out-of-office events aren't logged. Time is never counted twice: in overlapping meetings it goes to the one that started first, and a timer running through a meeting leaves that time to the meeting. A timer still running two hours after your working day stops at its end, and asks whether to keep the rest. Untracked time is listed in the menu, and pointed out once your working day is over.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section {
+                    ForEach(settings.sources) { source in
+                        LabeledContent {
+                            Text("Secondary calendar").foregroundStyle(.secondary)
+                        } label: {
+                            clientLabel(TimeTracking.client(for: source))
+                        }
+                    }
+                    ForEach($settings.timeTracking.extraClients) { $client in
+                        HStack {
+                            Circle().fill(color(of: client.id)).frame(width: 8, height: 8)
+                            TextField("Name", text: $client.name, prompt: Text("Client's name"))
+                                .labelsHidden()
+                            Button {
+                                settings.timeTracking.extraClients.removeAll { $0.id == client.id }
+                            } label: {
+                                Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove \(client.name). Time already logged to it keeps its name.")
+                        }
+                    }
+                    LabeledContent {
+                        TextField("Internal", text: $settings.timeTracking.internalName, prompt: Text("Internal"))
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 180)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle().fill(color(of: TimeClient.internalID)).frame(width: 8, height: 8)
+                            Text("Your main calendar's own meetings")
+                        }
+                    }
+                    HStack {
+                        TextField("Add a client", text: $newClient,
+                                  prompt: Text("Add a client without a calendar, such as a prospect"))
+                            .onSubmit(addClient)
+                        Button("Add", action: addClient)
+                            .disabled(newClient.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                } header: {
+                    Text("Clients")
+                } footer: {
+                    Text("Your secondary calendars are your clients, so there's no list to keep up to date. Add one by hand for work no calendar has. Logged time keeps its client's name when the client is removed.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section {
+                    LabeledContent("Working hours") {
+                        HStack(spacing: 4) {
+                            WorkingHoursPicker(hours: $settings.menuCalendar.workingHours)
+                        }
+                    }
+                } footer: {
+                    Text("Untracked time is looked for within these hours, Monday to Friday. The same as Meeting Stats and World Clocks use.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section {
+                    LabeledContent("Kept on this Mac only") {
+                        Button("Show in Finder") {
+                            if let url = tracker.fileURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                        }
+                        .disabled(tracker.log.isEmpty || tracker.fileURL == nil)
+                    }
+                    LabeledContent("Everything logged so far") {
+                        Button("Delete…", role: .destructive) { askingToDelete = true }
+                            .disabled(tracker.log.isEmpty)
+                    }
+                } header: {
+                    Text("Your data")
+                } footer: {
+                    Text("The timer's time, the time you assign and the meetings you give to another client are kept in a file in Calendar Hub's Application Support folder, readable only by you, and sent nowhere. Meetings stay in your calendar and are read from there. An exported CSV has your meetings' titles, except for calendars with Hide meeting names on.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .alert("Keep the time you logged?", isPresented: $askingToKeep) {
+            Button("Keep") { settings.timeTracking.isEnabled = false }
+            Button("Delete", role: .destructive) {
+                tracker.deleteAll()
+                settings.timeTracking.isEnabled = false
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Kept, it's there when you turn Time Tracking on again. Nothing new is recorded while it's off.")
+        }
+        .alert("Delete everything logged?", isPresented: $askingToDelete) {
+            Button("Delete", role: .destructive) { tracker.deleteAll() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The timer's time, the time you assigned and the meetings you gave to other clients are deleted, and the timer stops. Your meetings stay in your calendar. This can't be undone.")
+        }
+    }
+
+    /// Turning it off stops the timer, then asks whether to keep what's logged.
+    private func setEnabled(_ on: Bool) {
+        guard !on else {
+            settings.timeTracking.isEnabled = true
+            return
+        }
+        tracker.stop()
+        if tracker.log.isEmpty {
+            settings.timeTracking.isEnabled = false
+        } else {
+            askingToKeep = true
+        }
+    }
+
+    private func addClient() {
+        let name = newClient.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        settings.timeTracking.extraClients.append(.manual(named: name))
+        newClient = ""
+    }
+
+    private func clientLabel(_ client: TimeClient) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color(of: client.id)).frame(width: 8, height: 8)
+            Text(client.name)
+        }
+    }
+
+    private func color(of clientID: String) -> Color {
+        TimeClientColor.of(clientID, settings: settings, eventKit: controller.eventKit)
     }
 }
 
@@ -522,7 +696,7 @@ private struct WorldClocksTab: View {
                     }
                 }
             } footer: {
-                Text("Yours, Monday to Friday, and the same as Meeting Stats uses. Every city below works them too, in its own time, until you give it its own.")
+                Text("Yours, Monday to Friday, and the same as Meeting Stats and Time Tracking use. Every city below works them too, in its own time, until you give it its own.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
