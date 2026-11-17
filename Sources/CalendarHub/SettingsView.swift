@@ -54,7 +54,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, alerts, menuBar, tasks, worldClocks, meetingStats, meetingLimit, preview, about, logs
+    case general, calendars, twoWaySync, alerts, meetingStats, meetingLimit, menuBar, tasks, worldClocks, preview, about, logs
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
