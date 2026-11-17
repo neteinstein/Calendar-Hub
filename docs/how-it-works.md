@@ -76,6 +76,14 @@ Turn on **Meeting Stats** in Settings › Meeting Stats and the menu gains a **S
 
 Only timed meetings in your main calendar count: all-day, declined and out-of-office events don't. Overlapping meetings count once, with the total counting overlap next to it, like "20 hours (25 counting overlap)". Out of office counts the time it covers within working hours, Monday to Friday. Working hours are 9:00 to 17:00 unless you set your own in Settings.
 
+## Share availability
+
+- **From the menu.** The calendar button in the menu's footer, next to the heart, shows **Share availability** in place of the calendar views. Pick **Next 3 days**, **This week** or **Next week**, whose time it's for (yours, a World Clocks city, or any other found by searching), the shortest slot worth sharing, and whether to keep to their working hours too. **Copy** puts the text on the clipboard, ready to paste into an email or chat: `My availability (New York time, GMT−5):` and a line per day with its free times.
+- **From the menu bar.** Right-click (or Control-click) the menu bar item to copy the next 3 days, this week or next week straight away, with the time zone and slot length last picked in the panel, or to open the panel.
+- **Free means free everywhere.** It reads the main calendar, which already has every copy. Meetings you haven't accepted count as busy, and so does out of office, all-day too; declined meetings and other all-day events don't. Free time is within your working hours on your weekdays, from the next quarter hour today; with **Only when we're both working**, within theirs too, in their own time.
+- **Only as far as it syncs.** Days past what Calendar Hub reads (today plus the days set in Settings › General) are left out, and the panel says so.
+- **Nothing leaves your Mac** until you paste it.
+
 ## Updates
 
 The app checks GitHub for a newer version **once a day**, counting the day across sleep and restarts, and Settings' **About** pane can check now. A Homebrew install compares with the version the [tap](https://github.com/neteinstein/homebrew-tap) serves, since that's what `brew upgrade` installs and it can trail `main` for a while; a source build compares with the newest release, or the version on `main` while there are no releases.

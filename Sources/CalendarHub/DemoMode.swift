@@ -270,8 +270,9 @@ enum Snapshots {
         }
         // Share availability, for someone in New York.
         context.defaults.set("America/New_York", forKey: "availabilityTimeZone")
-        await shoot(environment(MenuDesk { MenuView(sharingAvailability: true) }),
-                    "menu-availability-\(suffix)", appearance, to: folder)
+        MenuPanel.shared.sharingAvailability = true
+        await shoot(environment(MenuDesk { MenuView() }), "menu-availability-\(suffix)", appearance, to: folder)
+        MenuPanel.shared.sharingAvailability = false
         if var next = context.controller.menuBarMeeting(now: Date()) {
             // As the alert first shows: a minute before the start.
             let length = next.end.timeIntervalSince(next.start)

@@ -105,7 +105,7 @@ When your meetings live in a secondary calendar (another company's account, a se
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-availability-dark.webp">
   <img src="docs/screenshots/menu-availability-light.webp" alt="Share availability: the next three days' free times in New York time, within both people's working hours, ready to copy">
 </picture>
-<b>Share availability.</b> Answer "when are you free?" in one click: the free time in all your calendars over the next days, in the other person's time zone, as text to paste into an email or chat.
+<b>Share availability.</b> Answer "when are you free?" in one click: the free time in all your calendars over the next days, in the other person's time zone, as text to paste into an email or chat. Or right-click the menu bar item to copy it without opening the menu.
 </td>
 </tr>
 </table>
@@ -198,7 +198,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, and has notes in Markdown.
 - **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
-- **Shares your availability:** your free times across every calendar, for the next three working days, this week or next week, in the other person's time zone and, if you like, only while they're working too, copied as text to paste anywhere. Nothing leaves your Mac until you paste it.
+- **Shares your availability:** your free times across every calendar, for the next three working days, this week or next week, in the other person's time zone and, if you like, only while they're working too, copied as text to paste anywhere. Right-click the menu bar item to copy it straight away. Nothing leaves your Mac until you paste it.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## What leaves your Mac, and where it ends up

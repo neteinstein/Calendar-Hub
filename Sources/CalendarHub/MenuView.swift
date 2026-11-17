@@ -13,12 +13,8 @@ struct MenuView: View {
     #endif
     /// Today's main-calendar events, for the Up next card.
     @State private var today: [SourceEvent] = []
-    /// Share availability shows in place of the calendar views.
-    @State private var sharingAvailability: Bool
-
-    init(sharingAvailability: Bool = false) {
-        _sharingAvailability = State(initialValue: sharingAvailability)
-    }
+    /// Whether Share availability shows in place of the calendar views.
+    @ObservedObject private var panel = MenuPanel.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -26,8 +22,8 @@ struct MenuView: View {
                 Text("Calendar Hub").font(.headline)
             }
 
-            if sharingAvailability {
-                AvailabilityView { sharingAvailability = false }
+            if panel.sharingAvailability {
+                AvailabilityView { panel.sharingAvailability = false }
             } else {
                 // A TimelineView is fine in the menu; only in the menu bar label does it loop.
                 TimelineView(.everyMinute) { context in
@@ -187,9 +183,9 @@ struct MenuView: View {
             }
             // In the menu rather than a popover: the menu window closes when another window
             // takes the keyboard.
-            IconButton("calendar.badge.clock", help: sharingAvailability ? "Back to the calendar" : "Share availability",
-                       tint: sharingAvailability ? .accentColor : nil) {
-                sharingAvailability.toggle()
+            IconButton("calendar.badge.clock", help: panel.sharingAvailability ? "Back to the calendar" : "Share availability",
+                       tint: panel.sharingAvailability ? .accentColor : nil) {
+                panel.sharingAvailability.toggle()
             }
             IconButton("arrow.triangle.2.circlepath", help: "Sync now (⌘R)", shortcut: "r") {
                 Task { await controller.syncNow() }
