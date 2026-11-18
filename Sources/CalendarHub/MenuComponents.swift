@@ -136,11 +136,12 @@ struct QuietJoinButton: View {
 
 /// Picks one of a few views, with a highlight that slides to the picked one.
 ///
-/// Only the highlight's offset and width along the strip animate. The views it switches between
-/// have different heights, so picking one resizes the menu window in the same update (see
-/// `WindowTopAnchor`); anything animated by its place in the window, as a matched geometry
-/// effect or an animation over the whole strip is, flies in from where the resize left it
-/// for a moment, over the Up next card. An offset within the strip can't be moved by that.
+/// The views it switches between have different heights, so picking one resizes the menu
+/// window (see `WindowTopAnchor`), and for that update the whole menu sits somewhere else for
+/// a moment. Anything animated in it flies in from there, over the Up next card: even the
+/// highlight's offset within the strip, and the titles' color, carry their position along. So
+/// the pick switches the view with nothing animated, and the highlight and the titles follow
+/// on the next turn of the run loop, once the window has its new size.
 ///
 /// Each segment is as wide as its title, and the room left is shared out evenly, so a long
 /// title such as Time Tracking fits next to short ones like List.
@@ -151,12 +152,15 @@ struct SlidingSegments<Value: Hashable>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Where each segment sits in the strip, for the highlight.
     @State private var frames: [Int: CGRect] = [:]
+    /// The segment highlighted: the picked one, a moment after it's picked.
+    @State private var highlighted: Value?
 
     var body: some View {
-        let index = options.firstIndex { $0.value == selection } ?? 0
+        let shown = highlighted ?? selection
+        let index = options.firstIndex { $0.value == shown } ?? 0
         SegmentsLayout {
             ForEach(Array(options.enumerated()), id: \.element.value) { offset, option in
-                let isSelected = option.value == selection
+                let isSelected = option.value == shown
                 Button {
                     selection = option.value
                 } label: {
@@ -165,11 +169,7 @@ struct SlidingSegments<Value: Hashable>: View {
                         // Shrinks a little when even the shared-out room is too narrow.
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        // Only the color: an animation over the whole label would move it too
-                        // when the menu window resizes in the same update.
-                        .animation(.easeOut(duration: 0.2)) {
-                            $0.foregroundStyle(isSelected ? .primary : .secondary)
-                        }
+                        .foregroundStyle(isSelected ? .primary : .secondary)
                         .padding(.horizontal, 3)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
@@ -191,7 +191,12 @@ struct SlidingSegments<Value: Hashable>: View {
                     .shadow(color: .black.opacity(0.12), radius: 1.5, y: 0.5)
                     .frame(width: frame.width, height: frame.height)
                     .offset(x: frame.minX, y: frame.minY)
-                    .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: frame)
+            }
+        }
+        .onAppear { highlighted = selection }
+        .onChange(of: selection) { _, picked in
+            DispatchQueue.main.async {
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.3)) { highlighted = picked }
             }
         }
         .padding(2)
