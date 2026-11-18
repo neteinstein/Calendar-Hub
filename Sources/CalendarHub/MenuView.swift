@@ -20,6 +20,12 @@ struct MenuView: View {
     @AppStorage("menuCalendarMode") private var menuMode: MenuCalendarView.Mode = .month
     /// The day ("2026-11-17") the untracked-time nudge was put away for.
     @AppStorage("timeNudgeDismissed") private var nudgeDismissed = ""
+    /// How much taller each section was dragged, kept between launches.
+    @AppStorage("menuSectionHeights") private var sectionHeights = MenuSectionHeights()
+    /// The extra height while the bottom edge is being dragged, saved when the drag ends.
+    @State private var draggedExtra: CGFloat?
+    /// The menu's height without the extra, to keep the menu on the screen.
+    @State private var usualHeight: CGFloat = 0
     /// Off for the README's screenshots, which would show it in every view when taken after
     /// the working day.
     static var showsUntrackedTimeNudge = true
@@ -31,7 +37,9 @@ struct MenuView: View {
             }
 
             if panel.sharingAvailability {
+                // Nothing in it scrolls: the room dragged open is left empty below it.
                 AvailabilityView { panel.sharingAvailability = false }
+                    .padding(.bottom, extra)
             } else {
                 // A TimelineView is fine in the menu; only in the menu bar label does it loop.
                 TimelineView(.everyMinute) { context in
@@ -62,6 +70,8 @@ struct MenuView: View {
             }
 
             Divider()
+                // Without views nothing scrolls: the room dragged open is left empty above it.
+                .padding(.top, !panel.sharingAvailability && !settings.menuHasViews ? extra : 0)
 
             let outlookSources = settings.sources.filter { $0.kind == .outlookWeb }
             if !outlookSources.isEmpty {
@@ -71,7 +81,28 @@ struct MenuView: View {
             footer
         }
         .padding(14)
+        .environment(\.menuExtraHeight, extra)
         .frame(width: settings.menuHasViews ? 360 : 320)
+        .background(GeometryReader { proxy in
+            let usual = proxy.size.height - extra
+            Color.clear
+                .onAppear { usualHeight = usual }
+                .onChange(of: usual) { _, usual in usualHeight = usual }
+        })
+        // In the bottom padding, below the footer's buttons.
+        .overlay(alignment: .bottom) {
+            MenuResizeHandle(extra: extra) { extra, ended in
+                let section = section
+                let extra = min(extra, maxExtra)
+                if ended {
+                    sectionHeights[section] = extra
+                    draggedExtra = nil
+                } else {
+                    draggedExtra = extra
+                }
+            }
+            .frame(height: 8)
+        }
         // The menu window's own material lets a white window behind it wash the text out; the
         // window background, nearly opaque, keeps it readable while still hinting at the desktop.
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.92).ignoresSafeArea())
@@ -81,6 +112,28 @@ struct MenuView: View {
         .onAppear(perform: reloadToday)
         .onChange(of: controller.lastSync) { _, _ in reloadToday() }
         .onChange(of: settings.targetCalendarID) { _, _ in reloadToday() }
+    }
+
+    // MARK: - Height
+
+    /// The section shown, which keeps a height of its own: Share availability, one of the
+    /// calendar views, or the menu without views.
+    private var section: String {
+        if panel.sharingAvailability { return "availability" }
+        guard settings.menuHasViews else { return "plain" }
+        return MenuCalendarView.shownMode(saved: menuMode, settings: settings).rawValue
+    }
+
+    /// The most the menu can grow before it runs off the bottom of the screen: a height saved on
+    /// a bigger screen gives way on a smaller one, and comes back on the bigger one.
+    private var maxExtra: CGFloat {
+        guard usualHeight > 0, let screen = NSScreen.main else { return .greatestFiniteMagnitude }
+        return max(screen.visibleFrame.height - usualHeight - 10, 0)
+    }
+
+    /// How much taller than usual the shown section is.
+    private var extra: CGFloat {
+        min(draggedExtra ?? sectionHeights[section], maxExtra)
     }
 
     /// Reads today's events from the main calendar.
