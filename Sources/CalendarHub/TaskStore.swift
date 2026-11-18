@@ -8,7 +8,9 @@ import Foundation
 /// step with it, so their due dates and nudges follow when it moves.
 @MainActor
 final class TaskStore: ObservableObject {
-    @Published private(set) var tasks: [TaskItem] = []
+    @Published private(set) var tasks: [TaskItem] = [] {
+        didSet { giveColors() }
+    }
     @Published private(set) var access: EKAuthorizationStatus
     /// The last save or delete that failed, shown in the Tasks view until one works.
     @Published private(set) var problem: String?
@@ -163,6 +165,24 @@ final class TaskStore: ObservableObject {
     /// The open tasks for the event with `key`.
     func openTasks(forEvent key: String) -> [TaskItem] {
         TaskPlanner.openTasks(forEvent: key, in: tasks)
+    }
+
+    // MARK: - Categories
+
+    /// The categories the tasks are in, for the Tasks view's filter and its pickers.
+    var categories: [String] { TaskPlanner.categories(tasks) }
+
+    /// Gives each category seen for the first time its color, and keeps it, so it doesn't
+    /// change as other categories come and go.
+    private func giveColors() {
+        let given = settings.taskOptions.categoryColors
+        let colors = TaskPlanner.colors(for: categories, given: given)
+        if colors != given { settings.taskOptions.categoryColors = colors }
+    }
+
+    /// The user picked `color` for `category`.
+    func setColor(_ color: TaskCategoryColor, of category: String) {
+        settings.taskOptions.categoryColors[category.lowercased()] = color
     }
 
     // MARK: - Keeping up with events

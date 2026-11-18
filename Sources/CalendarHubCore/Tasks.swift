@@ -18,10 +18,13 @@ public struct TaskItem: Hashable, Identifiable, Sendable {
     public var nudges: [Date]
     /// The event it's for, if any.
     public var event: TaskEventLink?
+    /// The category the Tasks view can be filtered by, if any: "Work", "Home". Kept with the
+    /// event link in the reminder's URL field (see `TaskLink`).
+    public var category: String?
 
     public init(id: String = "", title: String, notes: String? = nil, due: Date? = nil, dueHasTime: Bool = true,
                 isCompleted: Bool = false, completionDate: Date? = nil, creationDate: Date? = nil,
-                nudges: [Date] = [], event: TaskEventLink? = nil) {
+                nudges: [Date] = [], event: TaskEventLink? = nil, category: String? = nil) {
         self.id = id
         self.title = title
         self.notes = notes
@@ -32,6 +35,7 @@ public struct TaskItem: Hashable, Identifiable, Sendable {
         self.creationDate = creationDate
         self.nudges = nudges
         self.event = event
+        self.category = category
     }
 
     /// What the task is timed by: its due date, or else its event's start.
@@ -72,20 +76,24 @@ public struct TaskEventLink: Hashable, Sendable {
                   isAllDay: event.isAllDay)
     }
 
-    private static let allowed: CharacterSet = {
-        var set = CharacterSet.alphanumerics
-        set.insert(charactersIn: "-_.~")
-        return set
-    }()
+    /// `name=value` pairs, percent-encoded so `&`, `=` and spaces in a title survive.
+    static func query(_ items: [(String, String)]) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-_.~")
+        return items
+            .map { "\($0)=\($1.addingPercentEncoding(withAllowedCharacters: allowed) ?? $1)" }
+            .joined(separator: "&")
+    }
 
-    public var url: URL {
+    var queryItems: [(String, String)] {
         var items = [("title", title), ("start", ISO8601DateFormatter().string(from: start))]
         if isAllDay { items.append(("allDay", "1")) }
         items.append(("key", key))
-        let query = items
-            .map { "\($0)=\($1.addingPercentEncoding(withAllowedCharacters: Self.allowed) ?? $1)" }
-            .joined(separator: "&")
-        return URL(string: "\(Self.scheme)://event?\(query)")!
+        return items
+    }
+
+    public var url: URL {
+        URL(string: "\(Self.scheme)://event?\(Self.query(queryItems))")!
     }
 
     /// The link in a reminder's URL field, or nil when it holds anything else.
@@ -98,6 +106,36 @@ public struct TaskEventLink: Hashable, Sendable {
               let start = value("start").flatMap({ ISO8601DateFormatter().date(from: $0) })
         else { return nil }
         self.init(key: key, title: value("title") ?? "", start: start, isAllDay: value("allDay") == "1")
+    }
+}
+
+/// What the app keeps in a reminder's URL field: the event link (see `TaskEventLink`) with the
+/// task's category after it, `calendarhub://event?…&category=Work`, or for a task without an
+/// event, `calendarhub://task?category=Work`. So the category goes wherever the reminder goes,
+/// without showing in its title or notes.
+public enum TaskLink {
+    /// The URL for a task for `event` in `category`, or nil when it has neither.
+    public static func url(event: TaskEventLink?, category: String?) -> URL? {
+        let category = TaskPlanner.cleanCategory(category)
+        let extra = category.map { [("category", $0)] } ?? []
+        if let event {
+            return URL(string: "\(TaskEventLink.scheme)://event?\(TaskEventLink.query(event.queryItems + extra))")
+        }
+        guard !extra.isEmpty else { return nil }
+        return URL(string: "\(TaskEventLink.scheme)://task?\(TaskEventLink.query(extra))")
+    }
+
+    /// Whether `url` is one of the app's: a URL put in the field some other way is the user's.
+    public static func isOurs(_ url: URL?) -> Bool {
+        guard let url, [TaskEventLink.scheme, TaskEventLink.legacyScheme].contains(url.scheme ?? "") else { return false }
+        return url.host == "event" || url.host == "task"
+    }
+
+    /// The category kept in `url`, if it's one of the app's and has one.
+    public static func category(in url: URL?) -> String? {
+        guard isOurs(url), let url,
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
+        return TaskPlanner.cleanCategory(items.first { $0.name == "category" }?.value)
     }
 }
 
@@ -178,17 +216,26 @@ public struct TaskOptions: Codable, Hashable, Sendable {
     public var eventNudge: Nudge?
     /// The nudge a new task with a due date gets, or nil for none.
     public var dueNudge: Nudge?
+    /// Each category's color, by its name in lowercase: given when the category is first seen
+    /// (see `TaskPlanner.colors(for:given:)`), then as the user picks.
+    public var categoryColors: [String: TaskCategoryColor]
 
     public init(showsInMenu: Bool = true, listID: String? = nil, eventNudge: Nudge? = .before(minutes: 60),
-                dueNudge: Nudge? = .atStart) {
+                dueNudge: Nudge? = .atStart, categoryColors: [String: TaskCategoryColor] = [:]) {
         self.showsInMenu = showsInMenu
         self.listID = listID
         self.eventNudge = eventNudge
         self.dueNudge = dueNudge
+        self.categoryColors = categoryColors
+    }
+
+    /// The color `category` is shown in.
+    public func color(of category: String) -> TaskCategoryColor {
+        categoryColors[category.lowercased()] ?? TaskCategoryColor.preferred(for: category)
     }
 
     enum CodingKeys: String, CodingKey {
-        case showsInMenu, listID, eventNudge, dueNudge
+        case showsInMenu, listID, eventNudge, dueNudge, categoryColors
     }
 
     // Settings saved by older versions don't have every key yet. A nudge turned off is saved
@@ -200,6 +247,9 @@ public struct TaskOptions: Codable, Hashable, Sendable {
         listID = try c.decodeIfPresent(String.self, forKey: .listID)
         eventNudge = c.contains(.eventNudge) ? try c.decodeIfPresent(Nudge.self, forKey: .eventNudge) : defaults.eventNudge
         dueNudge = c.contains(.dueNudge) ? try c.decodeIfPresent(Nudge.self, forKey: .dueNudge) : defaults.dueNudge
+        // Colors are kept by name, so one a later version adds is skipped here, not the lot.
+        let colors = (try? c.decodeIfPresent([String: String].self, forKey: .categoryColors)) ?? [:]
+        categoryColors = colors.compactMapValues(TaskCategoryColor.init(rawValue:))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -208,6 +258,25 @@ public struct TaskOptions: Codable, Hashable, Sendable {
         try c.encodeIfPresent(listID, forKey: .listID)
         try c.encode(eventNudge, forKey: .eventNudge)
         try c.encode(dueNudge, forKey: .dueNudge)
+        try c.encode(categoryColors.mapValues(\.rawValue), forKey: .categoryColors)
+    }
+}
+
+/// The colors a task category can have: the system's named colors, most distinct first.
+public enum TaskCategoryColor: String, CaseIterable, Codable, Hashable, Sendable {
+    case blue, orange, green, purple, pink, teal, red, yellow, indigo, mint, brown, gray
+
+    public var title: String { rawValue.capitalized }
+
+    /// The color `category` gets when nothing else has a say: picked by its name, the same on
+    /// every Mac.
+    public static func preferred(for category: String) -> TaskCategoryColor {
+        // FNV-1a, as Swift's own hashes change from one launch to the next.
+        var hash: UInt32 = 2_166_136_261
+        for byte in category.lowercased().utf8 {
+            hash = (hash ^ UInt32(byte)) &* 16_777_619
+        }
+        return allCases[Int(hash % UInt32(allCases.count))]
     }
 }
 
@@ -237,6 +306,56 @@ public enum TaskPlanner {
             self.kind = kind
             self.tasks = tasks
         }
+    }
+
+    /// `category` without spaces around it, or nil when that leaves nothing.
+    public static func cleanCategory(_ category: String?) -> String? {
+        guard let trimmed = category?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    /// The categories of `tasks`, for the Tasks view's filter: each once whatever its case,
+    /// spelled as the first task with it has it, in alphabetical order.
+    public static func categories(_ tasks: [TaskItem]) -> [String] {
+        var seen: [String: String] = [:]
+        for task in tasks {
+            guard let category = cleanCategory(task.category) else { continue }
+            let folded = category.lowercased()
+            if seen[folded] == nil { seen[folded] = category }
+        }
+        return seen.values.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    /// `category` as typed, spelled like the one of `existing` it matches but for case, so
+    /// "work" goes in with "Work". Nil for none.
+    public static func category(_ category: String?, matching existing: [String]) -> String? {
+        guard let category = cleanCategory(category) else { return nil }
+        return existing.first { $0.caseInsensitiveCompare(category) == .orderedSame } ?? category
+    }
+
+    /// `given` with a color for each of `categories` that has none yet, by lowercase name: the
+    /// one its name prefers, or when another category has that, the next one nobody has, so
+    /// categories look different while there are colors to go round. The colors given stay.
+    public static func colors(for categories: [String], given: [String: TaskCategoryColor]) -> [String: TaskCategoryColor] {
+        var colors = given
+        let palette = TaskCategoryColor.allCases
+        for category in categories {
+            let key = category.lowercased()
+            guard colors[key] == nil else { continue }
+            let taken = Set(categories.compactMap { colors[$0.lowercased()] })
+            let preferred = TaskCategoryColor.preferred(for: category)
+            let start = palette.firstIndex(of: preferred) ?? 0
+            colors[key] = (0..<palette.count).lazy
+                .map { palette[(start + $0) % palette.count] }
+                .first { !taken.contains($0) } ?? preferred
+        }
+        return colors
+    }
+
+    /// The tasks in `category`, whatever its case; all of them for nil.
+    public static func tasks(_ tasks: [TaskItem], in category: String?) -> [TaskItem] {
+        guard let category = cleanCategory(category) else { return tasks }
+        return tasks.filter { cleanCategory($0.category)?.caseInsensitiveCompare(category) == .orderedSame }
     }
 
     /// Whether `task` is past its due date (or its event's start), or for a whole day, past

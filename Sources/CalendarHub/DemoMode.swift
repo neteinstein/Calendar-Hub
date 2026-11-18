@@ -210,18 +210,18 @@ final class DemoCalendars {
         var tasks: [TaskItem] = []
         if let review = link("Design review") {
             tasks.append(TaskItem(title: "Read the design doc", notes: Self.designDocNotes, due: review.start,
-                                  nudges: [review.start - 5 * 60], event: review))
-            tasks.append(TaskItem(title: "Bring the latest mockups", due: review.start, event: review))
+                                  nudges: [review.start - 5 * 60], event: review, category: "Work"))
+            tasks.append(TaskItem(title: "Bring the latest mockups", due: review.start, event: review, category: "Work"))
         }
         if let oneOnOne = link("1:1 with Ana") {
             tasks.append(TaskItem(title: "Write down topics for Ana", due: oneOnOne.start,
-                                  nudges: [oneOnOne.start - 30 * 60], event: oneOnOne))
+                                  nudges: [oneOnOne.start - 30 * 60], event: oneOnOne, category: "Work"))
         }
         tasks += [
-            TaskItem(title: "Send the sprint notes", due: at(17), nudges: [at(16)]),
+            TaskItem(title: "Send the sprint notes", due: at(17), nudges: [at(16)], category: "Work"),
             TaskItem(title: "Book flights to Paris", due: calendar.startOfDay(for: at(9, inDays: 1)), dueHasTime: false,
-                     nudges: [at(9, inDays: 1)]),
-            TaskItem(title: "Renew the passport", creationDate: now - 3 * 86400),
+                     nudges: [at(9, inDays: 1)], category: "Travel"),
+            TaskItem(title: "Renew the passport", creationDate: now - 3 * 86400, category: "Home"),
             TaskItem(title: "Review the Q4 roadmap", isCompleted: true, completionDate: now - 3600),
         ]
         return tasks.enumerated().map { index, task in
