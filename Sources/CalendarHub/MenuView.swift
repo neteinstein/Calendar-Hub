@@ -72,15 +72,10 @@ struct MenuView: View {
         }
         .padding(14)
         .frame(width: settings.menuHasViews ? 360 : 320)
-        .background(WindowTopAnchor())
-        // Pinned to the window's top. When the content's height changes (another view picked
-        // in the menu), it is laid out once in the window's old height before the window
-        // fits it; centered, as it would be, everything shifts for that one pass, and whatever
-        // animates in that update (the picked segment) flies in from the shifted place.
-        .frame(maxHeight: .infinity, alignment: .top)
         // The menu window's own material lets a white window behind it wash the text out; the
         // window background, nearly opaque, keeps it readable while still hinting at the desktop.
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.92).ignoresSafeArea())
+        .background(WindowTopAnchor())
         // No animation on changes that resize the menu (problems coming and going, the Up next
         // card): the window must not resize inside one (see `WindowTopAnchor`).
         .onAppear(perform: reloadToday)
