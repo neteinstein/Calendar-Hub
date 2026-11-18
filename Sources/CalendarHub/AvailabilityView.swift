@@ -2,12 +2,13 @@ import AppKit
 import CalendarHubCore
 import SwiftUI
 
-/// Share availability, opened from the menu's footer in place of the calendar views: the free
-/// time in every calendar over the next days, in the other person's time, as text to paste
-/// into an email or chat.
+/// Share availability, opened from the menu's footer in place of the calendar views, and in
+/// Settings › Share availability: the free time in every calendar over the next days, in the
+/// other person's time, as text to paste into an email or chat.
 struct AvailabilityView: View {
-    /// Back to the calendar views.
-    let close: () -> Void
+    /// Back to the calendar views. Nil in Settings, where the pane's own title names it and
+    /// there's nothing to go back to.
+    let close: (() -> Void)?
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var controller: SyncController
     @AppStorage("availabilitySpan") private var span = Availability.Span.nextDays
@@ -36,11 +37,13 @@ struct AvailabilityView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Share availability")
-                    .font(.system(size: 15, weight: .semibold))
-                Spacer()
-                IconButton("xmark", help: "Close", action: close)
+            if let close {
+                HStack {
+                    Text("Share availability")
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                    IconButton("xmark", help: "Close", action: close)
+                }
             }
 
             SlidingSegments(options: Availability.Span.allCases.map { ($0, $0.title) }, selection: $span)

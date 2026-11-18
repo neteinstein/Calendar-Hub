@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.1.6](https://img.shields.io/badge/version-2.1.6-2563EB)](Support/Info.plist)
+[![Version 2.1.7](https://img.shields.io/badge/version-2.1.7-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -209,6 +209,10 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
   <img src="docs/screenshots/settings-timeTracking-light.webp" width="640" alt="Settings, Time Tracking: the Time Tracking view in the menu, and what's tracked: meetings, the timer, the timer in the menu bar and untracked time">
 </picture>
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-shareAvailability-dark.webp">
+  <img src="docs/screenshots/settings-shareAvailability-light.webp" width="640" alt="Settings, Share availability: the menu's Share availability, your free times in someone else's time zone, ready to copy">
+</picture>
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/settings-about-dark.webp">
   <img src="docs/screenshots/settings-about-light.webp" width="640" alt="Settings, About: version, update check, feedback and donations">
 </picture>
@@ -223,6 +227,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
 - **Reads calendars your Mac can't add:** sign in to **Outlook on the web** once in the app, or subscribe to a published **.ics** link.
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
+- **Colors each calendar** in the menu and the alerts as Calendar.app does, or in a color you pick for it in Settings.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
 - **Keeps your tasks** in a Tasks view and on their day in Month and List, as reminders in Reminders, so they're on your iPhone too and stay if you remove the app. A task can be for a meeting, moves with it, nudges you when you say, has notes in Markdown, and can go in a category, each in its own color, to show one category at a time.
 - **Limits your meetings a day**, if you like: when a day reaches the hours you set, across every calendar, the menu says so ("Tomorrow: 5h 20m of meetings, over your 5h limit"), and the free time left in its working hours can become **Busy** in your main calendar, and in the secondary calendars you pick, so nobody books more.
