@@ -84,6 +84,7 @@ struct MenuView: View {
         .padding(14)
         .environment(\.menuExtraHeight, extra)
         .frame(width: settings.menuHasViews ? 360 : 320)
+        .hoverTips()
         .background(GeometryReader { proxy in
             let usual = proxy.size.height - extra
             Color.clear
