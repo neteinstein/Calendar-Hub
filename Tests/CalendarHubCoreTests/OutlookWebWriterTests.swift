@@ -68,7 +68,9 @@ final class OutlookWebWriterTests: XCTestCase {
         XCTAssertEqual(item["IsAllDayEvent"] as? Bool, true)
         XCTAssertEqual(item["Start"] as? String, "2026-11-04T00:00:00+01:00")
         XCTAssertEqual(item["End"] as? String, "2026-11-06T00:00:00+01:00")
-        XCTAssertEqual(item["StartTimeZoneId"] as? String, "W. Europe Standard Time")
+        // Read-only to Outlook, which refuses the event when they're sent.
+        XCTAssertNil(item["StartTimeZoneId"])
+        XCTAssertNil(item["EndTimeZoneId"])
         let header = try XCTUnwrap(try json(requests[0])["Header"] as? [String: Any])
         let context = try XCTUnwrap(header["TimeZoneContext"] as? [String: Any])
         XCTAssertEqual((context["TimeZoneDefinition"] as? [String: Any])?["Id"] as? String, "W. Europe Standard Time")
@@ -102,6 +104,9 @@ final class OutlookWebWriterTests: XCTestCase {
 
         let failed = #"{"Body":{"ResponseClass":"Success","ResponseMessages":{"Items":[{"ResponseClass":"Error","ResponseCode":"ErrorItemNotFound","MessageText":"The specified object was not found in the store."}]}}}"#
         XCTAssertEqual(OutlookWebWriter.problem(inResponse: failed), "The specified object was not found in the store.")
+
+        let readOnly = #"{"Body":{"ResponseMessages":{"Items":[{"ResponseClass":"Error","ResponseCode":"ErrorInvalidPropertySet","MessageText":"Set action is invalid for property.","MessageXml":"<XmlNodeArray>\r\n  <t:FieldURI FieldURI=\"calendar:EndTimeZoneId\" />\r\n</XmlNodeArray>"}]}}}"#
+        XCTAssertEqual(OutlookWebWriter.problem(inResponse: readOnly), "Set action is invalid for property. (calendar:EndTimeZoneId)")
 
         XCTAssertNotNil(OutlookWebWriter.problem(inResponse: nil))
         XCTAssertNotNil(OutlookWebWriter.problem(inResponse: "<html>Sign in</html>"))
@@ -183,5 +188,11 @@ final class OutlookWebWriterTests: XCTestCase {
         // Other events without one don't matter.
         let other = #"{"Items":[{"ItemId":{"Id":"x"},"Subject":"Standup","Start":"2026-11-04T10:00:00Z","End":"2026-11-04T11:00:00Z"}]}"#
         XCTAssertEqual(OutlookWebParser.busyEvents(fromPayloads: [Data(other.utf8)], sourceID: outlook.id)?.count, 0)
+
+        // Loaded in full with an empty description: someone's own event titled Busy, not one of
+        // the app's, which all have a description.
+        let empty = #"{"Items":[{"ItemId":{"Id":"busy1"},"Body":{"BodyType":"HTML","Value":""}}]}"#
+        XCTAssertEqual(OutlookWebParser.busyEvents(fromPayloads: [Data(week.utf8)], details: [Data(empty.utf8)],
+                                                   sourceID: outlook.id)?.count, 0)
     }
 }

@@ -47,8 +47,9 @@ public enum OutlookWebParser {
     ///
     /// Busy events are told apart from the calendar's own events by their description, which
     /// the week view leaves out, so this needs the meetings loaded in full (`details`). Returns
-    /// nil when an event titled like a Busy event has no description to tell by: the app can't
-    /// know whether it made it, and adding another every sync would pile them up.
+    /// nil when an event titled like a Busy event wasn't loaded in full: the app can't know
+    /// whether it made it, and adding another every sync would pile them up. One loaded in full
+    /// with an empty description isn't one of them.
     ///
     /// - Parameter timeZone: this Mac's time zone, whose days all-day events are placed on.
     public static func busyEvents(fromPayloads payloads: [Data], details detailPayloads: [Data] = [],
@@ -69,7 +70,8 @@ public enum OutlookWebParser {
             else { return }
             seen.insert(id)
             guard let notes = event.notes else {
-                unsure = true
+                // Loaded in full with no description, it isn't one: they all have one.
+                if detail == nil { unsure = true }
                 return
             }
             guard let match = CopyFormatter.busyMatch(title: title, notes: notes, sourceID: sourceID) else { return }
@@ -82,8 +84,10 @@ public enum OutlookWebParser {
     }
 
     private static func isRecurring(_ obj: Obj) -> Bool {
-        if obj.string("seriesMasterId") != nil || obj.object("seriesMasterItemId") != nil
-            || obj.value("recurrence") != nil {
+        // Outlook sends every event a SeriesMasterItemId, with no id in it when the event
+        // doesn't repeat.
+        if obj.bool("isRecurring") == true || obj.string("seriesMasterId") != nil
+            || obj.object("seriesMasterItemId")?.string("id") != nil || obj.value("recurrence") != nil {
             return true
         }
         // OWA: CalendarItemType Single / Occurrence / Exception / RecurringMaster;
