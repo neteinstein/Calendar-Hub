@@ -129,6 +129,21 @@ final class TaskStore: ObservableObject {
         }
     }
 
+    /// Deletes `tasks` from Reminders, as many as can be; the problem names those that weren't.
+    func delete(all tasks: [TaskItem]) {
+        var failed: [String] = []
+        for task in tasks {
+            do {
+                try eventKit.removeTask(task)
+                self.tasks.removeAll { $0.id == task.id }
+            } catch {
+                failed.append("“\(task.title)”")
+            }
+        }
+        problem = failed.isEmpty ? nil
+            : "\(ListFormatter.localizedString(byJoining: failed)) \(failed.count == 1 ? "wasn't" : "weren't") deleted."
+    }
+
     /// A new task, for `event` when there is one: due when it starts, with the nudge new
     /// tasks for an event get.
     func newTask(for event: SourceEvent? = nil) -> TaskItem {
