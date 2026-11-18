@@ -19,6 +19,12 @@ struct TasksView: View {
     @State private var editing: TaskItem?
     /// The done tasks, folded into one row until opened.
     @State private var showsDone = false
+    /// The category the list shows, or empty for all of them.
+    @AppStorage("tasksCategory") private var filter = ""
+    /// The category a task added from the field goes in: the one shown, until another is picked.
+    @State private var newCategory: String?
+    /// The editor opens on its category, for a new one.
+    @State private var namesCategory = false
     /// How much taller than usual the menu was dragged for Tasks.
     @Environment(\.menuExtraHeight) private var extraHeight
 
@@ -40,9 +46,13 @@ struct TasksView: View {
                 }
             } else if let editing {
                 TaskEditor(task: editing, events: events, calendar: calendar, options: settings.taskOptions,
+                           categories: tasks.categories, focusesCategory: namesCategory,
                            save: { tasks.save($0) },
                            delete: { tasks.delete(editing) },
-                           close: { withAnimation(motion) { self.editing = nil } })
+                           close: {
+                               namesCategory = false
+                               withAnimation(motion) { self.editing = nil }
+                           })
                     .id(editing)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
                     .zIndex(1)
@@ -53,6 +63,7 @@ struct TasksView: View {
         .frame(height: Self.height + extraHeight, alignment: .top)
         .clipped()
         .onAppear {
+            newCategory = shownCategory
             openDraft()
             // Reminders is asked for the first time the view shows, not at launch, so nobody who
             // doesn't use tasks is asked. The card's button asks again if the answer didn't come.
@@ -65,6 +76,14 @@ struct TasksView: View {
             }
         }
         .onChange(of: tasks.draft) { _, _ in openDraft() }
+        .onChange(of: filter) { _, _ in newCategory = shownCategory }
+    }
+
+    /// The category the list is filtered by, or nil for all: none once no task is in it.
+    private var shownCategory: String? {
+        TaskPlanner.category(filter, matching: tasks.categories).flatMap { shown in
+            tasks.categories.contains(shown) ? shown : nil
+        }
     }
 
     /// Opens the task the List asked for, if any.
@@ -78,10 +97,16 @@ struct TasksView: View {
 
     private var list: some View {
         let now = Date()
-        let sections = TaskPlanner.sections(tasks.tasks, now: now, calendar: calendar)
+        let shown = shownCategory
+        let sections = TaskPlanner.sections(TaskPlanner.tasks(tasks.tasks, in: shown), now: now, calendar: calendar)
         let open = sections.filter { $0.kind != .done }
         let done = sections.first { $0.kind == .done }?.tasks ?? []
         return VStack(spacing: 6) {
+            if !tasks.categories.isEmpty {
+                CategoryBar(categories: tasks.categories, selected: shown, options: settings.taskOptions,
+                            select: { category in withAnimation(motion) { filter = category ?? "" } },
+                            setColor: { tasks.setColor($0, of: $1) })
+            }
             addField
             if let problem = tasks.problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
@@ -91,7 +116,7 @@ struct TasksView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if sections.isEmpty {
-                EmptyTasks().frame(maxHeight: .infinity)
+                EmptyTasks(category: shown).frame(maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2, pinnedViews: .sectionHeaders) {
@@ -101,7 +126,7 @@ struct TasksView: View {
                         ForEach(open, id: \.kind) { section in
                             Section {
                                 VStack(spacing: 2) {
-                                    ForEach(section.tasks) { row($0, now: now) }
+                                    ForEach(section.tasks) { row($0, now: now, showsCategory: shown == nil) }
                                 }
                                 .padding(.bottom, 6)
                             } header: {
@@ -118,7 +143,7 @@ struct TasksView: View {
                                 }
                             }
                             if showsDone {
-                                ForEach(done) { row($0, now: now) }
+                                ForEach(done) { row($0, now: now, showsCategory: shown == nil) }
                             }
                         }
                     }
@@ -144,13 +169,16 @@ struct TasksView: View {
                     guard !trimmedTitle.isEmpty else { return }
                     var task = tasks.newTask()
                     task.title = trimmedTitle
+                    task.category = newCategory
                     tasks.save(task)
                     newTitle = ""
                 }
+            categoryMenu
             if !trimmedTitle.isEmpty {
                 IconButton("calendar.badge.clock", help: "Add with a date, an event or nudges") {
                     var task = tasks.newTask()
                     task.title = trimmedTitle
+                    task.category = newCategory
                     newTitle = ""
                     withAnimation(motion) { editing = task }
                 }
@@ -160,6 +188,60 @@ struct TasksView: View {
         .padding(.trailing, 2)
         .frame(height: 30)
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// The category a task added from the field goes in: a tag, with the category's name once
+    /// there is one. A new category is named in the editor.
+    private var categoryMenu: some View {
+        Menu {
+            Button {
+                newCategory = nil
+            } label: {
+                if newCategory == nil { Label("No Category", systemImage: "checkmark") } else { Text("No Category") }
+            }
+            if !tasks.categories.isEmpty {
+                Divider()
+                ForEach(tasks.categories, id: \.self) { category in
+                    Button {
+                        newCategory = category
+                    } label: {
+                        if newCategory == category { Label(category, systemImage: "checkmark") } else { Text(category) }
+                    }
+                }
+            }
+            Divider()
+            Button("New Category…") {
+                var task = tasks.newTask()
+                task.title = trimmedTitle
+                newTitle = ""
+                namesCategory = true
+                withAnimation(motion) { editing = task }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if let newCategory {
+                    Circle().fill(settings.taskOptions.color(of: newCategory).color).frame(width: 7, height: 7)
+                    Text(newCategory)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                } else {
+                    Image(systemName: "tag")
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .frame(height: 22)
+            .frame(maxWidth: 110)
+            .background(newCategory == nil ? .clear : Color.primary.opacity(0.06), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(newCategory.map { "Added to \($0)" } ?? "Pick a category for new tasks")
+        .accessibilityLabel(newCategory.map { "Category: \($0)" } ?? "Category")
     }
 
     private func header(_ section: TaskPlanner.Section) -> some View {
@@ -181,7 +263,7 @@ struct TasksView: View {
         .background(.bar)
     }
 
-    private func row(_ task: TaskItem, now: Date) -> some View {
+    private func row(_ task: TaskItem, now: Date, showsCategory: Bool) -> some View {
         let event = task.event.flatMap { link in events.first { $0.key == link.key } }
         let tint = event.flatMap { event in
             settings.menuCalendar.colorsByCalendar
@@ -189,6 +271,7 @@ struct TasksView: View {
         }
         return TaskRow(task: task, now: now, calendar: calendar, eventStart: event?.start ?? task.event?.start, tint: tint,
                        eventMissing: task.event.map { tasks.missingEvents.contains($0.key) } ?? false,
+                       showsCategory: showsCategory,
                        toggle: { withAnimation(motion) { tasks.toggleDone(task) } },
                        open: { withAnimation(motion) { editing = task } },
                        delete: { withAnimation(motion) { tasks.delete(task) } })
@@ -226,6 +309,8 @@ struct TaskRow: View {
     var tint: Color?
     /// Its event is no longer in the main calendar.
     var eventMissing = false
+    /// Its category shows, unless the list only has that category's tasks.
+    var showsCategory = true
     let toggle: () -> Void
     let open: () -> Void
     let delete: () -> Void
@@ -251,7 +336,7 @@ struct TaskRow: View {
                     .foregroundStyle(task.isCompleted ? .secondary : .primary)
                     .lineLimit(2)
                 TaskMetaLine(task: task, now: now, calendar: calendar, eventStart: eventStart, tint: tint,
-                             eventMissing: eventMissing)
+                             eventMissing: eventMissing, showsCategory: showsCategory)
             }
             Spacer(minLength: 0)
             if hovering {
@@ -276,8 +361,8 @@ struct TaskRow: View {
     }
 }
 
-/// What a task is for and when: its event, its due date and its next nudge, and a mark when
-/// it has notes. Red once it's overdue.
+/// What a task is for and when: its category, its event, its due date and its next nudge, and
+/// a mark when it has notes. Red once it's overdue.
 struct TaskMetaLine: View {
     let task: TaskItem
     let now: Date
@@ -285,13 +370,20 @@ struct TaskMetaLine: View {
     var eventStart: Date?
     var tint: Color?
     var eventMissing = false
+    var showsCategory = true
+    @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         let overdue = TaskPlanner.isOverdue(task, now: now, calendar: calendar)
         let nudge = TaskPlanner.nextNudge(of: task, now: now)
         let hasNotes = task.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        if task.event != nil || task.due != nil || nudge != nil || hasNotes {
+        let category = showsCategory ? TaskPlanner.cleanCategory(task.category) : nil
+        if category != nil || task.event != nil || task.due != nil || nudge != nil || hasNotes {
             HStack(spacing: 4) {
+                if let category {
+                    CategoryTag(name: category, color: settings.taskOptions.color(of: category).color)
+                        .padding(.trailing, 2)
+                }
                 if let event = task.event {
                     Circle().fill(tint ?? Color.secondary.opacity(0.5)).frame(width: 6, height: 6)
                     Text(event.title.isEmpty ? "Event" : event.title).lineLimit(1)
@@ -391,6 +483,8 @@ private struct DoneRow: View {
 /// "Nothing to do", with where tasks come from.
 private struct EmptyTasks: View {
     var allDone = false
+    /// The category the list shows, if not all of them.
+    var category: String?
 
     var body: some View {
         VStack(spacing: 3) {
@@ -398,7 +492,7 @@ private struct EmptyTasks: View {
                 .font(.title3)
                 .foregroundStyle(allDone ? Color.green : Color.accentColor)
                 .padding(.bottom, 2)
-            Text(allDone ? "All done" : "Nothing to do")
+            Text(allDone ? "All done" : category.map { "Nothing to do in \($0)" } ?? "Nothing to do")
                 .font(.callout.weight(.semibold))
             Text("Add a task above, or right-click a meeting in the List for a task to prepare it.")
                 .font(.caption)
@@ -443,6 +537,115 @@ private struct RemindersAccessCard: View {
     }
 }
 
+// MARK: - Categories
+
+extension TaskCategoryColor {
+    var color: Color {
+        switch self {
+        case .blue: .blue
+        case .orange: .orange
+        case .green: .green
+        case .purple: .purple
+        case .pink: .pink
+        case .teal: .teal
+        case .red: .red
+        case .yellow: .yellow
+        case .indigo: .indigo
+        case .mint: .mint
+        case .brown: .brown
+        case .gray: .gray
+        }
+    }
+}
+
+/// A category's name in a capsule of its color, on a task's line.
+struct CategoryTag: View {
+    let name: String
+    let color: Color
+
+    var body: some View {
+        Text(name)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.16), in: Capsule())
+            .fixedSize()
+            .accessibilityLabel("Category: \(name)")
+    }
+}
+
+/// Picks the color of `category`, from its right-click menu.
+struct CategoryColorMenu: View {
+    let category: String
+    let current: TaskCategoryColor
+    let setColor: (TaskCategoryColor, String) -> Void
+
+    var body: some View {
+        Menu("Color") {
+            ForEach(TaskCategoryColor.allCases, id: \.self) { color in
+                Button {
+                    setColor(color, category)
+                } label: {
+                    if color == current { Label(color.title, systemImage: "checkmark") } else { Text(color.title) }
+                }
+            }
+        }
+    }
+}
+
+/// Above the tasks: All, then a chip for each category, to show only its tasks. Right-click a
+/// category for its color.
+private struct CategoryBar: View {
+    let categories: [String]
+    /// The category shown, or nil for all.
+    let selected: String?
+    let options: TaskOptions
+    let select: (String?) -> Void
+    let setColor: (TaskCategoryColor, String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                chip("All", color: nil, isSelected: selected == nil) { select(nil) }
+                ForEach(categories, id: \.self) { category in
+                    let color = options.color(of: category)
+                    chip(category, color: color.color, isSelected: selected == category) { select(category) }
+                        .contextMenu {
+                            CategoryColorMenu(category: category, current: color, setColor: setColor)
+                        }
+                }
+            }
+            .padding(.horizontal, 1)
+        }
+        .frame(height: 24)
+    }
+
+    private func chip(_ title: String, color: Color?, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let color {
+                    Circle().fill(color).frame(width: 7, height: 7)
+                }
+                Text(title)
+                    .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            .padding(.horizontal, 9)
+            .frame(height: 22)
+            .background(isSelected ? (color ?? Color.accentColor).opacity(0.2) : Color.primary.opacity(0.05), in: Capsule())
+            .overlay(Capsule().strokeBorder(isSelected ? (color ?? Color.accentColor).opacity(0.5) : .clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .pointingHandCursor()
+        .help(color == nil ? "Show every task" : "Show the tasks in \(title); right-click for its color")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 // MARK: - Editor
 
 /// One task, new or saved: its title and notes, the event it's for, when it's due, and its
@@ -453,12 +656,17 @@ private struct TaskEditor: View {
     let events: [SourceEvent]
     let calendar: Calendar
     let options: TaskOptions
+    /// The categories there are, to pick from.
+    let categories: [String]
+    /// Opens with the cursor in the category, to name a new one.
+    let focusesCategory: Bool
     let save: (TaskItem) -> Void
     let delete: () -> Void
     let close: () -> Void
     @State private var task: TaskItem
     @State private var nudges: [EditedNudge]
     @FocusState private var titleFocused: Bool
+    @FocusState private var categoryFocused: Bool
     @Environment(\.openTaskNotes) private var openTaskNotes
 
     private struct EditedNudge: Identifiable, Hashable {
@@ -467,11 +675,14 @@ private struct TaskEditor: View {
     }
 
     init(task: TaskItem, events: [SourceEvent], calendar: Calendar, options: TaskOptions,
+         categories: [String], focusesCategory: Bool,
          save: @escaping (TaskItem) -> Void, delete: @escaping () -> Void, close: @escaping () -> Void) {
         original = task
         self.events = events
         self.calendar = calendar
         self.options = options
+        self.categories = categories
+        self.focusesCategory = focusesCategory
         self.save = save
         self.delete = delete
         self.close = close
@@ -524,6 +735,10 @@ private struct TaskEditor: View {
                     Divider()
                     Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 9) {
                         GridRow {
+                            label("Category")
+                            categoryField
+                        }
+                        GridRow {
                             label("For")
                             eventMenu
                         }
@@ -551,7 +766,13 @@ private struct TaskEditor: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .onAppear { if original.title.isEmpty { titleFocused = true } }
+        .onAppear {
+            if focusesCategory {
+                categoryFocused = true
+            } else if original.title.isEmpty {
+                titleFocused = true
+            }
+        }
         .onChange(of: task) { old, new in
             // Without a date, nudges timed by it keep the time they had.
             guard new.anchor == nil, old.anchor != nil else { return }
@@ -573,6 +794,46 @@ private struct TaskEditor: View {
     private var nextHour: Date {
         let now = Date()
         return calendar.dateInterval(of: .hour, for: now)?.end ?? now.addingTimeInterval(3600)
+    }
+
+    // MARK: Category
+
+    /// The category as typed, as it will be saved: spelled like the one it matches.
+    private var typedCategory: String? { TaskPlanner.category(task.category, matching: categories) }
+
+    /// Type a category, new or not, or pick one from the menu beside it.
+    private var categoryField: some View {
+        HStack(spacing: 4) {
+            if let typedCategory {
+                let colors = TaskPlanner.colors(for: categories + [typedCategory], given: options.categoryColors)
+                Circle()
+                    .fill((colors[typedCategory.lowercased()] ?? options.color(of: typedCategory)).color)
+                    .frame(width: 8, height: 8)
+            }
+            TextField("None", text: Binding(get: { task.category ?? "" }, set: { task.category = $0 }))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($categoryFocused)
+                .onSubmit(commit)
+                .frame(maxWidth: 160)
+            if !categories.isEmpty {
+                Menu {
+                    Button("No Category") { task.category = nil }
+                    Divider()
+                    ForEach(categories, id: \.self) { category in
+                        Button(category) { task.category = category }
+                    }
+                } label: {
+                    Image(systemName: "chevron.up.chevron.down")
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Pick a category")
+            }
+        }
+        .frame(height: 22)
     }
 
     // MARK: Event
@@ -734,6 +995,7 @@ private struct TaskEditor: View {
         saved.title = trimmedTitle
         let notes = saved.notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         saved.notes = notes?.isEmpty == false ? saved.notes : nil
+        saved.category = typedCategory
         saved.nudges = Set(nudges.compactMap {
             $0.nudge.date(anchor: saved.anchor, anchorHasTime: saved.anchorHasTime, calendar: calendar)
         }).sorted()
