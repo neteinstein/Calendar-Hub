@@ -73,7 +73,8 @@ struct MenuView: View {
                 // Without views nothing scrolls: the room dragged open is left empty above it.
                 .padding(.top, !panel.sharingAvailability && !settings.menuHasViews ? extra : 0)
 
-            let outlookSources = settings.sources.filter { $0.kind == .outlookWeb }
+            // Only those synced: one turned off in Settings has nothing to open it for.
+            let outlookSources = settings.sources.filter { $0.kind == .outlookWeb && $0.isEnabled }
             if !outlookSources.isEmpty {
                 webCalendars(outlookSources)
             }
