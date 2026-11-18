@@ -56,6 +56,8 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// out though the page is still Outlook's. Set by the page scripts, see `captureScript`.
     private var sawLoginTimeout = false
     private var signedOutReason: String?
+    /// Which of `OutlookWebCalendarView.requests` Outlook last answered, tried first next time.
+    private var calendarViewRequest: Int?
     private let securityKey = SecurityKeySignIn()
 
     init(sourceID: UUID) {
@@ -219,6 +221,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         sawLoginTimeout = false
         signedOutReason = nil
         var onScreen: [SourceEvent] = []
+        var calendarViewFailed = false
         var calendar = Calendar.current
         calendar.firstWeekday = 2 // Monday
         // The week view only loads one week, so read every week the sync window touches.
@@ -256,8 +259,26 @@ final class OutlookWebSource: NSObject, ObservableObject {
             var loaded = await waitForCalendarData(after: before, from: weekFrom, to: weekTo)
 
             if await isSignedOut() { return signedOut() }
+            // Outlook can load the next week ahead of time, with the week before it, and then
+            // ask for nothing when it's shown.
+            if !loaded {
+                loaded = OutlookWebParser.events(fromPayloads: captured)
+                    .contains { $0.start >= weekFrom && $0.start < weekTo }
+            }
             // Outlook doesn't always fetch a week in a way we can capture (it can come from a
-            // background worker). The meetings it shows on the page are always there.
+            // background worker). Ask its service for the week then, the way it asks for a
+            // meeting in full: the meetings on the page have no item ids, and without them two
+            // way sync can't tell its Busy events apart.
+            if !loaded, !calendarViewFailed {
+                if let answer = await loadWeek(from: weekFrom, to: weekTo) {
+                    captured.append(answer)
+                    loaded = true
+                } else {
+                    // Each try can take a while; one that fails for one week fails for the rest.
+                    calendarViewFailed = true
+                }
+            }
+            // The meetings Outlook shows on the page are always there.
             if !loaded {
                 let shown = await meetingsOnScreen(from: weekFrom, to: weekTo)
                 onScreen += shown
@@ -265,12 +286,6 @@ final class OutlookWebSource: NSObject, ObservableObject {
             }
             // No meeting in the week almost always means its data didn't load (Outlook can
             // answer with another week). Fail, so existing copies are left alone.
-            // Outlook can load the next week ahead of time, with the week before it, and then
-            // ask for nothing when it's shown.
-            if !loaded {
-                loaded = OutlookWebParser.events(fromPayloads: Array(captured[..<before]))
-                    .contains { $0.start >= weekFrom && $0.start < weekTo }
-            }
             if !loaded {
                 let weekName = weekFrom.formatted(.dateTime.day().month())
                 // The page's host only: its path and query are the account's own business.
@@ -416,6 +431,30 @@ final class OutlookWebSource: NSObject, ObservableObject {
                 continuation.resume(returning: texts.map { Data($0.utf8) })
             }
         }
+    }
+
+    /// Asks Outlook's service for the meetings starting in `[from, to)`, trying each way of
+    /// asking in `OutlookWebCalendarView` (the one that last worked first) until one answers
+    /// with them. Returns that answer, or nil when none did.
+    private func loadWeek(from: Date, to: Date) async -> Data? {
+        let requests = OutlookWebCalendarView.requests(from: from, to: to)
+        var order = Array(requests.indices)
+        if let known = calendarViewRequest, order.contains(known) {
+            order.removeAll { $0 == known }
+            order.insert(known, at: 0)
+        }
+        let weekName = from.formatted(.dateTime.day().month())
+        for index in order {
+            guard let text = await call(requests[index]) else { continue }
+            let answer = Data(text.utf8)
+            if OutlookWebCalendarView.answers(answer, from: from, to: to) {
+                calendarViewRequest = index
+                AppLog.write("Calendar Hub: Outlook week of \(weekName) loaded through \(requests[index].action) (\(index + 1))")
+                return answer
+            }
+        }
+        AppLog.write("Calendar Hub: Outlook week of \(weekName) not captured and not loaded through its service; reading the page")
+        return nil
     }
 
     /// Reads the meetings Outlook shows for `[from, to)` from the page, waiting up to 10 s

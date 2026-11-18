@@ -49,10 +49,9 @@ public enum OutlookWebWriter {
             item["Start"] = utc(spec.start)
             item["End"] = utc(max(spec.end, spec.start))
         }
-        if let windowsZone {
-            item["StartTimeZoneId"] = windowsZone
-            item["EndTimeZoneId"] = windowsZone
-        }
+        // The zone goes in the request's header (TimeZoneContext), which Outlook gives the
+        // event. StartTimeZoneId and EndTimeZoneId are read-only: Outlook refuses the event
+        // with "Set action is invalid for property" when they're sent.
         let body: [String: Any] = [
             "__type": "CreateItemRequest:#Exchange",
             "Items": [item],
@@ -71,7 +70,7 @@ public enum OutlookWebWriter {
         return Request(action: "DeleteItem", body: json(request: "DeleteItemJsonRequest", body: body, windowsZone: nil))
     }
 
-    private static func json(request: String, body: [String: Any], windowsZone: String?) -> String {
+    static func json(request: String, body: [String: Any], windowsZone: String?) -> String {
         var header: [String: Any] = [
             "__type": "JsonRequestHeaders:#Exchange",
             "RequestServerVersion": "Exchange2013",
@@ -111,8 +110,17 @@ public enum OutlookWebWriter {
         guard let failed = results.first(where: { $0.string("responseClass")?.lowercased() != "success" }) else {
             return nil
         }
-        return failed.string("messageText") ?? failed.string("responseCode") ?? "Outlook refused the change."
+        let message = failed.string("messageText") ?? failed.string("responseCode") ?? "Outlook refused the change."
+        // Which property Outlook objects to, when it says: "Set action is invalid for property."
+        // alone doesn't say which.
+        guard let xml = failed.string("messageXml"),
+              let match = fieldRegex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
+              let field = Range(match.range(at: 1), in: xml)
+        else { return message }
+        return "\(message) (\(xml[field]))"
     }
+
+    private static let fieldRegex = try! NSRegularExpression(pattern: #"FieldURI="([^"]+)""#)
 
     // MARK: - Dates
 
