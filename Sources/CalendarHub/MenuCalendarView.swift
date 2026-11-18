@@ -61,13 +61,7 @@ struct MenuCalendarView: View {
         VStack(spacing: 10) {
             // No picker for a single view.
             if modes.count > 1 {
-                // Reads the picked view's events right away, so its first frame shows them:
-                // after the change, in `onChange`, it would first draw with the last view's
-                // events, then change, and maybe resize the menu, a moment later.
-                SlidingSegments(options: modes, selection: Binding(get: { shownMode }, set: {
-                    mode = $0
-                    reload()
-                }))
+                SlidingSegments(options: modes, selection: Binding(get: { shownMode }, set: { mode = $0 }))
             }
 
             ZStack(alignment: .top) {
