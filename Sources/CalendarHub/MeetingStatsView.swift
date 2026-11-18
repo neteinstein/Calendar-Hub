@@ -363,12 +363,15 @@ struct StatsScroll<Content: View>: View {
     @State private var contentHeight: CGFloat = 0
     /// The most the scroll view can grow to before the menu runs off the bottom of the screen.
     @State private var roomOnScreen: CGFloat = 0
+    /// How much taller than usual the menu was dragged for Stats.
+    @Environment(\.menuExtraHeight) private var extraHeight
 
     private var height: CGFloat {
         let minimum: CGFloat = 380
         guard contentHeight > minimum else { return minimum }
         if MeetingStatsView.showsEverything { return contentHeight }
-        return min(contentHeight, max(minimum, roomOnScreen))
+        // The room measured takes in the extra height dragged open, which comes on top.
+        return min(contentHeight, max(minimum, roomOnScreen - extraHeight))
     }
 
     var body: some View {
@@ -383,7 +386,7 @@ struct StatsScroll<Content: View>: View {
                         .onChange(of: proxy.size.height) { _, height in contentHeight = height }
                 })
         }
-        .frame(height: height)
+        .frame(height: height + extraHeight)
         .background(ScreenRoom { roomOnScreen = $0 })
     }
 
