@@ -60,12 +60,16 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
     /// While it shows the main calendar as Busy, the Busy blocks of a day that reached the
     /// meeting limit are shown here too (see `MeetingLimit`). The main calendar always has them.
     public var marksFullDays: Bool
+    /// The color the menu, the alert and Settings show this calendar in, as `#RRGGBB`. `nil`
+    /// uses Calendar.app's color, or for Outlook on the web and calendar links one picked
+    /// for it.
+    public var color: String?
 
     // `showBusyInSecondary` keeps the key older versions saved it under.
     enum CodingKeys: String, CodingKey {
         case id, kind, calendarName, name, hideMeetingName, isEnabled
         case showBusyInSecondary = "showBusyInClient"
-        case busyStyle, copyDetails, copyMeetingLink, copyUnaccepted, intervalMinutes, marksFullDays
+        case busyStyle, copyDetails, copyMeetingLink, copyUnaccepted, intervalMinutes, marksFullDays, color
     }
 
     public init(
@@ -81,7 +85,8 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         copyMeetingLink: Bool = true,
         copyUnaccepted: Bool = true,
         intervalMinutes: Int? = nil,
-        marksFullDays: Bool = false
+        marksFullDays: Bool = false,
+        color: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -96,6 +101,7 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         self.copyUnaccepted = copyUnaccepted
         self.intervalMinutes = intervalMinutes
         self.marksFullDays = marksFullDays
+        self.color = color
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -114,6 +120,39 @@ public struct SourceConfig: Codable, Hashable, Identifiable, Sendable {
         copyUnaccepted = try c.decodeIfPresent(Bool.self, forKey: .copyUnaccepted) ?? true
         intervalMinutes = try c.decodeIfPresent(Int.self, forKey: .intervalMinutes)
         marksFullDays = try c.decodeIfPresent(Bool.self, forKey: .marksFullDays) ?? false
+        color = try c.decodeIfPresent(String.self, forKey: .color).flatMap(HexColor.init)?.hex
+    }
+}
+
+/// A color saved as `#RRGGBB`, as a secondary calendar's chosen color is.
+public struct HexColor: Hashable, Sendable {
+    /// Red, green and blue, each from 0 to 1.
+    public let red: Double
+    public let green: Double
+    public let blue: Double
+
+    /// Out-of-range components are clamped.
+    public init(red: Double, green: Double, blue: Double) {
+        func clamp(_ value: Double) -> Double { value.isFinite ? min(max(value, 0), 1) : 0 }
+        self.red = clamp(red)
+        self.green = clamp(green)
+        self.blue = clamp(blue)
+    }
+
+    /// Reads `#RRGGBB` or `RRGGBB`, in either case. Nil for anything else.
+    public init?(_ text: String) {
+        var digits = Substring(text.trimmingCharacters(in: .whitespaces))
+        if digits.hasPrefix("#") { digits = digits.dropFirst() }
+        guard digits.count == 6, digits.allSatisfy(\.isHexDigit), let value = UInt32(digits, radix: 16) else { return nil }
+        self.init(red: Double((value >> 16) & 0xFF) / 255,
+                  green: Double((value >> 8) & 0xFF) / 255,
+                  blue: Double(value & 0xFF) / 255)
+    }
+
+    /// `#RRGGBB`, upper case.
+    public var hex: String {
+        func byte(_ value: Double) -> Int { Int((value * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", byte(red), byte(green), byte(blue))
     }
 }
 

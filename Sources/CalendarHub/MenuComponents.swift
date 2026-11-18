@@ -12,6 +12,9 @@ struct IconButton: View {
     var tint: Color?
     let action: () -> Void
     @State private var hovering = false
+    /// Hovered long enough for the tooltip, when the window draws it (see `hoverTips()`).
+    @State private var showingTip = false
+    @Environment(\.drawsHoverTips) private var drawsHoverTips
 
     init(_ symbol: String, help: String, shortcut: KeyEquivalent? = nil, tint: Color? = nil,
          action: @escaping () -> Void) {
@@ -34,8 +37,77 @@ struct IconButton: View {
         .buttonStyle(PressableStyle())
         .keyboardShortcut(shortcut.map { KeyboardShortcut($0) })
         .onHover { hovering = $0 }
-        .help(help)
+        .simultaneousGesture(TapGesture().onEnded { showingTip = false })
+        // Shown after a moment, like the system's, and gone as soon as the pointer leaves.
+        .task(id: hovering) {
+            guard hovering, drawsHoverTips else { showingTip = false; return }
+            try? await Task.sleep(for: .milliseconds(600))
+            if !Task.isCancelled { showingTip = hovering }
+        }
+        .anchorPreference(key: HoverTipKey.self, value: .bounds) { showingTip ? HoverTip(text: help, anchor: $0) : nil }
+        .help(drawsHoverTips ? "" : help)
         .accessibilityLabel(help)
+    }
+}
+
+/// The tooltip of the icon button under the pointer, and where that button is.
+struct HoverTip: Equatable {
+    let text: String
+    let anchor: Anchor<CGRect>
+}
+
+private struct HoverTipKey: PreferenceKey {
+    static let defaultValue: HoverTip? = nil
+    static func reduce(value: inout HoverTip?, nextValue: () -> HoverTip?) {
+        value = value ?? nextValue()
+    }
+}
+
+private struct DrawsHoverTipsKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// The window draws its icon buttons' tooltips itself (see `hoverTips()`).
+    var drawsHoverTips: Bool {
+        get { self[DrawsHoverTipsKey.self] }
+        set { self[DrawsHoverTipsKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Draws the tooltips of the icon buttons inside, above the button (below when there's no
+    /// room) and kept inside this view. For the menu window: macOS shows `help` tooltips only
+    /// in the active app, and the menu bar window rarely makes Calendar Hub active.
+    func hoverTips() -> some View {
+        environment(\.drawsHoverTips, true)
+            .overlayPreferenceValue(HoverTipKey.self) { tip in
+                GeometryReader { proxy in
+                    if let tip {
+                        let button = proxy[tip.anchor]
+                        let size = proxy.size
+                        Text(tip.text)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 5))
+                            .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(.primary.opacity(0.12)))
+                            .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
+                            .alignmentGuide(.leading) { d in
+                                -min(max(button.midX - d.width / 2, 4), max(size.width - d.width - 4, 4))
+                            }
+                            .alignmentGuide(.top) { d in
+                                let above = button.minY - d.height - 4
+                                return -(above >= 0 ? above : button.maxY + 4)
+                            }
+                            .frame(width: size.width, height: size.height, alignment: .topLeading)
+                            .transition(.opacity)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
     }
 }
 

@@ -54,7 +54,7 @@ struct SettingsView: View {
 }
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, calendars, twoWaySync, alerts, meetingStats, meetingLimit, menuBar, tasks, worldClocks, timeTracking, preview, about, logs
+    case general, calendars, twoWaySync, alerts, meetingStats, meetingLimit, menuBar, tasks, worldClocks, timeTracking, preview, shareAvailability, about, logs
 
     /// Where the shown pane is kept.
     static let defaultsKey = "settingsPane"
@@ -74,6 +74,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .meetingLimit: "Meeting limit"
         case .timeTracking: "Time Tracking"
         case .preview: "Preview"
+        case .shareAvailability: "Share availability"
         case .about: "About"
         case .logs: "Logs"
         }
@@ -92,6 +93,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .meetingLimit: "hourglass"
         case .timeTracking: "stopwatch.fill"
         case .preview: "eye.fill"
+        case .shareAvailability: "calendar.badge.clock"
         case .about: "info"
         case .logs: "doc.text.magnifyingglass"
         }
@@ -110,6 +112,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .meetingLimit: .yellow
         case .timeTracking: .cyan
         case .preview: .orange
+        case .shareAvailability: .mint
         case .logs: .brown
         }
     }
@@ -128,6 +131,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .meetingLimit: MeetingLimitTab()
         case .timeTracking: TimeTrackingTab()
         case .preview: PreviewTab()
+        case .shareAvailability: ShareAvailabilityTab()
         case .about: AboutTab()
         case .logs: LogsTab()
         }
@@ -1118,6 +1122,7 @@ private struct SourceRow: View {
                     // The value is saved as it's typed; Return just leaves the field.
                     .onSubmit { NSApp.keyWindow?.makeFirstResponder(nil) }
             }
+            colorRow
             Toggle("Hide meeting names (copy as “\(copyTitle("Busy"))”)", isOn: $source.hideMeetingName)
             Toggle("Copy the meeting link (Join from the main calendar)", isOn: $source.copyMeetingLink)
             Toggle("Copy location and description", isOn: $source.copyDetails)
@@ -1159,7 +1164,7 @@ private struct SourceRow: View {
                 switch source.kind {
                 case .eventKit(let calendarID):
                     if let calendar = controller.eventKit.calendar(id: calendarID) {
-                        CalendarLabel(calendar: calendar)
+                        CalendarLabel(calendar: calendar, color: source.color.flatMap(HexColor.init).map(Color.init))
                     } else {
                         Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
                     }
@@ -1188,6 +1193,22 @@ private struct SourceRow: View {
             }
         } footer: {
             Text(footer).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// The color its meetings are shown in, in the menu and the alert. Starts as Calendar.app's
+    /// color, or one picked for calendars Calendar.app doesn't have.
+    private var colorRow: some View {
+        let standard = EventOrigin.withoutChosenColor(source, settings: settings, eventKit: controller.eventKit).color
+        return HStack {
+            ColorPicker("Color in the menu and alerts", selection: Binding(
+                get: { source.color.flatMap(HexColor.init).map(Color.init) ?? standard },
+                set: { source.color = HexColor($0)?.hex }), supportsOpacity: false)
+            if source.color != nil {
+                Button(source.kind == .outlookWeb ? "Use Default" : "Use Calendar.app's") { source.color = nil }
+                    .controlSize(.small)
+                    .help("Go back to the color this calendar had before one was chosen")
+            }
         }
     }
 
@@ -1585,6 +1606,20 @@ private struct PreviewTab: View {
     }
 }
 
+// MARK: - Share availability
+
+/// The menu's Share availability, in a pane of its own, for when Settings is already open.
+private struct ShareAvailabilityTab: View {
+    var body: some View {
+        ScrollView {
+            AvailabilityView(close: nil)
+                .frame(maxWidth: 480)
+                .padding(20)
+                .frame(maxWidth: .infinity)
+        }
+    }
+}
+
 // MARK: - About
 
 /// In a scroll view, like the other panes: without one, the Settings sidebar went blank.
@@ -1891,10 +1926,12 @@ private struct CommandBox: View {
 
 private struct CalendarLabel: View {
     let calendar: EKCalendar
+    /// The color chosen for it in Settings, shown instead of Calendar.app's.
+    var color: Color? = nil
 
     var body: some View {
         HStack(spacing: 6) {
-            Circle().fill(Color(cgColor: calendar.cgColor)).frame(width: 9, height: 9)
+            Circle().fill(color ?? Color(cgColor: calendar.cgColor)).frame(width: 9, height: 9)
             Text(calendar.title)
             if let account = calendar.source?.title { Text(account).foregroundStyle(.secondary) }
         }
