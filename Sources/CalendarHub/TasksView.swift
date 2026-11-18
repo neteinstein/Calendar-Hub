@@ -19,6 +19,8 @@ struct TasksView: View {
     @State private var editing: TaskItem?
     /// The done tasks, folded into one row until opened.
     @State private var showsDone = false
+    /// How much taller than usual the menu was dragged for Tasks.
+    @Environment(\.menuExtraHeight) private var extraHeight
 
     /// As tall as the List view, so the menu window doesn't resize going from one to the
     /// other, or into the editor (see `WindowTopAnchor`).
@@ -48,7 +50,7 @@ struct TasksView: View {
                 list.transition(.opacity)
             }
         }
-        .frame(height: Self.height, alignment: .top)
+        .frame(height: Self.height + extraHeight, alignment: .top)
         .clipped()
         .onAppear {
             openDraft()

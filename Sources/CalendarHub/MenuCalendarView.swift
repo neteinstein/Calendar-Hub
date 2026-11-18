@@ -27,6 +27,8 @@ struct MenuCalendarView: View {
     /// meeting, a secondary calendar's id for the meetings copied from it, or one of
     /// `StatsChoice`'s.
     @AppStorage("meetingStatsCalendar") private var statsCalendar = ""
+    /// How much taller than usual the menu was dragged for the shown view.
+    @Environment(\.menuExtraHeight) private var extraHeight
 
     /// Meeting Stats' picks besides All and each secondary calendar.
     enum StatsChoice {
@@ -45,9 +47,12 @@ struct MenuCalendarView: View {
     static var fixedMode: Mode?
 
     /// The saved mode, or the first one shown when the saved one is now off.
-    private var shownMode: Mode {
-        let shown = modes.map(\.value)
-        let mode = Self.fixedMode ?? mode
+    private var shownMode: Mode { Self.shownMode(saved: mode, settings: settings) }
+
+    /// The view shown for the `saved` one: it, or the first one shown when it's now off.
+    static func shownMode(saved: Mode, settings: SettingsStore) -> Mode {
+        let shown = modes(settings: settings).map(\.value)
+        let mode = fixedMode ?? saved
         return shown.contains(mode) ? mode : shown.first ?? .month
     }
 
@@ -93,7 +98,12 @@ struct MenuCalendarView: View {
                     }
                     .transition(.opacity)
                 case .time:
-                    TimeTrackingView(events: events, calendar: calendar).transition(.opacity)
+                    VStack(spacing: 0) {
+                        TimeTrackingView(events: events, calendar: calendar)
+                        // Nothing in it scrolls: the room dragged open is left empty below it.
+                        Color.clear.frame(height: extraHeight)
+                    }
+                    .transition(.opacity)
                 }
             }
         }
@@ -106,7 +116,9 @@ struct MenuCalendarView: View {
         .onChange(of: controller.lastSync) { _, _ in reload() }
     }
 
-    private var modes: [(value: Mode, title: String)] {
+    private var modes: [(value: Mode, title: String)] { Self.modes(settings: settings) }
+
+    private static func modes(settings: SettingsStore) -> [(value: Mode, title: String)] {
         // Built step by step: one long chain of `+` on optional arrays is too slow for the
         // compiler to type-check.
         var modes: [(value: Mode, title: String)] = []
@@ -360,7 +372,9 @@ struct MenuCalendarView: View {
                     inMonth: inMonth,
                     isPast: !isToday && day < Date(),
                     dots: dots[calendar.startOfDay(for: day)] ?? [],
-                    taskCount: dayTasks[calendar.startOfDay(for: day)]?.count ?? 0
+                    taskCount: dayTasks[calendar.startOfDay(for: day)]?.count ?? 0,
+                    // The six weeks share the extra height, and the picked day's list with them.
+                    height: 34 + extraHeight / 6
                 ) {
                     open(day, index: index, of: days.count, columns: columns)
                 }
@@ -508,7 +522,7 @@ struct MenuCalendarView: View {
                     }
                 }
             }
-            .frame(height: Self.listHeight)
+            .frame(height: Self.listHeight + extraHeight)
             // Before its first frame, which would otherwise show the list's top, a month back.
             .onAppear {
                 if let anchor { proxy.scrollTo(anchor, anchor: .top) }
@@ -743,6 +757,7 @@ private struct DayCell: View {
     let dots: [Color]
     /// Open tasks that day, shown as a ring after the dots.
     var taskCount = 0
+    var height: CGFloat = 34
     let action: () -> Void
     @State private var hovering = false
 
@@ -775,7 +790,7 @@ private struct DayCell: View {
                 .opacity(inMonth ? 1 : 0.45)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 34)
+            .frame(height: height)
             .background(hovering ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 8))
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
