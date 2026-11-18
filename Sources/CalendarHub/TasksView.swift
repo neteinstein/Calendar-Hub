@@ -19,6 +19,8 @@ struct TasksView: View {
     @State private var editing: TaskItem?
     /// The done tasks, folded into one row until opened.
     @State private var showsDone = false
+    /// How much taller than usual the menu was dragged for Tasks.
+    @Environment(\.menuExtraHeight) private var extraHeight
 
     /// As tall as the List view, so the menu window doesn't resize going from one to the
     /// other, or into the editor (see `WindowTopAnchor`).
@@ -48,7 +50,7 @@ struct TasksView: View {
                 list.transition(.opacity)
             }
         }
-        .frame(height: Self.height, alignment: .top)
+        .frame(height: Self.height + extraHeight, alignment: .top)
         .clipped()
         .onAppear {
             openDraft()
@@ -109,6 +111,11 @@ struct TasksView: View {
                         if !done.isEmpty {
                             DoneRow(tasks: done, isOpen: showsDone) {
                                 withAnimation(motion) { showsDone.toggle() }
+                            } deleteAll: {
+                                withAnimation(motion) {
+                                    tasks.delete(all: done)
+                                    showsDone = false
+                                }
                             }
                             if showsDone {
                                 ForEach(done) { row($0, now: now) }
@@ -326,8 +333,36 @@ private struct DoneRow: View {
     let tasks: [TaskItem]
     let isOpen: Bool
     let toggle: () -> Void
+    /// Deletes every done task from Reminders, from a bin shown while the pointer is on the row.
+    let deleteAll: () -> Void
+    @State private var hovering = false
+    @State private var hoveringBin = false
 
     var body: some View {
+        HStack(spacing: 0) {
+            foldButton
+            Button(action: deleteAll) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(hoveringBin ? AnyShapeStyle(Color.red) : AnyShapeStyle(.secondary))
+                    .frame(width: 22, height: 20)
+                    .background(hoveringBin ? Color.primary.opacity(0.07) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(PressableStyle())
+            .onHover { hoveringBin = $0 }
+            .help(tasks.count == 1 ? "Delete the done task" : "Delete the \(tasks.count) done tasks")
+            .accessibilityLabel(tasks.count == 1 ? "Delete the done task" : "Delete the \(tasks.count) done tasks")
+            // Kept in place while hidden, so the titles don't shift when it shows.
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
+            .padding(.trailing, 4)
+        }
+        .onHover { hovering = $0 }
+        .animation(.easeInOut(duration: 0.12), value: hovering)
+    }
+
+    private var foldButton: some View {
         Button(action: toggle) {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.right")

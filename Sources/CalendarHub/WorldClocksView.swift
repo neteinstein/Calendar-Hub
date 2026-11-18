@@ -11,6 +11,8 @@ struct WorldClocksView: View {
     @State private var pinned: Date?
     /// Height of everything in the scroll view, so it shows all of it while it's short.
     @State private var contentHeight: CGFloat = 0
+    /// How much taller than usual the menu was dragged for World Clocks.
+    @Environment(\.menuExtraHeight) private var extraHeight
 
     /// Our working hours, and those of every city that doesn't have its own.
     private var workingHours: WorkingHours { settings.menuCalendar.workingHours }
@@ -56,7 +58,7 @@ struct WorldClocksView: View {
                         .onChange(of: proxy.size.height) { _, height in contentHeight = height }
                 })
             }
-            .frame(height: min(max(contentHeight, 120), 520))
+            .frame(height: min(max(contentHeight, 120), 520) + extraHeight)
         }
         .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: pinned)
     }
