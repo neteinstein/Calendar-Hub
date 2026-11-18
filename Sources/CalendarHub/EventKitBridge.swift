@@ -291,7 +291,8 @@ final class EventKitBridge {
             completionDate: reminder.completionDate,
             creationDate: reminder.creationDate,
             nudges: nudges.sorted(),
-            event: TaskEventLink(url: reminder.url)
+            event: TaskEventLink(url: reminder.url),
+            category: TaskLink.category(in: reminder.url)
         )
     }
 
@@ -326,10 +327,11 @@ final class EventKitBridge {
             let locationAlarms = (reminder.alarms ?? []).filter { $0.structuredLocation != nil }
             reminder.alarms = locationAlarms + task.nudges.map { EKAlarm(absoluteDate: $0) }
         }
-        // The link is ours; a URL put there some other way is kept unless the task has an event.
-        if let event = task.event {
-            reminder.url = event.url
-        } else if TaskEventLink(url: reminder.url) != nil {
+        // The link is ours; a URL put there some other way is kept unless the task has an event
+        // or a category.
+        if let url = TaskLink.url(event: task.event, category: task.category) {
+            reminder.url = url
+        } else if TaskLink.isOurs(reminder.url) {
             reminder.url = nil
         }
         reminder.isCompleted = task.isCompleted

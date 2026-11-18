@@ -246,4 +246,76 @@ final class TaskPlannerTests: XCTestCase {
         XCTAssertNil(roundTrip.eventNudge)
         XCTAssertEqual(roundTrip.dueNudge, .atStart)
     }
+
+    // MARK: - Categories
+
+    func testCategoryRidesAlongTheEventLink() {
+        let link = TaskEventLink(key: "k", title: "Design review", start: date(6, 14))
+        let url = TaskLink.url(event: link, category: "Side & projects")
+        XCTAssertEqual(TaskEventLink(url: url), link)
+        XCTAssertEqual(TaskLink.category(in: url), "Side & projects")
+    }
+
+    func testCategoryWithoutAnEvent() {
+        let url = TaskLink.url(event: nil, category: " Home ")
+        XCTAssertEqual(url?.absoluteString, "calendarhub://task?category=Home")
+        XCTAssertNil(TaskEventLink(url: url))
+        XCTAssertEqual(TaskLink.category(in: url), "Home")
+        XCTAssertTrue(TaskLink.isOurs(url))
+    }
+
+    func testNoCategoryNoEventIsNoURL() {
+        XCTAssertNil(TaskLink.url(event: nil, category: nil))
+        XCTAssertNil(TaskLink.url(event: nil, category: "  "))
+    }
+
+    func testAURLOfTheUsersHasNoCategory() {
+        let url = URL(string: "https://example.com/?category=Work")
+        XCTAssertFalse(TaskLink.isOurs(url))
+        XCTAssertNil(TaskLink.category(in: url))
+    }
+
+    func testCategoriesAreListedOnceWhateverTheirCase() {
+        let tasks = [
+            TaskItem(title: "a", category: "Work"),
+            TaskItem(title: "b", category: "work"),
+            TaskItem(title: "c", category: "Home"),
+            TaskItem(title: "d"),
+            TaskItem(title: "e", category: " "),
+        ]
+        XCTAssertEqual(TaskPlanner.categories(tasks), ["Home", "Work"])
+        XCTAssertEqual(TaskPlanner.tasks(tasks, in: "WORK").map(\.title), ["a", "b"])
+        XCTAssertEqual(TaskPlanner.tasks(tasks, in: nil).count, 5)
+    }
+
+    func testATypedCategoryTakesTheSpellingItMatches() {
+        XCTAssertEqual(TaskPlanner.category("work ", matching: ["Home", "Work"]), "Work")
+        XCTAssertEqual(TaskPlanner.category("Garden", matching: ["Home", "Work"]), "Garden")
+        XCTAssertNil(TaskPlanner.category("", matching: ["Home"]))
+    }
+
+    func testCategoriesGetDifferentColorsAndKeepThem() {
+        let colors = TaskPlanner.colors(for: ["Home", "Travel", "Work"], given: [:])
+        XCTAssertEqual(Set(colors.values).count, 3)
+        XCTAssertEqual(colors["home"], TaskCategoryColor.preferred(for: "Home"))
+        // One picked by the user stays, and so do those already given when another comes.
+        let picked = colors.merging(["work": .gray]) { $1 }
+        let more = TaskPlanner.colors(for: ["Art", "Home", "Travel", "Work"], given: picked)
+        XCTAssertEqual(more["work"], .gray)
+        XCTAssertEqual(more["home"], colors["home"])
+        XCTAssertEqual(more["travel"], colors["travel"])
+        XCTAssertEqual(Set(more.values).count, 4)
+    }
+
+    func testThePreferredColorIsStable() {
+        XCTAssertEqual(TaskCategoryColor.preferred(for: "Work"), TaskCategoryColor.preferred(for: "work"))
+    }
+
+    func testCategoryColorsRoundTripAndSkipUnknownOnes() throws {
+        let options = TaskOptions(categoryColors: ["work": .teal])
+        let roundTrip = try JSONDecoder().decode(TaskOptions.self, from: JSONEncoder().encode(options))
+        XCTAssertEqual(roundTrip.categoryColors, ["work": .teal])
+        let later = Data(#"{"categoryColors":{"work":"teal","home":"chartreuse"}}"#.utf8)
+        XCTAssertEqual(try JSONDecoder().decode(TaskOptions.self, from: later).categoryColors, ["work": .teal])
+    }
 }
