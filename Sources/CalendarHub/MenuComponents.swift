@@ -165,8 +165,11 @@ struct SlidingSegments<Value: Hashable>: View {
                         // Shrinks a little when even the shared-out room is too narrow.
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        .foregroundStyle(isSelected ? .primary : .secondary)
-                        .animation(.easeOut(duration: 0.2), value: isSelected)
+                        // Only the color: an animation over the whole label would move it too
+                        // when the menu window resizes in the same update.
+                        .animation(.easeOut(duration: 0.2)) {
+                            $0.foregroundStyle(isSelected ? .primary : .secondary)
+                        }
                         .padding(.horizontal, 3)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 3)
