@@ -85,7 +85,7 @@ struct MenuView: View {
                 .padding(.top, !panel.sharingAvailability && !settings.menuHasViews ? extra : 0)
 
             // Only those synced: one turned off in Settings has nothing to open it for.
-            let outlookSources = settings.sources.filter { $0.kind == .outlookWeb && $0.isEnabled }
+            let outlookSources = settings.sources.filter { $0.kind.isWeb && $0.isEnabled }
             if !outlookSources.isEmpty {
                 webCalendars(outlookSources)
             }
@@ -258,7 +258,7 @@ struct MenuView: View {
                 ProblemCard(
                     title: "\(source.map { $0.name ?? $0.calendarName } ?? unread.name) wasn't read",
                     detail: unread.reason + (unread.reason.hasSuffix(".") ? "" : ".") + " Its copies are left as they are.",
-                    actionTitle: source?.kind == .outlookWeb ? "Open Outlook" : nil
+                    actionTitle: source?.kind == .outlookWeb ? "Open Outlook" : source?.kind == .googleWeb ? "Open Google Calendar" : nil
                 ) {
                     if let source { controller.showOutlookWindow(for: source) }
                 }

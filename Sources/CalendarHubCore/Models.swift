@@ -7,6 +7,11 @@ public enum SourceKind: Codable, Hashable, Sendable {
     case eventKit(calendarID: String)
     /// An Outlook / Microsoft 365 calendar read through the built-in browser window.
     case outlookWeb
+    /// A Google Calendar read through the built-in browser window, from its iCalendar export.
+    case googleWeb
+
+    /// Read through the built-in browser window, signed in there: Outlook or Google on the web.
+    public var isWeb: Bool { self == .outlookWeb || self == .googleWeb }
 }
 
 /// What the main calendar's events are shown as inside a secondary calendar.

@@ -910,6 +910,7 @@ private struct SourcesTab: View {
     @EnvironmentObject private var controller: SyncController
     @State private var showingLinkSheet = false
     @State private var showingOutlookNameSheet = false
+    @State private var showingGoogleNameSheet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -943,6 +944,7 @@ private struct SourcesTab: View {
                     }
                     Section("Not in Calendar.app") {
                         Button("Outlook on the web (sign in)…") { showingOutlookNameSheet = true }
+                        Button("Google Calendar on the web (sign in)…") { showingGoogleNameSheet = true }
                         Button("Calendar link (.ics)…") { showingLinkSheet = true }
                     }
                 }
@@ -964,6 +966,17 @@ private struct SourcesTab: View {
                 let source = SourceConfig(
                     kind: .outlookWeb, calendarName: name, name: name, hideMeetingName: true,
                     showBusyInSecondary: settings.twoWaySync && settings.twoWaySyncOutlookWeb)
+                settings.sources.append(source)
+                controller.showOutlookWindow(for: source)
+            }
+        }
+        .sheet(isPresented: $showingGoogleNameSheet) {
+            CalendarNameSheet(
+                title: "Add Google Calendar on the web",
+                message: "What do you call this calendar? It's also the prefix for its copies, like “[Work] Standup”, which you can change later. Calendar Hub reads the account's own calendar from Google Calendar's export, signed in in its own window.",
+                confirm: "Continue"
+            ) { name in
+                let source = SourceConfig(kind: .googleWeb, calendarName: name, name: name, hideMeetingName: true)
                 settings.sources.append(source)
                 controller.showOutlookWindow(for: source)
             }
@@ -1023,8 +1036,8 @@ private struct UnreadSourcesSection: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer()
-                        if let source, source.kind == .outlookWeb {
-                            Button("Open Outlook") { controller.showOutlookWindow(for: source) }
+                        if let source, source.kind.isWeb {
+                            Button(source.kind == .googleWeb ? "Open Google Calendar" : "Open Outlook") { controller.showOutlookWindow(for: source) }
                         }
                     }
                     .padding(.vertical, 2)
@@ -1133,7 +1146,7 @@ private struct SourceRow: View {
     /// Removes this calendar, and its copies unless `keepingCopies`. Kept copies aren't
     /// offered for removal again under "Copies no longer synced".
     private func remove(keepingCopies: Bool) {
-        if source.kind == .outlookWeb { controller.forgetOutlookSession(for: source.id) }
+        if source.kind.isWeb { controller.forgetOutlookSession(for: source.id) }
         let id = source.id
         let copies = copiesToRemove
         // Removed on the next run loop so SwiftUI isn't still reading this row's binding.
@@ -1164,7 +1177,7 @@ private struct SourceRow: View {
     var body: some View {
         Section {
             health
-            if source.kind == .outlookWeb {
+            if source.kind.isWeb {
                 // Bordered and named after what it changes: as a plain form row it read as a fixed value.
                 TextField("Prefix for copies", text: $source.calendarName, prompt: Text("e.g. Work"))
                     .textFieldStyle(.roundedBorder)
@@ -1188,8 +1201,10 @@ private struct SourceRow: View {
                     set: { source.intervalMinutes = $0 }))
             }
             HStack {
-                if source.kind == .outlookWeb {
-                    Button("Open Outlook window") { controller.showOutlookWindow(for: source) }
+                if source.kind.isWeb {
+                    Button(source.kind == .googleWeb ? "Open Google Calendar window" : "Open Outlook window") {
+                        controller.showOutlookWindow(for: source)
+                    }
                 }
                 Spacer()
                 Button("Remove", role: .destructive) {
@@ -1219,7 +1234,7 @@ private struct SourceRow: View {
                     } else {
                         Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
                     }
-                case .outlookWeb:
+                case .outlookWeb, .googleWeb:
                     HStack(spacing: 6) {
                         Label(outlookTitle, systemImage: "globe")
                         Button { renaming = true } label: { Image(systemName: "pencil") }
@@ -1256,7 +1271,7 @@ private struct SourceRow: View {
                 get: { source.color.flatMap(HexColor.init).map(Color.init) ?? standard },
                 set: { source.color = HexColor($0)?.hex }), supportsOpacity: false)
             if source.color != nil {
-                Button(source.kind == .outlookWeb ? "Use Default" : "Use Calendar.app's") { source.color = nil }
+                Button(source.kind.isWeb ? "Use Default" : "Use Calendar.app's") { source.color = nil }
                     .controlSize(.small)
                     .help("Go back to the color this calendar had before one was chosen")
             }
@@ -1277,9 +1292,11 @@ private struct SourceRow: View {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 Text(unread.reason).foregroundStyle(.orange).lineLimit(2)
                 Spacer()
-                if source.kind == .outlookWeb {
-                    Button("Open Outlook") { controller.showOutlookWindow(for: source) }
-                        .controlSize(.small)
+                if source.kind.isWeb {
+                    Button(source.kind == .googleWeb ? "Open Google Calendar" : "Open Outlook") {
+                        controller.showOutlookWindow(for: source)
+                    }
+                    .controlSize(.small)
                 }
             } else if let lastRead = status?.lastRead {
                 Circle().fill(.green).frame(width: 6, height: 6)
@@ -1298,7 +1315,7 @@ private struct SourceRow: View {
     /// "Sainsbury's – Outlook on the web": the name given when it was added, then the kind of
     /// calendar. "N/A" for calendars added before names were asked for.
     private var outlookTitle: String {
-        "\(source.name ?? "N/A") – Outlook on the web"
+        "\(source.name ?? "N/A") – \(source.kind == .googleWeb ? "Google Calendar on the web" : "Outlook on the web")"
     }
 
     private var footer: String {

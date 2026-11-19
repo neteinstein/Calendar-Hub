@@ -58,6 +58,7 @@ final class SyncController: ObservableObject {
     let settings: SettingsStore
     let eventKit: EventKitBridge
     private var outlookSources: [UUID: OutlookWebSource] = [:]
+    private var googleSources: [UUID: GoogleWebSource] = [:]
     private var timer: Timer?
     /// When each secondary calendar was last read by a sync that applied its changes.
     private var lastRead: [UUID: Date] = [:]
@@ -238,6 +239,8 @@ final class SyncController: ObservableObject {
                 let result = await outlookSource(for: source.id).fetch(from: start, to: end)
                 results.append((source, result))
                 if case .success = result { outlookRead.append(source) }
+            case .googleWeb:
+                results.append((source, await googleSource(for: source.id).fetch(from: start, to: end)))
             }
         }
 
@@ -572,6 +575,7 @@ final class SyncController: ObservableObject {
     /// isn't read, then syncs every calendar.
     func syncNow() async {
         for source in outlookSources.values { source.closeWindow() }
+        for source in googleSources.values { source.closeWindow() }
         await sync()
     }
 
@@ -644,12 +648,30 @@ final class SyncController: ObservableObject {
     }
 
     func showOutlookWindow(for source: SourceConfig) {
-        outlookSource(for: source.id).showWindow(title: source.calendarName)
+        if source.kind == .googleWeb {
+            googleSource(for: source.id).showWindow(title: source.calendarName)
+        } else {
+            outlookSource(for: source.id).showWindow(title: source.calendarName)
+        }
+    }
+
+    // MARK: - Google web
+
+    func googleSource(for sourceID: UUID) -> GoogleWebSource {
+        if let existing = googleSources[sourceID] { return existing }
+        let source = GoogleWebSource(sourceID: sourceID)
+        source.onWindowClosed = { [weak self] in
+            Task { await self?.sync(only: [sourceID]) }
+        }
+        googleSources[sourceID] = source
+        return source
     }
 
     func forgetOutlookSession(for sourceID: UUID) {
         outlookSources[sourceID]?.tearDown()
         outlookSources[sourceID] = nil
+        googleSources[sourceID]?.tearDown()
+        googleSources[sourceID] = nil
         Task {
             // Give WebKit a moment to release the store; it can't be removed while in use.
             try? await Task.sleep(nanoseconds: 1_000_000_000)
