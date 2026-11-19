@@ -162,6 +162,33 @@ final class TaskStore: ObservableObject {
         return task
     }
 
+    /// The notes task for `event`: the one it has, or a new one, saved, with the notes'
+    /// template. Nil if it couldn't be saved (see `problem`).
+    func notesTask(for event: SourceEvent) -> TaskItem? {
+        if let existing = MeetingNotes.task(forEvent: event.key, in: tasks) { return existing }
+        var task = newTask(for: event)
+        task.title = MeetingNotes.title(for: event)
+        task.notes = MeetingNotes.template(for: event)
+        task.nudges = []
+        save(task)
+        return MeetingNotes.task(forEvent: event.key, in: tasks)
+    }
+
+    /// Makes a task for the meeting out of each open checklist item in `task`'s notes, unless
+    /// the meeting has a task by that name already. Returns how many were made.
+    @discardableResult
+    func makeTasks(fromNotesOf task: TaskItem) -> Int {
+        guard let event = task.event else { return 0 }
+        let current = tasks.first { $0.id == task.id } ?? task
+        let existing = tasks.filter { $0.event?.key == event.key }.map(\.title)
+        let items = MeetingNotes.actionItems(in: current.notes ?? "", existing: existing)
+        for item in items {
+            save(TaskItem(title: item, due: current.due, dueHasTime: current.dueHasTime, event: event,
+                          category: current.category))
+        }
+        return items.count
+    }
+
     /// The open tasks for the event with `key`.
     func openTasks(forEvent key: String) -> [TaskItem] {
         TaskPlanner.openTasks(forEvent: key, in: tasks)

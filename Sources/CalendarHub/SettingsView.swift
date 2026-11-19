@@ -564,8 +564,57 @@ private struct AlertsTab: View {
                     AlertSketch(leadMinutes: settings.alerts.leadMinutes)
                 }
             }
+
+            Section {
+                Toggle("Send a morning summary", isOn: $settings.alerts.morningSummary)
+            } footer: {
+                Text("A notification when your working day starts (\(WorkingHours.text(settings.menuCalendar.workingHours.start)), set in Meeting Stats), on weekdays: the hours of meetings today, the first one, the tasks due, and what's left of your meeting limit.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Turn on a Focus during meetings", isOn: $settings.alerts.focusDuringMeetings)
+                if settings.alerts.focusDuringMeetings {
+                    ShortcutPicker(title: "When a meeting starts, run", name: $settings.alerts.focusOnShortcut,
+                                   shortcuts: shortcuts)
+                    ShortcutPicker(title: "When it ends, run", name: $settings.alerts.focusOffShortcut,
+                                   shortcuts: shortcuts)
+                    HStack {
+                        Button("Open Shortcuts") {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Shortcuts.app"))
+                        }
+                        Button("Refresh") { Task { shortcuts = await Shortcuts.list() } }
+                        Spacer()
+                    }
+                }
+            } footer: {
+                Text("macOS lets an app turn a Focus on only through a shortcut. In Shortcuts, make one called \"\(EventAlertOptions.defaultFocusOnShortcut)\" with the Set Focus action turning Do Not Disturb (or any Focus) on, and \"\(EventAlertOptions.defaultFocusOffShortcut)\" turning it off. Calendar Hub runs the first when a meeting in your main calendar starts and the second when no meeting is under way any more.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+        .task(id: settings.alerts.focusDuringMeetings) {
+            if settings.alerts.focusDuringMeetings { shortcuts = await Shortcuts.list() }
+        }
+    }
+
+    @State private var shortcuts: [String] = []
+}
+
+/// Picks one of the user's shortcuts by name; a name not among them (not made yet) stays
+/// listed, marked as missing.
+private struct ShortcutPicker: View {
+    let title: String
+    @Binding var name: String
+    let shortcuts: [String]
+
+    var body: some View {
+        Picker(title, selection: $name) {
+            if !shortcuts.contains(name) {
+                Text("\(name) (not in Shortcuts)").tag(name)
+            }
+            ForEach(shortcuts, id: \.self) { Text($0).tag($0) }
+        }
     }
 }
 

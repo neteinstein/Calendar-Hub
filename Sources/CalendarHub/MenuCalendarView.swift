@@ -9,6 +9,7 @@ struct MenuCalendarView: View {
     @EnvironmentObject private var controller: SyncController
     @EnvironmentObject private var tasks: TaskStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openTaskNotes) private var openTaskNotes
     @AppStorage("menuCalendarMode") private var mode: Mode = .month
     @State private var shownMonth = Date()
     /// The edge the next month grid slides in from: trailing going forward, leading going back.
@@ -733,6 +734,9 @@ struct MenuCalendarView: View {
                 tasks.draft = tasks.newTask(for: event)
                 selectedDay = nil
                 mode = .tasks
+            }
+            Button(MeetingNotes.task(forEvent: event.key, in: tasks.tasks) == nil ? "Take Meeting Notes" : "Open Meeting Notes") {
+                if let notes = tasks.notesTask(for: event) { openTaskNotes(notes) }
             }
         }
     }
