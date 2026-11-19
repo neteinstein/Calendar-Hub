@@ -298,6 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Snapshots.runIfRequested()
+        if !DemoCalendars.isRequested { Support.recordFirstRun() }
         DistributedNotificationCenter.default().addObserver(
             forName: Self.showMenuBarItem, object: nil, queue: .main
         ) { _ in

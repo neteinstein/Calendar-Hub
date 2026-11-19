@@ -115,6 +115,10 @@ The app checks GitHub for a newer version **once a day**, counting the day acros
 
 When there is one, a blue **update** button appears next to **Sync now** in the menu. Click it, confirm, and Terminal opens and runs the update: `brew update` and `brew upgrade calendar-hub` (as the account that owns Homebrew, if that's a separate admin account, so Terminal asks for its password), or `git pull` and `scripts/build-app.sh` for a source build. Then it restarts the app, through `brew services` if that started it. It stops at the first error and leaves the running copy alone, and the Terminal window shows what went wrong. Settings shows a warning too, with an **Update** button that shows the commands to run by hand and can run them in Terminal the same way. A source build moved out of its clone can't update by itself: its button opens those instructions.
 
+## Supporting Calendar Hub
+
+Calendar Hub is free. The heart in the menu's footer and **Support Calendar Hub** in Settings' **About** pane open the donate page. A month after you first run it, the menu shows a short note asking for a donation, with **Donate**, **Later** (asks again in three months) and **Don't Ask Again**. Opening the donate page from anywhere in the app stops it for good, and so does **Ask now and then in the menu** in About, which can turn it back on. Nothing about it leaves your Mac.
+
 ## Known limits
 
 - Calendar.app refreshes accounts every few minutes, so changes made in a secondary calendar show up with that delay.
