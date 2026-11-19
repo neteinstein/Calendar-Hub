@@ -1628,6 +1628,7 @@ private struct AboutTab: View {
     @EnvironmentObject private var updates: UpdateChecker
     @AppStorage(AppLog.enabledKey) private var logging = false
     @AppStorage(SettingsPane.defaultsKey) private var pane: SettingsPane = .about
+    @AppStorage(Support.stoppedKey) private var supportStopped = false
 
     var body: some View {
         ScrollView {
@@ -1682,11 +1683,16 @@ private struct AboutTab: View {
                 .frame(maxWidth: 400)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
-                openURL(UpdateChecker.donatePage)
+                Support.donate()
             } label: {
-                Label("Donate", systemImage: "heart.fill")
+                Label("Support Calendar Hub", systemImage: "heart.fill")
             }
             .controlSize(.large)
+            Toggle("Ask now and then in the menu", isOn: Binding(get: { !supportStopped }, set: { supportStopped = !$0 }))
+                .toggleStyle(.checkbox)
+                .help("Every few months, a short note in the menu asks for a donation. It stops once you donate.")
+                .foregroundStyle(.secondary)
+                .fixedSize()
         }
     }
 }

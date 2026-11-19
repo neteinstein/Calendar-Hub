@@ -22,6 +22,9 @@ struct MenuView: View {
     @AppStorage("timeNudgeDismissed") private var nudgeDismissed = ""
     /// How much taller each section was dragged, kept between launches.
     @AppStorage("menuSectionHeights") private var sectionHeights = MenuSectionHeights()
+    @AppStorage(Support.firstRunKey) private var supportFirstRun = 0.0
+    @AppStorage(Support.putAwayKey) private var supportPutAway = 0.0
+    @AppStorage(Support.stoppedKey) private var supportStopped = false
     /// The extra height while the bottom edge is being dragged, saved when the drag ends.
     @State private var draggedExtra: CGFloat?
     /// The menu's height without the extra, to keep the menu on the screen.
@@ -63,6 +66,10 @@ struct MenuView: View {
                 }
 
                 problemCards
+            }
+
+            if Support.nudgeIsDue(now: Date(), firstRun: supportFirstRun, putAway: supportPutAway, stopped: supportStopped) {
+                supportCard
             }
 
             TimelineView(.everyMinute) { context in
@@ -198,6 +205,34 @@ struct MenuView: View {
         }
     }
 
+    /// Now and then, a gentle ask for a donation; see `SupportNudge` for when.
+    private var supportCard: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "heart.fill")
+                .foregroundStyle(.pink)
+                .font(.system(size: 13))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Enjoying Calendar Hub?")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Text("It's free and open source. If it saves you time, a donation helps keep it going.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Donate") { Support.donate() }
+                    Button("Later") { supportPutAway = Date().timeIntervalSince1970 }
+                    Button("Don't Ask Again") { supportStopped = true }
+                }
+                .controlSize(.small)
+                .padding(.top, 4)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Color.pink.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
+        .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(Color.pink.opacity(0.3), lineWidth: 0.5))
+    }
+
     private static func dayKey(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
@@ -305,8 +340,8 @@ struct MenuView: View {
                     confirmUpdate(to: latest)
                 }
             }
-            IconButton("heart", help: "Donate") {
-                NSWorkspace.shared.open(UpdateChecker.donatePage)
+            IconButton("heart", help: "Support Calendar Hub") {
+                Support.donate()
             }
             // In the menu rather than a popover: the menu window closes when another window
             // takes the keyboard.

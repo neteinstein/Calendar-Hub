@@ -333,6 +333,7 @@ enum Snapshots {
         guard let folder, let context else { return }
         MeetingStatsView.showsEverything = true
         MenuView.showsUntrackedTimeNudge = false
+        Support.showsNudge = false
         Task {
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             // Let the demo sync settle first.

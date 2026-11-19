@@ -10,7 +10,7 @@ import Foundation
 @MainActor
 final class UpdateChecker: ObservableObject {
     static let repoPage = URL(string: "https://github.com/neteinstein/Calendar-Hub")!
-    /// Where About's Donate button and the menu's heart lead.
+    /// Where About's Support button, the menu's heart and its ask for a donation lead.
     static let donatePage = URL(string: "https://www.pedrovicente.pt/donate")!
     /// The newest release's disk image, for a copy installed from one: GitHub sends this
     /// address to the asset of the latest release.
