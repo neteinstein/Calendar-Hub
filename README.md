@@ -29,9 +29,9 @@ A small Mac menu bar app that copies the meetings from your other calendars into
 
 ## How to install
 
-**No Terminal:** download [Calendar-Hub.dmg](https://github.com/neteinstein/Calendar-Hub/releases/latest/download/Calendar-Hub.dmg) and follow [Install Calendar Hub](docs/download.md), a step-by-step guide with pictures.
+You can download [Calendar-Hub.dmg](https://github.com/neteinstein/Calendar-Hub/releases/latest/download/Calendar-Hub.dmg) and follow [Install Calendar Hub](docs/download.md), a step-by-step guide with pictures.
 
-With [Homebrew](https://brew.sh/):
+With [Homebrew](https://brew.sh/) via Terminal:
 
 ```bash
 brew install neteinstein/tap/calendar-hub
