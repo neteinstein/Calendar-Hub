@@ -26,6 +26,8 @@ final class SyncController: ObservableObject {
     @Published private(set) var orphanedCopies: [ExistingCopy] = []
     /// The days of the sync window that reach the daily meeting limit, as the last sync found them.
     @Published private(set) var fullDays: [MeetingLimit.FullDay] = []
+    /// Copies syncs added or moved onto another meeting, until dismissed or over. See `SyncOverlaps`.
+    @Published private(set) var overlaps: [SyncOverlap] = []
 
     struct BusyPreview: Identifiable {
         let id: UUID
@@ -275,6 +277,9 @@ final class SyncController: ObservableObject {
             ignoreStoreChangesUntil = .now + .seconds(5)
             problems += eventKit.apply(plan, targetID: targetID)
             ignoreStoreChangesUntil = .now + .seconds(5)
+            if settings.options.warnsAboutOverlaps {
+                report(SyncOverlaps.find(plan: plan, existing: existing, mainEvents: mainEvents, now: Date()))
+            }
         }
 
         // The days that reach the meeting limit, and their Busy blocks. Before the Busy events
@@ -363,6 +368,31 @@ final class SyncController: ObservableObject {
         self.problems = problems.sorted()
         unreadSources = unread.sorted { $0.name < $1.name }
         return plan
+    }
+
+    /// Shows overlaps a sync just made in the menu, and in a notification.
+    private func report(_ found: [SyncOverlap]) {
+        let now = Date()
+        var kept = overlaps.filter { $0.end > now }
+        for overlap in found {
+            kept.removeAll { $0.id == overlap.id }
+            kept.append(overlap)
+        }
+        overlaps = kept.sorted { $0.start < $1.start }
+        guard !found.isEmpty else { return }
+        AppLog.write("Calendar Hub: \(found.count) synced meetings overlap another meeting")
+        if found.count == 1 {
+            Notifier.post(id: "overlap-" + found[0].id, title: "Meeting overlap",
+                          body: SyncOverlaps.text(found[0]))
+        } else {
+            Notifier.post(id: "overlaps-\(now.timeIntervalSince1970)", title: "\(found.count) meeting overlaps",
+                          body: found.prefix(3).map { SyncOverlaps.text($0) }.joined(separator: "\n"))
+        }
+    }
+
+    /// Takes the overlaps off the menu.
+    func dismissOverlaps() {
+        overlaps = []
     }
 
     /// Finds the days that reach the meeting limit, and plans (and with `apply`, writes) their

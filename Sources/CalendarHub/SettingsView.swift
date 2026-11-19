@@ -183,6 +183,8 @@ private struct GeneralTab: View {
                 Toggle("Skip meetings I declined", isOn: $settings.options.skipDeclined)
                 Toggle("Skip all-day events", isOn: $settings.options.skipAllDay)
                 Toggle("Skip out-of-office events", isOn: $settings.options.skipOutOfOffice)
+                Toggle("Warn when a synced meeting overlaps another", isOn: $settings.options.warnsAboutOverlaps)
+                    .help("When a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so. Meetings that already overlapped aren't reported again.")
             }
 
             Section("Startup") {

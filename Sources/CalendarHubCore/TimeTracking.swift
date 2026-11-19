@@ -83,7 +83,7 @@ public struct TimeTrackingOptions: Codable, Hashable, Sendable {
 }
 
 /// Where a logged stretch of time came from.
-public enum TimeEntrySource: String, Codable, Hashable, Sendable {
+public enum TimeEntrySource: String, Codable, Hashable, Sendable, CaseIterable {
     /// A meeting in the main calendar, counted by itself.
     case meeting
     /// The timer.
@@ -453,6 +453,39 @@ public enum TimeTracking {
                 title,
             ])
         }
+        return rows.map { $0.map(csvField).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"
+    }
+
+    /// `entries` totalled per client, for an invoice: client, days worked, duration (h:mm),
+    /// hours, and the hours from meetings, the timer and time assigned by hand. Most hours
+    /// first, then a Total row.
+    public static func csvByClient(_ entries: [TimeEntry], calendar: Calendar) -> String {
+        struct Total { var name: String; var days: Set<DateComponents> = []; var bySource: [TimeEntrySource: TimeInterval] = [:] }
+        var totals: [String: Total] = [:]
+        for entry in entries {
+            var total = totals[entry.clientID] ?? Total(name: entry.clientName)
+            total.days.insert(calendar.dateComponents([.year, .month, .day], from: entry.start))
+            total.bySource[entry.source, default: 0] += entry.duration
+            totals[entry.clientID] = total
+        }
+        func minutes(_ interval: TimeInterval) -> Int { Int((interval / 60).rounded()) }
+        func hours(_ minutes: Int) -> String { String(format: "%.2f", Double(minutes) / 60) }
+        func duration(_ minutes: Int) -> String { String(format: "%d:%02d", minutes / 60, minutes % 60) }
+        let sources = TimeEntrySource.allCases
+        var rows = [["Client", "Days", "Duration", "Hours"] + sources.map { $0.rawValue.capitalized + " hours" }]
+        var sum: [TimeEntrySource: Int] = [:]
+        let sorted = totals.values.sorted {
+            ($0.bySource.values.reduce(0, +), $1.name) > ($1.bySource.values.reduce(0, +), $0.name)
+        }
+        for total in sorted {
+            let perSource = sources.map { minutes(total.bySource[$0] ?? 0) }
+            for (source, value) in zip(sources, perSource) { sum[source, default: 0] += value }
+            let all = perSource.reduce(0, +)
+            rows.append([total.name, String(total.days.count), duration(all), hours(all)] + perSource.map(hours))
+        }
+        let all = sum.values.reduce(0, +)
+        let days = Set(entries.map { calendar.dateComponents([.year, .month, .day], from: $0.start) }).count
+        rows.append(["Total", String(days), duration(all), hours(all)] + sources.map { hours(sum[$0] ?? 0) })
         return rows.map { $0.map(csvField).joined(separator: ",") }.joined(separator: "\r\n") + "\r\n"
     }
 

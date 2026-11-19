@@ -65,6 +65,10 @@ struct MenuView: View {
                     }
                 }
 
+                if settings.options.warnsAboutOverlaps, !controller.overlaps.isEmpty {
+                    OverlapsCard(overlaps: controller.overlaps) { controller.dismissOverlaps() }
+                }
+
                 problemCards
             }
 
@@ -696,6 +700,38 @@ private struct FullDaysCard: View {
         }
         .buttonStyle(.plain)
         .help("Meeting limit settings")
+    }
+}
+
+/// Copies the last syncs added or moved onto another meeting.
+private struct OverlapsCard: View {
+    let overlaps: [SyncOverlap]
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "rectangle.on.rectangle.angled")
+                .foregroundStyle(.orange)
+                .font(.system(size: 13, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(overlaps.prefix(4)) { overlap in
+                    Text(SyncOverlaps.text(overlap))
+                        .font(.system(size: 12))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if overlaps.count > 4 {
+                    Text("and \(overlaps.count - 4) more").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+            Button(action: dismiss) {
+                Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Dismiss")
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
     }
 }
 

@@ -29,6 +29,7 @@ struct CalendarHubApp: App {
             RenameMigration.run()
             Self.linkIntoApplicationsOnce()
         }
+        if demo != nil { Notifier.isEnabled = false }
         let settings = demo?.makeSettings() ?? SettingsStore()
         let controller = SyncController(settings: settings, demo: demo)
         let updates = UpdateChecker(defaults: demo?.defaults ?? .standard)
