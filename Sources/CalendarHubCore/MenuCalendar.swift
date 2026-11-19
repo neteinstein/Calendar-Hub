@@ -94,7 +94,7 @@ public enum MenuCalendar {
 
     /// A meeting worth counting down to: timed, and not declined, cancelled, out of office or
     /// a full day's Busy block.
-    static func isMeeting(_ event: SourceEvent) -> Bool {
+    public static func isMeeting(_ event: SourceEvent) -> Bool {
         !event.isAllDay && !event.isDeclined && !event.isCancelled && !MeetingStats.isOutOfOffice(event)
             && !MeetingLimit.isBlock(event)
     }

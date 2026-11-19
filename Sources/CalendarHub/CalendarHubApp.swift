@@ -18,6 +18,8 @@ struct CalendarHubApp: App {
     private static var instanceLock: InstanceLock?
     /// The menu bar item's right-click menu, kept for as long as the app runs.
     private static var rightClickMenu: MenuBarRightClickMenu?
+    /// Writes the desktop widget's data, for as long as the app runs.
+    private static var widgetFeed: WidgetFeed?
 
     init() {
         // The demo (sample calendars, for screenshots) runs next to the real app and leaves
@@ -46,6 +48,7 @@ struct CalendarHubApp: App {
                                                                  tasks: tasks, checks: demo == nil))
         Self.rightClickMenu = MenuBarRightClickMenu(settings: settings, controller: controller)
         if demo == nil {
+            Self.widgetFeed = WidgetFeed(settings: settings, controller: controller)
             AppActions.shared = AppActions(settings: settings, controller: controller, tasks: tasks, timeTracker: timeTracker)
         }
         if let demo, Snapshots.folder != nil {

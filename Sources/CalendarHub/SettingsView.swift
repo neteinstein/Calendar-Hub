@@ -237,6 +237,15 @@ private struct MenuBarTab: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            Section {
+                Toggle("Show meetings in the desktop widget", isOn: $settings.widgetEnabled)
+            } header: {
+                Text("Desktop widget")
+            } footer: {
+                Text("Add Calendar Hub's Next Meeting widget to the desktop or Notification Center (Control-click the desktop › Edit Widgets). It shows the next meeting with a countdown and today's meetings across your calendars. A widget can't read your calendars itself, so while this is on the app keeps today's and tomorrow's meetings for it in a file in its Application Support folder, readable only by you, and deletes it when this is turned off.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             if settings.menuShowsCalendar {
                 Section("Menu calendar") {
                     Picker("Week starts on", selection: $settings.menuCalendar.weekStart) {

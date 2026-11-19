@@ -32,6 +32,9 @@ fi
 
 swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} ${INTENTS_FLAGS[@]+"${INTENTS_FLAGS[@]}"} "$@"
 BIN="$(swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} ${INTENTS_FLAGS[@]+"${INTENTS_FLAGS[@]}"} "$@" --show-bin-path)/CalendarHub"
+# The desktop widget, an app extension in the app's PlugIns folder.
+swift build -c release --product CalendarHubWidget ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@"
+WIDGET_BIN="$(dirname "$BIN")/CalendarHubWidget"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -65,9 +68,21 @@ if [[ -n "$PROCESSOR" ]]; then
   fi
 fi
 
+WIDGET="$APP/Contents/PlugIns/CalendarHubWidget.appex"
+mkdir -p "$WIDGET/Contents/MacOS"
+cp "$WIDGET_BIN" "$WIDGET/Contents/MacOS/CalendarHubWidget"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Support/Info.plist)"
+BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Support/Info.plist)"
+sed -e "s/VERSION/$VERSION/" -e "s/BUILD/$BUILD/" Support/Widget-Info.plist > "$WIDGET/Contents/Info.plist"
+
+# The widget first: signing the app seals what's inside it.
 if [[ "$IDENTITY" == "-" ]]; then
+  codesign --force --sign - --entitlements Support/Widget.entitlements "$WIDGET"
   codesign --force --sign - "$APP"
 else
+  codesign --force --options runtime --timestamp \
+    --entitlements Support/Widget.entitlements \
+    --sign "$IDENTITY" "$WIDGET"
   codesign --force --options runtime --timestamp \
     --entitlements Support/CalendarHub.entitlements \
     --sign "$IDENTITY" "$APP"

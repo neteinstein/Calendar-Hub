@@ -15,6 +15,9 @@ var targets: [Target] = [
 // The menu bar app itself (EventKit, SwiftUI, WebKit). macOS only.
 products.append(.executable(name: "CalendarHub", targets: ["CalendarHub"]))
 targets.append(.executableTarget(name: "CalendarHub", dependencies: ["CalendarHubCore"]))
+// The desktop widget, put in the app's PlugIns folder as an app extension by scripts/build-app.sh.
+products.append(.executable(name: "CalendarHubWidget", targets: ["CalendarHubWidget"]))
+targets.append(.executableTarget(name: "CalendarHubWidget", dependencies: ["CalendarHubCore"]))
 #endif
 
 let package = Package(
