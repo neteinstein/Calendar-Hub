@@ -17,14 +17,53 @@ IDENTITY="${SIGN_IDENTITY:--}"
 ARCH_FLAGS=()
 if [[ "${UNIVERSAL:-0}" == "1" ]]; then ARCH_FLAGS=(--arch arm64 --arch x86_64); fi
 
-swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@"
-BIN="$(swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} "$@" --show-bin-path)/CalendarHub"
+# Shortcuts finds the app's actions (App Intents) through metadata that Xcode's
+# appintentsmetadataprocessor makes from the compiler's constant values. Without full Xcode
+# (just the command line tools) it's skipped: the app works the same, its actions just aren't
+# in Shortcuts. Its calendarhub:// links work either way.
+INTENTS_FLAGS=()
+PROCESSOR="$(xcrun --find appintentsmetadataprocessor 2>/dev/null || true)"
+if [[ -n "$PROCESSOR" ]]; then
+  PROTOCOLS="$(mktemp -t calendarhub-protocols)"
+  echo '["AppIntent","EntityQuery","AppEntity","TransientEntity","AppEnum","AppShortcutProviding","AppShortcutsProvider","AnyResolverProviding","AppIntentsPackage","DynamicOptionsProvider"]' > "$PROTOCOLS"
+  INTENTS_FLAGS=(-Xswiftc -emit-const-values -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file
+                 -Xswiftc -Xfrontend -Xswiftc "$PROTOCOLS")
+fi
+
+swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} ${INTENTS_FLAGS[@]+"${INTENTS_FLAGS[@]}"} "$@"
+BIN="$(swift build -c release --product CalendarHub ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} ${INTENTS_FLAGS[@]+"${INTENTS_FLAGS[@]}"} "$@" --show-bin-path)/CalendarHub"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/CalendarHub"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+
+if [[ -n "$PROCESSOR" ]]; then
+  CONST_VALUES="$(find .build -name 'CalendarHub.swiftconstvalues' -newer Package.swift -print 2>/dev/null | head -n 1)"
+  if [[ -n "$CONST_VALUES" ]]; then
+    WORK="$(mktemp -d -t calendarhub-intents)"
+    find "$PWD/Sources/CalendarHub" -name '*.swift' > "$WORK/sources.txt"
+    echo "$PWD/$CONST_VALUES" > "$WORK/constvalues.txt"
+    XCODE_BUILD="$(xcodebuild -version 2>/dev/null | awk '/Build version/ { print $3 }')"
+    "$PROCESSOR" \
+      --toolchain-dir "$(dirname "$(dirname "$(dirname "$PROCESSOR")")")" \
+      --module-name CalendarHub \
+      --sdk-root "$(xcrun --show-sdk-path)" \
+      --xcode-version "${XCODE_BUILD:-16F6}" \
+      --platform-family macOS \
+      --deployment-target 14.0 \
+      --target-triple "$(uname -m)-apple-macos14.0" \
+      --source-file-list "$WORK/sources.txt" \
+      --swift-const-vals-list "$WORK/constvalues.txt" \
+      --output "$APP/Contents/Resources" \
+      --force --no-app-shortcuts-localization \
+      || echo "warning: couldn't make the Shortcuts metadata; the app's actions won't be in Shortcuts" >&2
+    rm -rf "$WORK"
+  else
+    echo "warning: no constant values for the Shortcuts metadata; the app's actions won't be in Shortcuts" >&2
+  fi
+fi
 
 if [[ "$IDENTITY" == "-" ]]; then
   codesign --force --sign - "$APP"

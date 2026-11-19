@@ -5,6 +5,7 @@ import Foundation
 // Actions for the Shortcuts app and Siri. Each runs in the app, which Shortcuts starts if it
 // isn't running, through `AppActions`.
 
+@MainActor
 private func actions() throws -> AppActions {
     guard let actions = AppActions.shared else { throw AppActions.Failure.noMainCalendar }
     return actions
