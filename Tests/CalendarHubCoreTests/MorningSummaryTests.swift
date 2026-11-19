@@ -58,3 +58,17 @@ final class MorningSummaryTests: XCTestCase {
         XCTAssertEqual(options.leadMinutes, 3)
     }
 }
+
+final class NextMeetingTests: XCTestCase {
+    func testNextMeetingSkipsDeclinedAndEnded() {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        var declined = SourceEvent(key: "d", title: "Declined", start: base + 600, end: base + 1200)
+        declined.isDeclined = true
+        let ended = SourceEvent(key: "e", title: "Ended", start: base - 3600, end: base - 60)
+        let later = SourceEvent(key: "l", title: "Later", start: base + 7200, end: base + 9000)
+        let next = MenuCalendar.nextMeeting(in: [declined, ended, later], now: base)
+        XCTAssertEqual(next?.key, "l")
+        XCTAssertTrue(MenuCalendar.nextMeetingText(next, now: base).hasPrefix("Later, "))
+        XCTAssertEqual(MenuCalendar.nextMeetingText(nil, now: base), "No more meetings")
+    }
+}

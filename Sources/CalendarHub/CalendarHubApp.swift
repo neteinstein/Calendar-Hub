@@ -45,6 +45,9 @@ struct CalendarHubApp: App {
         _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
                                                                  tasks: tasks, checks: demo == nil))
         Self.rightClickMenu = MenuBarRightClickMenu(settings: settings, controller: controller)
+        if demo == nil {
+            AppActions.shared = AppActions(settings: settings, controller: controller, tasks: tasks, timeTracker: timeTracker)
+        }
         if let demo, Snapshots.folder != nil {
             Snapshots.context = .init(settings: settings, controller: controller, updates: updates, tasks: tasks,
                                       timeTracker: timeTracker, defaults: demo.defaults)
@@ -305,6 +308,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { _ in
             MainActor.assumeIsolated { MenuBarItem.shared.isInserted = true }
         }
+    }
+
+    /// `calendarhub://` links: see `AppActions.open(_:)`.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { AppActions.shared?.open(url) }
     }
 
     /// Opening the app while it runs: Finder, Spotlight or `open`.

@@ -99,6 +99,21 @@ public enum MenuCalendar {
             && !MeetingLimit.isBlock(event)
     }
 
+    /// The meeting under way, or else the next one to start, at any distance: for Shortcuts.
+    public static func nextMeeting(in events: [SourceEvent], now: Date) -> SourceEvent? {
+        events.filter { isMeeting($0) && $0.end > now }.min { ($0.start, $0.end) < ($1.start, $1.end) }
+    }
+
+    /// "Design review, 14:00, in 12 min", or "Standup, 9:30, now · 5 min left", for Shortcuts.
+    public static func nextMeetingText(_ event: SourceEvent?, now: Date, calendar: Calendar = .current,
+                                       locale: Locale = .current) -> String {
+        guard let event else { return "No more meetings" }
+        var style = Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: calendar,
+                                     timeZone: calendar.timeZone)
+        if !calendar.isDate(event.start, inSameDayAs: now) { style = style.weekday(.abbreviated) }
+        return "\(displayTitle(of: event)), \(event.start.formatted(style)), \(countdown(to: event, now: now))"
+    }
+
     /// How close the next meeting has to be for the menu to show it in the Up next card.
     public static let upNextLead: TimeInterval = 4 * 60 * 60
 
