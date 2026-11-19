@@ -48,6 +48,7 @@ struct TasksView: View {
                 TaskEditor(task: editing, events: events, calendar: calendar, options: settings.taskOptions,
                            categories: tasks.categories, focusesCategory: namesCategory,
                            save: { tasks.save($0) },
+                           setColor: { tasks.setColor($0, of: $1) },
                            delete: { tasks.delete(editing) },
                            close: {
                                namesCategory = false
@@ -661,9 +662,13 @@ private struct TaskEditor: View {
     /// Opens with the cursor in the category, to name a new one.
     let focusesCategory: Bool
     let save: (TaskItem) -> Void
+    /// Gives a category its color, picked here and kept once the task is saved.
+    let setColor: (TaskCategoryColor, String) -> Void
     let delete: () -> Void
     let close: () -> Void
     @State private var task: TaskItem
+    /// The color picked for the category here, set on saving.
+    @State private var pickedColor: TaskCategoryColor?
     @State private var nudges: [EditedNudge]
     @FocusState private var titleFocused: Bool
     @FocusState private var categoryFocused: Bool
@@ -676,7 +681,7 @@ private struct TaskEditor: View {
 
     init(task: TaskItem, events: [SourceEvent], calendar: Calendar, options: TaskOptions,
          categories: [String], focusesCategory: Bool,
-         save: @escaping (TaskItem) -> Void, delete: @escaping () -> Void, close: @escaping () -> Void) {
+         save: @escaping (TaskItem) -> Void, setColor: @escaping (TaskCategoryColor, String) -> Void, delete: @escaping () -> Void, close: @escaping () -> Void) {
         original = task
         self.events = events
         self.calendar = calendar
@@ -684,6 +689,7 @@ private struct TaskEditor: View {
         self.categories = categories
         self.focusesCategory = focusesCategory
         self.save = save
+        self.setColor = setColor
         self.delete = delete
         self.close = close
         _task = State(initialValue: task)
@@ -725,6 +731,7 @@ private struct TaskEditor: View {
                         if !original.id.isEmpty {
                             IconButton("arrow.up.left.and.arrow.down.right", help: "Open the notes in a window, with Markdown") {
                                 guard let saved = finished() else { return }
+                                keepColor(of: saved)
                                 save(saved)
                                 close()
                                 openTaskNotes(saved)
@@ -805,10 +812,7 @@ private struct TaskEditor: View {
     private var categoryField: some View {
         HStack(spacing: 4) {
             if let typedCategory {
-                let colors = TaskPlanner.colors(for: categories + [typedCategory], given: options.categoryColors)
-                Circle()
-                    .fill((colors[typedCategory.lowercased()] ?? options.color(of: typedCategory)).color)
-                    .frame(width: 8, height: 8)
+                colorMenu(for: typedCategory)
             }
             TextField("None", text: Binding(get: { task.category ?? "" }, set: { task.category = $0 }))
                 .textFieldStyle(.plain)
@@ -834,6 +838,40 @@ private struct TaskEditor: View {
             }
         }
         .frame(height: 22)
+    }
+
+    /// The color `category` will have: the one picked here, or the one it has or would get.
+    private func color(of category: String) -> TaskCategoryColor {
+        if let pickedColor { return pickedColor }
+        let colors = TaskPlanner.colors(for: categories + [category], given: options.categoryColors)
+        return colors[category.lowercased()] ?? options.color(of: category)
+    }
+
+    /// The category's dot, to pick its color from.
+    private func colorMenu(for category: String) -> some View {
+        let current = color(of: category)
+        return Menu {
+            ForEach(TaskCategoryColor.allCases, id: \.self) { color in
+                Button {
+                    pickedColor = color
+                } label: {
+                    if color == current { Label(color.title, systemImage: "checkmark") } else { Text(color.title) }
+                }
+            }
+        } label: {
+            Circle()
+                .fill(current.color)
+                .frame(width: 10, height: 10)
+                .padding(3)
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .pointingHandCursor()
+        .help("Pick the color of \(category)")
+        .accessibilityLabel("Color of \(category): \(current.title)")
     }
 
     // MARK: Event
@@ -988,6 +1026,13 @@ private struct TaskEditor: View {
         .fixedSize()
     }
 
+    /// Gives the task's category the color picked for it, before the task is saved so that the
+    /// category, if new, doesn't get another one first.
+    private func keepColor(of task: TaskItem) {
+        guard let pickedColor, let category = task.category else { return }
+        setColor(pickedColor, category)
+    }
+
     /// The task as edited, ready to save, or nil without a title.
     private func finished() -> TaskItem? {
         guard !trimmedTitle.isEmpty else { return nil }
@@ -1004,6 +1049,7 @@ private struct TaskEditor: View {
 
     private func commit() {
         guard let saved = finished() else { return }
+        keepColor(of: saved)
         save(saved)
         close()
     }
