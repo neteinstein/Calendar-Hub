@@ -26,6 +26,8 @@ final class SyncController: ObservableObject {
     @Published private(set) var orphanedCopies: [ExistingCopy] = []
     /// The days of the sync window that reach the daily meeting limit, as the last sync found them.
     @Published private(set) var fullDays: [MeetingLimit.FullDay] = []
+    /// Copies syncs added or moved onto another meeting, until dismissed or over. See `SyncOverlaps`.
+    @Published private(set) var overlaps: [SyncOverlap] = []
 
     struct BusyPreview: Identifiable {
         let id: UUID
@@ -56,6 +58,7 @@ final class SyncController: ObservableObject {
     let settings: SettingsStore
     let eventKit: EventKitBridge
     private var outlookSources: [UUID: OutlookWebSource] = [:]
+    private var googleSources: [UUID: GoogleWebSource] = [:]
     private var timer: Timer?
     /// When each secondary calendar was last read by a sync that applied its changes.
     private var lastRead: [UUID: Date] = [:]
@@ -236,6 +239,8 @@ final class SyncController: ObservableObject {
                 let result = await outlookSource(for: source.id).fetch(from: start, to: end)
                 results.append((source, result))
                 if case .success = result { outlookRead.append(source) }
+            case .googleWeb:
+                results.append((source, await googleSource(for: source.id).fetch(from: start, to: end)))
             }
         }
 
@@ -275,6 +280,9 @@ final class SyncController: ObservableObject {
             ignoreStoreChangesUntil = .now + .seconds(5)
             problems += eventKit.apply(plan, targetID: targetID)
             ignoreStoreChangesUntil = .now + .seconds(5)
+            if settings.options.warnsAboutOverlaps {
+                report(SyncOverlaps.find(plan: plan, existing: existing, mainEvents: mainEvents, now: Date()))
+            }
         }
 
         // The days that reach the meeting limit, and their Busy blocks. Before the Busy events
@@ -363,6 +371,31 @@ final class SyncController: ObservableObject {
         self.problems = problems.sorted()
         unreadSources = unread.sorted { $0.name < $1.name }
         return plan
+    }
+
+    /// Shows overlaps a sync just made in the menu, and in a notification.
+    private func report(_ found: [SyncOverlap]) {
+        let now = Date()
+        var kept = overlaps.filter { $0.end > now }
+        for overlap in found {
+            kept.removeAll { $0.id == overlap.id }
+            kept.append(overlap)
+        }
+        overlaps = kept.sorted { $0.start < $1.start }
+        guard !found.isEmpty else { return }
+        AppLog.write("Calendar Hub: \(found.count) synced meetings overlap another meeting")
+        if found.count == 1 {
+            Notifier.post(id: "overlap-" + found[0].id, title: "Meeting overlap",
+                          body: SyncOverlaps.text(found[0]))
+        } else {
+            Notifier.post(id: "overlaps-\(now.timeIntervalSince1970)", title: "\(found.count) meeting overlaps",
+                          body: found.prefix(3).map { SyncOverlaps.text($0) }.joined(separator: "\n"))
+        }
+    }
+
+    /// Takes the overlaps off the menu.
+    func dismissOverlaps() {
+        overlaps = []
     }
 
     /// Finds the days that reach the meeting limit, and plans (and with `apply`, writes) their
@@ -542,6 +575,7 @@ final class SyncController: ObservableObject {
     /// isn't read, then syncs every calendar.
     func syncNow() async {
         for source in outlookSources.values { source.closeWindow() }
+        for source in googleSources.values { source.closeWindow() }
         await sync()
     }
 
@@ -614,12 +648,30 @@ final class SyncController: ObservableObject {
     }
 
     func showOutlookWindow(for source: SourceConfig) {
-        outlookSource(for: source.id).showWindow(title: source.calendarName)
+        if source.kind == .googleWeb {
+            googleSource(for: source.id).showWindow(title: source.calendarName)
+        } else {
+            outlookSource(for: source.id).showWindow(title: source.calendarName)
+        }
+    }
+
+    // MARK: - Google web
+
+    func googleSource(for sourceID: UUID) -> GoogleWebSource {
+        if let existing = googleSources[sourceID] { return existing }
+        let source = GoogleWebSource(sourceID: sourceID)
+        source.onWindowClosed = { [weak self] in
+            Task { await self?.sync(only: [sourceID]) }
+        }
+        googleSources[sourceID] = source
+        return source
     }
 
     func forgetOutlookSession(for sourceID: UUID) {
         outlookSources[sourceID]?.tearDown()
         outlookSources[sourceID] = nil
+        googleSources[sourceID]?.tearDown()
+        googleSources[sourceID] = nil
         Task {
             // Give WebKit a moment to release the store; it can't be removed while in use.
             try? await Task.sleep(nanoseconds: 1_000_000_000)

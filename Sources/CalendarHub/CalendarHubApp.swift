@@ -18,6 +18,8 @@ struct CalendarHubApp: App {
     private static var instanceLock: InstanceLock?
     /// The menu bar item's right-click menu, kept for as long as the app runs.
     private static var rightClickMenu: MenuBarRightClickMenu?
+    /// Writes the desktop widget's data, for as long as the app runs.
+    private static var widgetFeed: WidgetFeed?
 
     init() {
         // The demo (sample calendars, for screenshots) runs next to the real app and leaves
@@ -29,6 +31,7 @@ struct CalendarHubApp: App {
             RenameMigration.run()
             Self.linkIntoApplicationsOnce()
         }
+        if demo != nil { Notifier.isEnabled = false }
         let settings = demo?.makeSettings() ?? SettingsStore()
         let controller = SyncController(settings: settings, demo: demo)
         let updates = UpdateChecker(defaults: demo?.defaults ?? .standard)
@@ -44,6 +47,10 @@ struct CalendarHubApp: App {
         _alerts = StateObject(wrappedValue: EventAlertController(settings: settings, eventKit: controller.eventKit,
                                                                  tasks: tasks, checks: demo == nil))
         Self.rightClickMenu = MenuBarRightClickMenu(settings: settings, controller: controller)
+        if demo == nil {
+            Self.widgetFeed = WidgetFeed(settings: settings, controller: controller)
+            AppActions.shared = AppActions(settings: settings, controller: controller, tasks: tasks, timeTracker: timeTracker)
+        }
         if let demo, Snapshots.folder != nil {
             Snapshots.context = .init(settings: settings, controller: controller, updates: updates, tasks: tasks,
                                       timeTracker: timeTracker, defaults: demo.defaults)
@@ -304,6 +311,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { _ in
             MainActor.assumeIsolated { MenuBarItem.shared.isInserted = true }
         }
+    }
+
+    /// `calendarhub://` links: see `AppActions.open(_:)`.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { AppActions.shared?.open(url) }
     }
 
     /// Opening the app while it runs: Finder, Spotlight or `open`.

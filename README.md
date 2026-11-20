@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.1.10](https://img.shields.io/badge/version-2.1.10-2563EB)](Support/Info.plist)
+[![Version 2.1.11](https://img.shields.io/badge/version-2.1.11-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -225,7 +225,8 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 
 - **Copies your meetings across**, titled by the calendar they came from, with the Teams, Zoom, Google Meet or Webex link, so **Join** works from your main calendar.
 - **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
-- **Reads calendars your Mac can't add:** sign in to **Outlook on the web** once in the app, or subscribe to a published **.ics** link.
+- **Warns about overlaps:** when a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so ("Thu 14:00: [Calendar A] Sprint planning overlaps Design review"). Meetings that already overlapped aren't reported again.
+- **Reads calendars your Mac can't add:** sign in to **Outlook on the web** or **Google Calendar on the web** once in the app, or subscribe to a published **.ics** link.
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
 - **Colors each calendar** in the menu and the alerts as Calendar.app does, or in a color you pick for it in Settings.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
@@ -233,7 +234,11 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Limits your meetings a day**, if you like: when a day reaches the hours you set, across every calendar, the menu says so ("Tomorrow: 5h 20m of meetings, over your 5h limit"), and the free time left in its working hours can become **Busy** in your main calendar, and in the secondary calendars you pick, so nobody books more.
 - **Compares time zones** in a World Clocks view: the time in the cities you work with, green during working hours, at any time you pick, and when everyone's working hours overlap.
 - **Shares your availability:** your free times across every calendar, for the next three working days, this week or next week, in the other person's time zone and, if you like, only while they're working too, copied as text to paste anywhere. Right-click the menu bar item to copy it straight away. Nothing leaves your Mac until you paste it.
-- **Tracks your time per client**, if you turn it on: meetings logged to the calendar they came from, a timer for the rest, the working time nobody logged listed to assign, and a week or a month as CSV for your timesheet.
+- **Tracks your time per client**, if you turn it on: meetings logged to the calendar they came from, a timer for the rest, the working time nobody logged listed to assign, and a week or a month as CSV for your timesheet: every entry, totals per client for an invoice, or one client's entries.
+- **Takes meeting notes:** right-click a meeting for **Take Meeting Notes**, kept as a task for the meeting with its notes in Markdown. **Make Tasks** turns the notes' open checklist items into tasks for the meeting.
+- **Starts your day**, if you like: a morning summary when your working day starts, with the hours of meetings, the first one, the tasks due and what's left of your meeting limit. And it can turn a **Focus** on during meetings, through two shortcuts you make in Shortcuts.
+- **Works with Shortcuts:** Get Next Meeting, Join Next Meeting, Copy Availability, Start and Stop the timer, Add Task and Sync Now are actions in the Shortcuts app and for Siri, and `calendarhub://` links do the same from anywhere (`calendarhub://join`, `calendarhub://availability?span=thisWeek`, `calendarhub://timer/start?client=Client%20X`, `calendarhub://timer/stop`, `calendarhub://task/new?title=…`, `calendarhub://sync`). The Shortcuts actions need the app built with Xcode, as the download is; a Homebrew build with just the command line tools has the links.
+- **Has a desktop widget**, if you turn it on: the next meeting with a countdown and today's meetings, on the desktop or in Notification Center.
 - **Stays out of the way:** it never copies attendees, so no invites go out, never copies its own copies back, and leaves copies alone when a calendar can't be read.
 
 ## What leaves your Mac, and where it ends up
@@ -251,7 +256,10 @@ Copying a meeting from one calendar into another puts data from one organization
 | A task's title and notes, and the name and start of the meeting it's for | Your Reminders account (iCloud, say) | Only for tasks you make in the Tasks view. |
 | Time Tracking's log: the timer's time, time you assigned and meetings you gave to another client, each with its client's name | A file in the app's Application Support folder, on this Mac only, readable only by you | Only with **Time Tracking** on, once you log something. Turning it off asks whether to keep or delete it. |
 | A CSV of your logged time, with your meetings' titles | Where you save it | Only when you **Export CSV**. Calendars with **Hide meeting names** on have no titles in it. |
-| Your Outlook on the web sign-in | The app's own WebKit folder in your Library, on this Mac | Only for Outlook on the web calendars. See [Outlook on the web](docs/outlook-on-the-web.md). |
+| Your Outlook on the web or Google Calendar sign-in | The app's own WebKit folder in your Library, on this Mac | Only for Outlook on the web and Google Calendar on the web calendars. See [Outlook on the web](docs/outlook-on-the-web.md). |
+| Google Calendar's export of the account's calendars | A folder only you can read, deleted as soon as it's read | Each time a Google Calendar on the web calendar is read. Only the account's own calendar is used. |
+| Today's and tomorrow's meetings in your main calendar: titles, times, join links and calendar names | A file in the app's Application Support folder, on this Mac only, readable only by you, for the desktop widget | Only with the desktop widget on in Settings › Menu bar. Turning it off deletes the file. |
+| An overlap warning or the morning summary, with meeting and task titles | A macOS notification on this Mac | Only when a sync makes an overlap (with the warning on), or with the morning summary on. |
 | One request for the newest version number | GitHub, over HTTPS | Once a day, and when you check in Settings › About. GitHub sees your IP address, nothing else. |
 
 Nothing identifies a meeting in the system log: the app logs counts and times, not names.

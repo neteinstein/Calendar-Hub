@@ -217,6 +217,23 @@ final class TimeTrackingTests: XCTestCase {
         XCTAssertEqual(csv, expected.map { $0 + "\r\n" }.joined())
     }
 
+    func testCSVByClient() {
+        let entries = [
+            TimeEntry(client: clientA, start: at(9, 30), end: at(9, 45), source: .meeting, title: "Standup"),
+            TimeEntry(client: clientA, start: at(10), end: at(12), source: .timer),
+            TimeEntry(client: clientA, start: at(10, day: 18), end: at(10, 30, day: 18), source: .assigned),
+            TimeEntry(client: internalClient, start: at(14), end: at(15), source: .timer),
+        ]
+        let csv = TimeTracking.csvByClient(entries, calendar: calendar)
+        let expected = [
+            "Client,Days,Duration,Hours,Meeting hours,Timer hours,Assigned hours",
+            "Client A,2,2:45,2.75,0.25,2.00,0.50",
+            "Internal,1,1:00,1.00,0.00,1.00,0.00",
+            "Total,2,3:45,3.75,0.25,3.00,0.50",
+        ]
+        XCTAssertEqual(csv, expected.map { $0 + "\r\n" }.joined())
+    }
+
     func testCSVDefusesFormulas() {
         XCTAssertEqual(TimeTracking.csvField("=HYPERLINK(\"x\")"), "\"'=HYPERLINK(\"\"x\"\")\"")
         XCTAssertEqual(TimeTracking.csvField("-5"), "'-5")

@@ -46,7 +46,7 @@ final class EventAlertController: ObservableObject {
         timer.tolerance = 5
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
-        enabledObserver = settings.$alerts.map(\.enabled).removeDuplicates().sink { [weak self] enabled in
+        enabledObserver = settings.$alerts.map { $0.enabled || $0.focusDuringMeetings }.removeDuplicates().sink { [weak self] enabled in
             MainActor.assumeIsolated { self?.preventAppNap(enabled) }
         }
         // A display unplugged or rearranged under the alert would leave it off screen.
@@ -72,6 +72,8 @@ final class EventAlertController: ObservableObject {
         exactTimer?.invalidate()
         exactTimer = nil
         let now = Date()
+        checkMorningSummary(now: now)
+        checkFocus(now: now)
         if let window, let current {
             // An alert left up after its event ended would hold back every alert after it.
             guard now >= current.end else {
@@ -117,6 +119,55 @@ final class EventAlertController: ObservableObject {
             events: events, shown: Set(shown.keys), now: now, leadMinutes: settings.alerts.leadMinutes),
                     snoozed.values.min()].compactMap { $0 }.min()
         if let next { scheduleExactCheck(at: next) }
+    }
+
+    // MARK: - Morning summary
+
+    /// Where the day the last summary was sent is kept, so it's sent once a day.
+    private static let summaryDayKey = "morningSummaryDay"
+
+    /// Sends the morning summary once on each working day, from the start of working hours.
+    private func checkMorningSummary(now: Date) {
+        let calendar = Calendar.current
+        guard settings.alerts.morningSummary, eventKit.hasAccess, let targetID = settings.targetCalendarID,
+              MorningSummary.dueTime(now: now, workingHours: settings.menuCalendar.workingHours, calendar: calendar) != nil
+        else { return }
+        let day = MorningSummary.dayKey(now, calendar: calendar)
+        guard UserDefaults.standard.string(forKey: Self.summaryDayKey) != day else { return }
+        let start = calendar.startOfDay(for: now)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start),
+              case .success(let events) = eventKit.sourceEvents(calendarID: targetID, from: start, to: end)
+        else { return }
+        UserDefaults.standard.set(day, forKey: Self.summaryDayKey)
+        let due = (tasks?.tasks ?? [])
+            .filter { !$0.isCompleted && ($0.due.map { $0 < end } ?? false) }
+            .sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+            .map(\.title)
+        let text = MorningSummary.text(events: events, tasksDue: due,
+                                       limitHours: settings.meetingLimit.isEnabled ? settings.meetingLimit.hours : nil,
+                                       now: now, calendar: calendar)
+        AppLog.write("Calendar Hub: sending the morning summary")
+        Notifier.post(id: "morning-" + day, title: text.title, body: text.body)
+    }
+
+    // MARK: - Focus during meetings
+
+    /// Whether the Focus shortcut was run for a meeting under way, so the other one is run
+    /// when no meeting is.
+    private var focusIsOn = false
+
+    private func checkFocus(now: Date) {
+        let options = settings.alerts
+        guard options.focusDuringMeetings || focusIsOn, eventKit.hasAccess, let targetID = settings.targetCalendarID,
+              case .success(let events) = eventKit.sourceEvents(calendarID: targetID, from: now.addingTimeInterval(-60),
+                                                                to: now.addingTimeInterval(60))
+        else { return }
+        let underway = options.focusDuringMeetings && EventAlertPlanner.meetingUnderway(events: events, now: now)
+        guard underway != focusIsOn else { return }
+        focusIsOn = underway
+        let shortcut = underway ? options.focusOnShortcut : options.focusOffShortcut
+        AppLog.write("Calendar Hub: \(underway ? "a meeting started" : "no meeting under way"), running the shortcut for it")
+        Shortcuts.run(shortcut)
     }
 
     private func scheduleExactCheck(at date: Date) {

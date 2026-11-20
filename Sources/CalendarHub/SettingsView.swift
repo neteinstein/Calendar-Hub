@@ -183,6 +183,8 @@ private struct GeneralTab: View {
                 Toggle("Skip meetings I declined", isOn: $settings.options.skipDeclined)
                 Toggle("Skip all-day events", isOn: $settings.options.skipAllDay)
                 Toggle("Skip out-of-office events", isOn: $settings.options.skipOutOfOffice)
+                Toggle("Warn when a synced meeting overlaps another", isOn: $settings.options.warnsAboutOverlaps)
+                    .help("When a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so. Meetings that already overlapped aren't reported again.")
             }
 
             Section("Startup") {
@@ -232,6 +234,15 @@ private struct MenuBarTab: View {
                 Text("Menu bar")
             } footer: {
                 Text("While the menu shows the month or the list, the menu bar icon shows today's date, with the week day next to it when that's on. With the next meeting on, from 15 minutes before a meeting until it ends, its title and the minutes left take the date's place, and with the progress on, a bar under them fills as the meeting runs.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Show meetings in the desktop widget", isOn: $settings.widgetEnabled)
+            } header: {
+                Text("Desktop widget")
+            } footer: {
+                Text("Add Calendar Hub's Next Meeting widget to the desktop or Notification Center (Control-click the desktop › Edit Widgets). It shows the next meeting with a countdown and today's meetings across your calendars. A widget can't read your calendars itself, so while this is on the app keeps today's and tomorrow's meetings for it in a file in its Application Support folder, readable only by you, and deletes it when this is turned off.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -562,8 +573,57 @@ private struct AlertsTab: View {
                     AlertSketch(leadMinutes: settings.alerts.leadMinutes)
                 }
             }
+
+            Section {
+                Toggle("Send a morning summary", isOn: $settings.alerts.morningSummary)
+            } footer: {
+                Text("A notification when your working day starts (\(WorkingHours.text(settings.menuCalendar.workingHours.start)), set in Meeting Stats), on weekdays: the hours of meetings today, the first one, the tasks due, and what's left of your meeting limit.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Turn on a Focus during meetings", isOn: $settings.alerts.focusDuringMeetings)
+                if settings.alerts.focusDuringMeetings {
+                    ShortcutPicker(title: "When a meeting starts, run", name: $settings.alerts.focusOnShortcut,
+                                   shortcuts: shortcuts)
+                    ShortcutPicker(title: "When it ends, run", name: $settings.alerts.focusOffShortcut,
+                                   shortcuts: shortcuts)
+                    HStack {
+                        Button("Open Shortcuts") {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Shortcuts.app"))
+                        }
+                        Button("Refresh") { Task { shortcuts = await Shortcuts.list() } }
+                        Spacer()
+                    }
+                }
+            } footer: {
+                Text("macOS lets an app turn a Focus on only through a shortcut. In Shortcuts, make one called \"\(EventAlertOptions.defaultFocusOnShortcut)\" with the Set Focus action turning Do Not Disturb (or any Focus) on, and \"\(EventAlertOptions.defaultFocusOffShortcut)\" turning it off. Calendar Hub runs the first when a meeting in your main calendar starts and the second when no meeting is under way any more.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+        .task(id: settings.alerts.focusDuringMeetings) {
+            if settings.alerts.focusDuringMeetings { shortcuts = await Shortcuts.list() }
+        }
+    }
+
+    @State private var shortcuts: [String] = []
+}
+
+/// Picks one of the user's shortcuts by name; a name not among them (not made yet) stays
+/// listed, marked as missing.
+private struct ShortcutPicker: View {
+    let title: String
+    @Binding var name: String
+    let shortcuts: [String]
+
+    var body: some View {
+        Picker(title, selection: $name) {
+            if !shortcuts.contains(name) {
+                Text("\(name) (not in Shortcuts)").tag(name)
+            }
+            ForEach(shortcuts, id: \.self) { Text($0).tag($0) }
+        }
     }
 }
 
@@ -859,6 +919,7 @@ private struct SourcesTab: View {
     @EnvironmentObject private var controller: SyncController
     @State private var showingLinkSheet = false
     @State private var showingOutlookNameSheet = false
+    @State private var showingGoogleNameSheet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -892,6 +953,7 @@ private struct SourcesTab: View {
                     }
                     Section("Not in Calendar.app") {
                         Button("Outlook on the web (sign in)…") { showingOutlookNameSheet = true }
+                        Button("Google Calendar on the web (sign in)…") { showingGoogleNameSheet = true }
                         Button("Calendar link (.ics)…") { showingLinkSheet = true }
                     }
                 }
@@ -913,6 +975,17 @@ private struct SourcesTab: View {
                 let source = SourceConfig(
                     kind: .outlookWeb, calendarName: name, name: name, hideMeetingName: true,
                     showBusyInSecondary: settings.twoWaySync && settings.twoWaySyncOutlookWeb)
+                settings.sources.append(source)
+                controller.showOutlookWindow(for: source)
+            }
+        }
+        .sheet(isPresented: $showingGoogleNameSheet) {
+            CalendarNameSheet(
+                title: "Add Google Calendar on the web",
+                message: "What do you call this calendar? It's also the prefix for its copies, like “[Work] Standup”, which you can change later. Calendar Hub reads the account's own calendar from Google Calendar's export, signed in in its own window.",
+                confirm: "Continue"
+            ) { name in
+                let source = SourceConfig(kind: .googleWeb, calendarName: name, name: name, hideMeetingName: true)
                 settings.sources.append(source)
                 controller.showOutlookWindow(for: source)
             }
@@ -972,8 +1045,8 @@ private struct UnreadSourcesSection: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer()
-                        if let source, source.kind == .outlookWeb {
-                            Button("Open Outlook") { controller.showOutlookWindow(for: source) }
+                        if let source, source.kind.isWeb {
+                            Button(source.kind == .googleWeb ? "Open Google Calendar" : "Open Outlook") { controller.showOutlookWindow(for: source) }
                         }
                     }
                     .padding(.vertical, 2)
@@ -1082,7 +1155,7 @@ private struct SourceRow: View {
     /// Removes this calendar, and its copies unless `keepingCopies`. Kept copies aren't
     /// offered for removal again under "Copies no longer synced".
     private func remove(keepingCopies: Bool) {
-        if source.kind == .outlookWeb { controller.forgetOutlookSession(for: source.id) }
+        if source.kind.isWeb { controller.forgetOutlookSession(for: source.id) }
         let id = source.id
         let copies = copiesToRemove
         // Removed on the next run loop so SwiftUI isn't still reading this row's binding.
@@ -1113,7 +1186,7 @@ private struct SourceRow: View {
     var body: some View {
         Section {
             health
-            if source.kind == .outlookWeb {
+            if source.kind.isWeb {
                 // Bordered and named after what it changes: as a plain form row it read as a fixed value.
                 TextField("Prefix for copies", text: $source.calendarName, prompt: Text("e.g. Work"))
                     .textFieldStyle(.roundedBorder)
@@ -1137,8 +1210,10 @@ private struct SourceRow: View {
                     set: { source.intervalMinutes = $0 }))
             }
             HStack {
-                if source.kind == .outlookWeb {
-                    Button("Open Outlook window") { controller.showOutlookWindow(for: source) }
+                if source.kind.isWeb {
+                    Button(source.kind == .googleWeb ? "Open Google Calendar window" : "Open Outlook window") {
+                        controller.showOutlookWindow(for: source)
+                    }
                 }
                 Spacer()
                 Button("Remove", role: .destructive) {
@@ -1168,7 +1243,7 @@ private struct SourceRow: View {
                     } else {
                         Label("Calendar no longer in Calendar.app", systemImage: "exclamationmark.triangle")
                     }
-                case .outlookWeb:
+                case .outlookWeb, .googleWeb:
                     HStack(spacing: 6) {
                         Label(outlookTitle, systemImage: "globe")
                         Button { renaming = true } label: { Image(systemName: "pencil") }
@@ -1205,7 +1280,7 @@ private struct SourceRow: View {
                 get: { source.color.flatMap(HexColor.init).map(Color.init) ?? standard },
                 set: { source.color = HexColor($0)?.hex }), supportsOpacity: false)
             if source.color != nil {
-                Button(source.kind == .outlookWeb ? "Use Default" : "Use Calendar.app's") { source.color = nil }
+                Button(source.kind.isWeb ? "Use Default" : "Use Calendar.app's") { source.color = nil }
                     .controlSize(.small)
                     .help("Go back to the color this calendar had before one was chosen")
             }
@@ -1226,9 +1301,11 @@ private struct SourceRow: View {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 Text(unread.reason).foregroundStyle(.orange).lineLimit(2)
                 Spacer()
-                if source.kind == .outlookWeb {
-                    Button("Open Outlook") { controller.showOutlookWindow(for: source) }
-                        .controlSize(.small)
+                if source.kind.isWeb {
+                    Button(source.kind == .googleWeb ? "Open Google Calendar" : "Open Outlook") {
+                        controller.showOutlookWindow(for: source)
+                    }
+                    .controlSize(.small)
                 }
             } else if let lastRead = status?.lastRead {
                 Circle().fill(.green).frame(width: 6, height: 6)
@@ -1247,7 +1324,7 @@ private struct SourceRow: View {
     /// "Sainsbury's – Outlook on the web": the name given when it was added, then the kind of
     /// calendar. "N/A" for calendars added before names were asked for.
     private var outlookTitle: String {
-        "\(source.name ?? "N/A") – Outlook on the web"
+        "\(source.name ?? "N/A") – \(source.kind == .googleWeb ? "Google Calendar on the web" : "Outlook on the web")"
     }
 
     private var footer: String {

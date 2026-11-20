@@ -29,6 +29,8 @@ final class SettingsStore: ObservableObject {
     }
     /// The menu's Time Tracking view, its timer and its nudge. Off until turned on.
     @Published var timeTracking: TimeTrackingOptions { didSet { save(timeTracking, "timeTracking") } }
+    /// The desktop widget gets the day's meetings (see `WidgetFeed`). Off until turned on.
+    @Published var widgetEnabled: Bool { didSet { defaults.set(widgetEnabled, forKey: "widgetEnabled") } }
     @Published var targetCalendarID: String? { didSet { defaults.set(targetCalendarID, forKey: "targetCalendarID") } }
     @Published var intervalMinutes: Int { didSet { defaults.set(intervalMinutes, forKey: "intervalMinutes") } }
     /// The main calendar is also shown as Busy in the secondary calendars, in each one whose
@@ -89,6 +91,7 @@ final class SettingsStore: ObservableObject {
         meetingLimit = Self.load(MeetingLimitOptions.self, "meetingLimit", defaults) ?? MeetingLimitOptions()
         meetingLimitState = Self.load(MeetingLimitState.self, "meetingLimitState", defaults) ?? MeetingLimitState()
         timeTracking = Self.load(TimeTrackingOptions.self, "timeTracking", defaults) ?? TimeTrackingOptions()
+        widgetEnabled = defaults.bool(forKey: "widgetEnabled")
         targetCalendarID = defaults.string(forKey: "targetCalendarID")
         let interval = defaults.integer(forKey: "intervalMinutes")
         intervalMinutes = interval > 0 ? interval : 15

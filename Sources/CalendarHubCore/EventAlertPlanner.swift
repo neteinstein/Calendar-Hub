@@ -5,10 +5,29 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
     public var enabled: Bool
     /// How many minutes before the start the alert appears.
     public var leadMinutes: Int
+    /// A notification at the start of the working day with the day's meetings, tasks due and
+    /// the meeting limit. Off until turned on.
+    public var morningSummary: Bool
+    /// Runs a shortcut when a meeting starts and another when the last one under way ends, to
+    /// turn a Focus on and off. Off until turned on.
+    public var focusDuringMeetings: Bool
+    /// The shortcut run when a meeting starts.
+    public var focusOnShortcut: String
+    /// The shortcut run when no meeting is under way any more.
+    public var focusOffShortcut: String
 
-    public init(enabled: Bool = true, leadMinutes: Int = 1) {
+    public static let defaultFocusOnShortcut = "Calendar Hub Focus On"
+    public static let defaultFocusOffShortcut = "Calendar Hub Focus Off"
+
+    public init(enabled: Bool = true, leadMinutes: Int = 1, morningSummary: Bool = false,
+                focusDuringMeetings: Bool = false, focusOnShortcut: String = Self.defaultFocusOnShortcut,
+                focusOffShortcut: String = Self.defaultFocusOffShortcut) {
         self.enabled = enabled
         self.leadMinutes = leadMinutes
+        self.morningSummary = morningSummary
+        self.focusDuringMeetings = focusDuringMeetings
+        self.focusOnShortcut = focusOnShortcut
+        self.focusOffShortcut = focusOffShortcut
     }
 
     // Settings saved by older versions don't have these keys yet.
@@ -17,6 +36,10 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
         let defaults = EventAlertOptions()
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled
         leadMinutes = try c.decodeIfPresent(Int.self, forKey: .leadMinutes) ?? defaults.leadMinutes
+        morningSummary = try c.decodeIfPresent(Bool.self, forKey: .morningSummary) ?? defaults.morningSummary
+        focusDuringMeetings = try c.decodeIfPresent(Bool.self, forKey: .focusDuringMeetings) ?? defaults.focusDuringMeetings
+        focusOnShortcut = try c.decodeIfPresent(String.self, forKey: .focusOnShortcut) ?? defaults.focusOnShortcut
+        focusOffShortcut = try c.decodeIfPresent(String.self, forKey: .focusOffShortcut) ?? defaults.focusOffShortcut
     }
 }
 
@@ -58,5 +81,14 @@ public enum EventAlertPlanner {
             .map { $0.start.addingTimeInterval(-60 * Double(max(0, leadMinutes))) }
             .filter { $0 > now }
             .min()
+    }
+
+    /// Whether a meeting is under way at `now`, for turning a Focus on: one that counts for an
+    /// alert, started and not over.
+    public static func meetingUnderway(events: [SourceEvent], now: Date) -> Bool {
+        events.contains {
+            !$0.isAllDay && !$0.isDeclined && !$0.isCancelled && !$0.isOutOfOffice && !MeetingLimit.isBlock($0)
+                && $0.start <= now && now < $0.end
+        }
     }
 }

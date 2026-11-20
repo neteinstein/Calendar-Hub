@@ -341,8 +341,24 @@ struct TimeTrackingView: View {
             HStack {
                 Spacer()
                 Menu {
-                    ForEach(TimeTracking.Period.allCases, id: \.self) { period in
-                        Button(period.title) { export(period) }
+                    Section("Every entry") {
+                        ForEach(TimeTracking.Period.allCases, id: \.self) { period in
+                            Button(period.title) { export(period) }
+                        }
+                    }
+                    Section("Totals per client") {
+                        ForEach(TimeTracking.Period.allCases, id: \.self) { period in
+                            Button(period.title) { export(period, totals: true) }
+                        }
+                    }
+                    Menu("One client") {
+                        ForEach(settings.timeClients) { client in
+                            Menu(client.name) {
+                                ForEach(TimeTracking.Period.allCases, id: \.self) { period in
+                                    Button(period.title) { export(period, client: client) }
+                                }
+                            }
+                        }
                     }
                 } label: {
                     Label("Export CSV", systemImage: "square.and.arrow.up")
@@ -350,14 +366,14 @@ struct TimeTrackingView: View {
                 .menuStyle(.button)
                 .controlSize(.small)
                 .fixedSize()
-                .help("Save a week or a month as CSV, for your timesheet")
+                .help("Save a week or a month as CSV, for your timesheet: every entry, totals per client, or one client's entries")
             }
         }
     }
 
     /// Saves `period` as CSV where the user picks. Asked after the menu closes, so the save
     /// panel comes to the front.
-    private func export(_ period: TimeTracking.Period) {
+    private func export(_ period: TimeTracking.Period, totals: Bool = false, client: TimeClient? = nil) {
         let now = Date()
         guard let interval = period.interval(now: now, calendar: calendar) else { return }
         var periodEvents: [SourceEvent] = []
@@ -366,10 +382,16 @@ struct TimeTrackingView: View {
                                                                        from: interval.start, to: interval.end) {
             periodEvents = fetched.filter { !$0.isCancelled }
         }
-        let entries = tracker.entries(events: periodEvents, in: interval, now: now)
+        var entries = tracker.entries(events: periodEvents, in: interval, now: now)
+        if let client { entries = entries.filter { $0.clientID == client.id } }
         let hidden = Set(settings.sources.filter(\.hideMeetingName).map(\.id.uuidString))
-        let csv = TimeTracking.csv(entries, calendar: calendar, hiddenTitles: hidden)
-        let name = "Calendar Hub time \(period.label(now: now, calendar: calendar)).csv"
+        let csv = totals
+            ? TimeTracking.csvByClient(entries, calendar: calendar)
+            : TimeTracking.csv(entries, calendar: calendar, hiddenTitles: hidden)
+        let label = period.label(now: now, calendar: calendar)
+        let name = totals ? "Calendar Hub time per client \(label).csv"
+            : client.map { "Calendar Hub time \($0.name.replacingOccurrences(of: "/", with: "-")) \(label).csv" }
+            ?? "Calendar Hub time \(label).csv"
         DispatchQueue.main.async {
             NSApp.activate(ignoringOtherApps: true)
             let panel = NSSavePanel()

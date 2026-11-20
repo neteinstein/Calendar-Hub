@@ -159,6 +159,8 @@ struct TaskNotesView: View {
     @ObservedObject var draft: TaskNotesDraft
     @EnvironmentObject private var tasks: TaskStore
     @State private var proxy = MarkdownEditorProxy()
+    /// What "Make Tasks" did, shown for a moment in the footer.
+    @State private var madeTasks: String?
 
     private var task: TaskItem? { tasks.tasks.first { $0.id == draft.taskID } }
 
@@ -238,6 +240,18 @@ struct TaskNotesView: View {
             IconButton("checklist", help: "Checklist") { proxy.toggle(.checklist) }
             IconButton("text.quote", help: "Quote") { proxy.toggle(.quote) }
             Spacer(minLength: 0)
+            if let task, task.event != nil {
+                Button {
+                    draft.save()
+                    let made = tasks.makeTasks(fromNotesOf: task)
+                    madeTasks = made == 0 ? "No new action items" : made == 1 ? "1 task made" : "\(made) tasks made"
+                } label: {
+                    Label("Make Tasks", systemImage: "checklist.checked")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Make a task for the meeting out of each open checklist item")
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
@@ -249,6 +263,13 @@ struct TaskNotesView: View {
             Text("Kept in the reminder's notes in Reminders, as Markdown")
                 .lineLimit(1)
             Spacer(minLength: 8)
+            if let madeTasks {
+                Text(madeTasks)
+                    .task(id: madeTasks) {
+                        try? await Task.sleep(for: .seconds(3))
+                        self.madeTasks = nil
+                    }
+            }
             if draft.lastSaved != nil {
                 Label("Saved", systemImage: "checkmark")
                     .transition(.opacity)

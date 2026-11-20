@@ -7,6 +7,11 @@ public enum SourceKind: Codable, Hashable, Sendable {
     case eventKit(calendarID: String)
     /// An Outlook / Microsoft 365 calendar read through the built-in browser window.
     case outlookWeb
+    /// A Google Calendar read through the built-in browser window, from its iCalendar export.
+    case googleWeb
+
+    /// Read through the built-in browser window, signed in there: Outlook or Google on the web.
+    public var isWeb: Bool { self == .outlookWeb || self == .googleWeb }
 }
 
 /// What the main calendar's events are shown as inside a secondary calendar.
@@ -164,12 +169,17 @@ public struct SyncOptions: Codable, Hashable, Sendable {
     /// Skip secondary-calendar events shown as "Out of office" (holidays, leave), so they don't block the
     /// main calendar.
     public var skipOutOfOffice: Bool
+    /// A sync that adds or moves a copy onto another meeting in the main calendar says so, in
+    /// the menu and in a notification. Meetings that already overlapped aren't reported.
+    public var warnsAboutOverlaps: Bool
 
-    public init(daysAhead: Int = 5, skipDeclined: Bool = true, skipAllDay: Bool = false, skipOutOfOffice: Bool = true) {
+    public init(daysAhead: Int = 5, skipDeclined: Bool = true, skipAllDay: Bool = false, skipOutOfOffice: Bool = true,
+                warnsAboutOverlaps: Bool = true) {
         self.daysAhead = daysAhead
         self.skipDeclined = skipDeclined
         self.skipAllDay = skipAllDay
         self.skipOutOfOffice = skipOutOfOffice
+        self.warnsAboutOverlaps = warnsAboutOverlaps
     }
 
     // Settings saved by older versions don't have every key yet.
@@ -180,6 +190,7 @@ public struct SyncOptions: Codable, Hashable, Sendable {
         skipDeclined = try c.decodeIfPresent(Bool.self, forKey: .skipDeclined) ?? defaults.skipDeclined
         skipAllDay = try c.decodeIfPresent(Bool.self, forKey: .skipAllDay) ?? defaults.skipAllDay
         skipOutOfOffice = try c.decodeIfPresent(Bool.self, forKey: .skipOutOfOffice) ?? defaults.skipOutOfOffice
+        warnsAboutOverlaps = try c.decodeIfPresent(Bool.self, forKey: .warnsAboutOverlaps) ?? defaults.warnsAboutOverlaps
     }
 }
 
