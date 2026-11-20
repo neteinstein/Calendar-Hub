@@ -144,7 +144,7 @@ final class AppActions {
             case "join": try joinNextMeeting()
             case "sync": Task { await syncNow() }
             case "availability":
-                try copyAvailability(query["span"].flatMap(Availability.Span.init(rawValue:)) ?? .nextDays)
+                _ = try copyAvailability(query["span"].flatMap(Availability.Span.init(rawValue:)) ?? .nextDays)
             case "timer/start": try startTimer(client: query["client"])
             case "timer/stop": try stopTimer()
             case "task/new": try addTask(title: query["title"] ?? "", due: nil)

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-set -x
-scripts/build-app.sh
-find "build/Calendar Hub.app" | head -40
-find "build/Calendar Hub.app/Contents/Resources/Metadata.appintents" -type f -exec sh -c 'echo "== $1"; head -c 2500 "$1"; echo' _ {} \;
-codesign --verify --deep --strict --verbose=2 "build/Calendar Hub.app"
-codesign -d --entitlements - "build/Calendar Hub.app/Contents/PlugIns/CalendarHubWidget.appex"
-plutil -p "build/Calendar Hub.app/Contents/PlugIns/CalendarHubWidget.appex/Contents/Info.plist"
-pluginkit -a "build/Calendar Hub.app/Contents/PlugIns/CalendarHubWidget.appex"; pluginkit -m -v -p com.apple.widgetkit-extension | grep -i calendarhub
+set -euxo pipefail
+brew install webp >/dev/null
+# Midday somewhere, so the sample meetings sit in the working day.
+sed 's/open -n -g -W --env CALENDAR_HUB_SNAPSHOTS="$png"/open -n -g -W --env TZ=Asia\/Tokyo --env CALENDAR_HUB_SNAPSHOTS="$png"/' scripts/screenshots.sh > /tmp/shots.sh
+chmod +x /tmp/shots.sh
+cp /tmp/shots.sh scripts/shots-ci.sh
+scripts/shots-ci.sh
+git status --short docs/screenshots | head -50
