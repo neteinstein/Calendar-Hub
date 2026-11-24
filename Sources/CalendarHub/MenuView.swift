@@ -285,14 +285,22 @@ struct MenuView: View {
                 }
             }
         case .noMainCalendar:
-            ProblemCard(title: "Choose your main calendar",
-                        detail: "Meetings from your secondary calendars are copied into it.",
-                        actionTitle: "Open Settings") { showSettings(at: .general) }
+            ProblemCard(title: "Please define main calendar on MacOS Calendar",
+                        detail: "Meetings from your secondary calendars are copied into it. Add it to Calendar, then choose it in Settings.",
+                        actionTitle: "Open Calendar",
+                        action: openCalendarApp,
+                        secondaryTitle: "Open Settings") { showSettings(at: .general) }
         case .mainCalendarMissing:
             ProblemCard(title: "Your main calendar is gone",
                         detail: "It's no longer in Calendar.app. Choose another one in Settings.",
                         actionTitle: "Open Settings") { showSettings(at: .general) }
         }
+    }
+
+    /// Opens Calendar.app, where the main calendar's account is added.
+    private func openCalendarApp() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
     // MARK: - Web calendars and footer
@@ -641,6 +649,9 @@ private struct ProblemCard: View {
     var detail: String?
     var actionTitle: String?
     var action: () -> Void = {}
+    /// A second button beside the first, for another way to fix it.
+    var secondaryTitle: String?
+    var secondaryAction: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -658,9 +669,14 @@ private struct ProblemCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if let actionTitle {
-                    Button(actionTitle, action: action)
-                        .controlSize(.small)
-                        .padding(.top, 4)
+                    HStack(spacing: 6) {
+                        Button(actionTitle, action: action)
+                        if let secondaryTitle {
+                            Button(secondaryTitle, action: secondaryAction)
+                        }
+                    }
+                    .controlSize(.small)
+                    .padding(.top, 4)
                 }
             }
             Spacer(minLength: 0)
