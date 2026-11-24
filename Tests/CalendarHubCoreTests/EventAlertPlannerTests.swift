@@ -49,12 +49,18 @@ final class EventAlertPlannerTests: XCTestCase {
         let decoded = try JSONDecoder().decode(EventAlertOptions.self, from: Data("{}".utf8))
         XCTAssertTrue(decoded.enabled)
         XCTAssertEqual(decoded.leadMinutes, 1)
+        XCTAssertEqual(decoded.style, .fullScreen, "settings from before the choice keep the full-screen alert")
         // Turned off is saved as off, so the new default doesn't turn it back on.
         let off = try JSONDecoder().decode(EventAlertOptions.self, from: Data(#"{"enabled":false}"#.utf8))
         XCTAssertFalse(off.enabled)
         let full = EventAlertOptions(enabled: true, leadMinutes: 5)
         let roundTrip = try JSONDecoder().decode(EventAlertOptions.self, from: JSONEncoder().encode(full))
         XCTAssertEqual(roundTrip, full)
+        let banner = EventAlertOptions(style: .notification)
+        XCTAssertEqual(try JSONDecoder().decode(EventAlertOptions.self, from: JSONEncoder().encode(banner)).style, .notification)
+        let unknown = try JSONDecoder().decode(EventAlertOptions.self, from: Data(#"{"style":"hologram","leadMinutes":3}"#.utf8))
+        XCTAssertEqual(unknown.style, .fullScreen)
+        XCTAssertEqual(unknown.leadMinutes, 3)
     }
 
     func testNextAlertTimeIsTheEarliestUpcomingLeadTime() {

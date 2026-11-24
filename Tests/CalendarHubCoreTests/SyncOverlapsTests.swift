@@ -89,4 +89,14 @@ final class SyncOverlapsTests: XCTestCase {
                                       existing: existing, options: SyncOptions())
         XCTAssertTrue(SyncOverlaps.find(plan: second, existing: existing, mainEvents: [mainCopy], now: base).isEmpty)
     }
+
+    func testTheWarningIsOffUntilTurnedOn() throws {
+        XCTAssertFalse(SyncOptions().warnsAboutOverlaps)
+        // Saved by 2.1.12 and earlier, when it was on by default: starts off.
+        let old = try JSONDecoder().decode(SyncOptions.self, from: Data(#"{"warnsAboutOverlaps":true}"#.utf8))
+        XCTAssertFalse(old.warnsAboutOverlaps)
+        var on = SyncOptions()
+        on.warnsAboutOverlaps = true
+        XCTAssertEqual(try JSONDecoder().decode(SyncOptions.self, from: JSONEncoder().encode(on)), on)
+    }
 }

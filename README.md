@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.1.12](https://img.shields.io/badge/version-2.1.12-2563EB)](Support/Info.plist)
+[![Version 2.1.13](https://img.shields.io/badge/version-2.1.13-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -225,7 +225,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 
 - **Copies your meetings across**, titled by the calendar they came from, with the Teams, Zoom, Google Meet or Webex link, so **Join** works from your main calendar.
 - **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
-- **Warns about overlaps:** when a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so ("Thu 14:00: [Calendar A] Sprint planning overlaps Design review"). Meetings that already overlapped aren't reported again.
+- **Warns about overlaps**, if you turn it on in Settings › Meeting alerts: when a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so ("Thu 14:00: [Calendar A] Sprint planning overlaps Design review"). Meetings that already overlapped aren't reported again.
 - **Reads calendars your Mac can't add:** sign in to **Outlook on the web** or **Google Calendar on the web** once in the app, or subscribe to a published **.ics** link. Outlook and Google work in English, Portuguese, French, German, Spanish and Italian.
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
 - **Colors each calendar** in the menu and the alerts as Calendar.app does, or in a color you pick for it in Settings.
@@ -259,7 +259,7 @@ Copying a meeting from one calendar into another puts data from one organization
 | Your Outlook on the web or Google Calendar sign-in | The app's own WebKit folder in your Library, on this Mac | Only for Outlook on the web and Google Calendar on the web calendars. See [Outlook on the web](docs/outlook-on-the-web.md). |
 | Google Calendar's export of the account's calendars | A folder only you can read, deleted as soon as it's read | Each time a Google Calendar on the web calendar is read. Only the account's own calendar is used. |
 | Today's and tomorrow's meetings in your main calendar: titles, times, join links and calendar names | A file in the app's Application Support folder, on this Mac only, readable only by you, for the desktop widget | Only with the desktop widget on in Settings › Menu bar. Turning it off deletes the file. |
-| An overlap warning or the morning summary, with meeting and task titles | A macOS notification on this Mac | Only when a sync makes an overlap (with the warning on), or with the morning summary on. |
+| An overlap warning or the morning summary, with meeting and task titles | A macOS notification on this Mac | Only when a sync makes an overlap (with the warning on), with the morning summary on, or with meeting alerts shown as notifications. |
 | One request for the newest version number | GitHub, over HTTPS | Once a day, and when you check in Settings › About. GitHub sees your IP address, nothing else. |
 
 Nothing identifies a meeting in the system log: the app logs counts and times, not names.

@@ -3,8 +3,9 @@ import CalendarHubCore
 import Combine
 import SwiftUI
 
-/// Shows a full-screen alert when a main-calendar event starts, with buttons to join the
-/// call, go to the room, or ignore it. Each occurrence alerts once.
+/// Shows an alert when a main-calendar event starts: full screen, with buttons to join the
+/// call, go to the room, or ignore it, or a notification that joins the call when clicked.
+/// Each occurrence alerts once.
 @MainActor
 final class EventAlertController: ObservableObject {
     private let settings: SettingsStore
@@ -61,7 +62,7 @@ final class EventAlertController: ObservableObject {
         if prevent, activity == nil {
             activity = ProcessInfo.processInfo.beginActivity(
                 options: .userInitiatedAllowingIdleSystemSleep,
-                reason: "Showing a full-screen alert when an event starts")
+                reason: "Showing an alert when an event starts")
         } else if !prevent, let activity {
             ProcessInfo.processInfo.endActivity(activity)
             self.activity = nil
@@ -108,8 +109,14 @@ final class EventAlertController: ObservableObject {
         }
         let due = EventAlertPlanner.dueAlerts(
             events: events, shown: Set(shown.keys), now: now, leadMinutes: settings.alerts.leadMinutes)
-        // Marked only once it's on screen, so an alert that couldn't show is tried again.
-        if let event = due.first, show(event) {
+        if settings.alerts.style == .notification {
+            // Notifications stack, so every meeting due gets one, and none is held back.
+            for event in due {
+                notify(event, now: now)
+                shown[event.key] = now
+            }
+        } else if let event = due.first, show(event) {
+            // Marked only once it's on screen, so an alert that couldn't show is tried again.
             shown[event.key] = now
             return
         }
@@ -212,6 +219,24 @@ final class EventAlertController: ObservableObject {
         bringForward(panel)
         AppLog.write("Calendar Hub: showing the alert for the meeting at \(event.start)")
         return true
+    }
+
+    /// The alert as a notification: the meeting's title, when it starts, the room and the
+    /// service; clicking it joins the call.
+    private func notify(_ event: SourceEvent, now: Date) {
+        let minutes = Int((event.start.timeIntervalSince(now) / 60).rounded(.up))
+        let when = minutes < 0 ? "Started" : minutes == 0 ? "Now" : "In \(minutes) min"
+        let time = "\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))"
+        let room = event.location?.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespaces)
+        let service = event.meetingURL.flatMap { MeetingLink.serviceName(of: $0) }
+        let parts: [String?] = [when, time, room, service]
+        var body = parts.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        if let origin = EventOrigin.of(event, settings: settings, eventKit: eventKit) { body = origin.name + " · " + body }
+        if event.meetingURL != nil { body += "\nClick to join." }
+        AppLog.write("Calendar Hub: notifying of the meeting at \(event.start)")
+        Notifier.post(id: "alert-" + event.key, title: MenuCalendar.displayTitle(of: event), body: body,
+                      opens: event.meetingURL, sound: true)
     }
 
     private func bringForward(_ panel: NSWindow) {
