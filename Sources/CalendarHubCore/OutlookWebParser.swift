@@ -157,22 +157,22 @@ public enum OutlookWebParser {
     /// accessibility label), e.g. "Team stand-up, 10:15 AM to 10:30 AM, Monday, October 26,
     /// 2026, Microsoft Teams Meeting, By Alex Morgan, Busy, Recurring event": an icon's name if
     /// the event has one, title and times, location, organizer, how it shows, and more.
+    /// Outlook in Portuguese, French, German, Spanish or Italian words it in its language
+    /// ("Reunião, 10:15 a 10:30, segunda-feira, 26 de outubro de 2026, ..."), and those are read
+    /// too: the day is found from its number, year and month name in any of those languages.
     ///
     /// Used when a week's data can't be captured. All-day events, meetings spanning several
-    /// days and labels in other languages are skipped. Teams links aren't in the label, so
+    /// days and dates written only in numbers are skipped. Teams links aren't in the label, so
     /// only links written out in it (e.g. Google Meet) are kept.
     public static func events(fromScreenLabels labels: [String], timeZone: TimeZone = .current) -> [SourceEvent] {
-        func formatter(_ format: String) -> DateFormatter {
-            let f = DateFormatter()
-            f.locale = Locale(identifier: "en_US_POSIX")
-            f.timeZone = timeZone
-            f.dateFormat = format
-            return f
-        }
-        // Outlook shows times the way the account is set up: "9:30 AM" or "09:30".
-        let twelveHour = formatter("MMMM d, yyyy h:mm a"), twentyFourHour = formatter("MMMM d, yyyy H:mm")
-        func date(_ day: String, _ time: String) -> Date? {
-            (time.hasSuffix("M") ? twelveHour : twentyFourHour).date(from: day + " " + time)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        func date(_ day: DateComponents, _ time: String) -> Date? {
+            guard let time = clockTime(time) else { return nil }
+            var components = day
+            components.hour = time.hour
+            components.minute = time.minute
+            return calendar.date(from: components)
         }
 
         var seen: Set<String> = []
@@ -185,7 +185,8 @@ public enum OutlookWebParser {
                   let title = Range(m.range(at: 1), in: label).map({ String(label[$0]).trimmingCharacters(in: .whitespaces) }),
                   let startTime = Range(m.range(at: 2), in: label).map({ String(label[$0]) }),
                   let endTime = Range(m.range(at: 3), in: label).map({ String(label[$0]) }),
-                  let day = Range(m.range(at: 4), in: label).map({ String(label[$0]) }),
+                  let dayText = Range(m.range(at: 4), in: label).map({ String(label[$0]) }),
+                  let day = labelDay(dayText),
                   let start = date(day, startTime),
                   var end = date(day, endTime)
             else { continue }
@@ -215,27 +216,109 @@ public enum OutlookWebParser {
         return result.sorted { $0.start < $1.start }
     }
 
-    /// "<title>, <h:mm AM> to <h:mm PM>, <Weekday>, <Month d, yyyy><, rest>", or with 24-hour
-    /// times: "<title>, <HH:mm> to <HH:mm>, ...". An event Outlook gave an icon starts with
-    /// it ("Class icon, <title>, ..."), which isn't part of the title.
-    private static let screenLabelRegex = try! NSRegularExpression(
-        pattern: #"^(?:[A-Za-z]+(?: [A-Za-z]+){0,2} icon, )?(.+?), (\d{1,2}:\d{2}(?: [AP]M)?) to (\d{1,2}:\d{2}(?: [AP]M)?), (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday), ([A-Z][a-z]+ \d{1,2}, \d{4})(.*)$"#)
+    /// "<title>, <time> <to> <time>, <weekday>, <date with the year><, rest>". Times are
+    /// "10:15", "10.15", "10:15 AM" or "10:15 a. m."; "to" is "to", "a", "à", "até", "bis",
+    /// "alle", ... or a dash, and German may end the times with "Uhr". An event Outlook gave
+    /// an icon starts with it ("Class icon, <title>, ...", "Ícone de aula, <title>, ..."),
+    /// which isn't part of the title.
+    private static let screenLabelRegex: NSRegularExpression = {
+        let time = #"(\d{1,2}[:.]\d{2}(?:\s?[AaPp]\.?\s?[Mm]\.?)?)"#
+        let to = #"(?:\s+(?:to|a|à|às|as|até|ate|au|bis|alle|al|hasta|tot)\s+|\s*[-–]\s*)"#
+        let icon = #"(?:(?:\p{L}+ ){0,2}icon|(?:Ícone|Icone|Icône|Icono|Icona|Symbol)(?: \p{L}+){0,3}), "#
+        return try! NSRegularExpression(
+            pattern: "^(?:" + icon + ")?(.+?), " + time + to + time + #"(?: Uhr)?, (?:[^\d,]+, )?(.+?\b\d{4})\b(.*)$"#)
+    }()
+
+    /// Hour and minute of "10:15", "10.15", "2:30 PM" or "2:30 p. m.".
+    static func clockTime(_ text: String) -> (hour: Int, minute: Int)? {
+        let text = text.lowercased()
+        let digits = text.prefix { $0.isNumber || $0 == ":" || $0 == "." }
+        let parts = digits.split(whereSeparator: { $0 == ":" || $0 == "." })
+        guard parts.count == 2, var hour = Int(parts[0]), let minute = Int(parts[1]), minute < 60 else { return nil }
+        let suffix = text.dropFirst(digits.count).filter(\.isLetter)
+        switch suffix {
+        case "": guard hour < 24 else { return nil }
+        case "am": guard (1...12).contains(hour) else { return nil }; hour %= 12
+        case "pm": guard (1...12).contains(hour) else { return nil }; hour = hour % 12 + 12
+        default: return nil
+        }
+        return (hour, minute)
+    }
+
+    /// The day in a label's date, in any of the languages Outlook is read in: "October 26,
+    /// 2026", "26 de outubro de 2026", "26 octobre 2026", "26. Oktober 2026", "26 ottobre
+    /// 2026", "1er novembre 2026". Nil without a month name.
+    static func labelDay(_ text: String) -> DateComponents? {
+        let words = fold(text).split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        var year: Int?, day: Int?, month: Int?
+        for word in words {
+            let number = word.prefix { $0.isNumber }
+            if number.isEmpty {
+                if month == nil { month = monthNumbers[word] }
+            } else if number.count == 4, word.count == 4 {
+                year = Int(number)
+            } else if number.count <= 2, day == nil, let value = Int(number), (1...31).contains(value) {
+                day = value // "26", or "1er" in French
+            }
+        }
+        guard let year, let month, let day else { return nil }
+        return DateComponents(year: year, month: month, day: day)
+    }
+
+    /// The languages Outlook on the web is read in, besides English.
+    public static let languages = ["en", "pt", "fr", "de", "es", "it"]
+
+    /// Month names, full and short, folded, in every language read: "outubro" → 10.
+    private static let monthNumbers: [String: Int] = {
+        var names: [String: Int] = [:]
+        for code in languages {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: code)
+            for symbols in [formatter.monthSymbols, formatter.standaloneMonthSymbols,
+                            formatter.shortMonthSymbols, formatter.shortStandaloneMonthSymbols] {
+                for (index, name) in (symbols ?? []).enumerated() {
+                    let word = fold(name).filter(\.isLetter)
+                    // Short names like "mai" and "mar" are kept only where no other month has them.
+                    if word.count >= 3, names[word] == nil { names[word] = index + 1 }
+                }
+            }
+        }
+        return names
+    }()
+
+    /// Lowercased, without accents: "Março" → "marco".
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    }
 
     // MARK: - Signed out
 
     /// Whether a notice Outlook on the web shows (the bar across the top of the page, a
     /// dialog, an alert) says its sign-in has run out. Outlook can stay open on the calendar
     /// when that happens, rather than going to Microsoft's sign-in, and goes on showing what it
-    /// had loaded. English only, like the meetings read from the page.
+    /// had loaded. In English, Portuguese, French, German, Spanish or Italian.
     public static func isSignedOutNotice(_ text: String) -> Bool {
-        let text = text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "\u{2019}", with: "'")
-        return signedOutNoticeRegex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+        let text = fold(text.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\u{2019}", with: "'"))
+        let range = NSRange(text.startIndex..., in: text)
+        return signedOutNoticeRegexes.contains { $0.firstMatch(in: text, range: range) != nil }
     }
 
-    private static let signedOutNoticeRegex = try! NSRegularExpression(
-        pattern: #"\b(session (has )?(expired|timed out|ended)|(sign|log) ?in again|(sign|log) back in|(been|you're|you are|you were) (signed|logged) out|(sign|log) ?in to continue|(credentials|sign-?in|token) (has |have )?expired|re-?authenticate|re-?enter your (password|credentials))\b"#,
-        options: .caseInsensitive)
+    /// Matched against the folded text: lowercased, without accents.
+    private static let signedOutNoticeRegexes = [
+        // English
+        #"\b(session (has )?(expired|timed out|ended)|(sign|log) ?in again|(sign|log) back in|(been|you're|you are|you were) (signed|logged) out|(sign|log) ?in to continue|(credentials|sign-?in|token) (has |have )?expired|re-?authenticate|re-?enter your (password|credentials))\b"#,
+        // Portuguese: "A sua sessão expirou", "Inicie sessão novamente", "Entre novamente"
+        #"\b(sessao (\w+ )?(expirou|terminou)|(inicie|iniciar|inicia) (a )?sessao (novamente|de novo)|(entre|entrar|faca login|fazer login) (novamente|de novo)|(terminou|encerrou) (a )?sessao)\b"#,
+        // French: "Votre session a expiré", "Reconnectez-vous", "Connectez-vous à nouveau"
+        #"\b(session (a expire|expiree|a pris fin)|reconnectez-vous|connectez-vous (a nouveau|de nouveau)|vous avez ete deconnecte)"#,
+        // German: "Ihre Sitzung ist abgelaufen", "Melden Sie sich erneut an", "Sie wurden abgemeldet"
+        #"\b(sitzung (ist )?abgelaufen|(melden sie sich|melde dich) (erneut|wieder|neu) an|erneut anmelden|(wurden|sind) abgemeldet)\b"#,
+        // Spanish: "Su sesión ha expirado", "Vuelva a iniciar sesión", "Inicie sesión de nuevo"
+        #"\b(sesion (ha )?(expirado|caducado|finalizado)|vuelv[ae] a iniciar sesion|inici[ae] sesion (de nuevo|otra vez|nuevamente)|se ha cerrado (la|su) sesion)\b"#,
+        // Italian: "La sessione è scaduta", "Accedi di nuovo", "Esegui di nuovo l'accesso"
+        #"\b(sessione (e )?scaduta|accedi (di nuovo|nuovamente)|(esegui|eseguire|effettua|effettuare) (di nuovo |nuovamente )?l'accesso)\b"#,
+    ].map { try! NSRegularExpression(pattern: $0) }
 
     /// Outlook's answer when its sign-in has run out: 440, "Login Time-out".
     public static func isSignedOutStatus(_ status: Int) -> Bool { status == 440 }
