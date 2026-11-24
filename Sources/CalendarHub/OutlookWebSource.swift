@@ -496,9 +496,10 @@ final class OutlookWebSource: NSObject, ObservableObject {
     private func clickNextWeek() async -> Bool {
         let script = """
         (() => {
+          \(Self.labelMatchers)
           const button = [...document.querySelectorAll('button[aria-label]')]
             // The label can carry the target dates: "Go to next week October 26–30, 2026".
-            .find(b => /^(go to )?next (work ?)?week\\b/i.test(b.getAttribute('aria-label').trim()));
+            .find(b => isNextWeek(b.getAttribute('aria-label')));
           if (!button) return false;
           button.click();
           return true;
@@ -511,6 +512,24 @@ final class OutlookWebSource: NSObject, ObservableObject {
         return false
     }
 
+    /// Recognizes Outlook's buttons by their labels, in English, Portuguese, French, German,
+    /// Spanish and Italian: "Go to next week", "Ir para a próxima semana", "Aller à la semaine
+    /// suivante", "Zur nächsten Woche wechseln", "Ir a la semana siguiente", "Vai alla
+    /// settimana successiva"; "Go to today" ("Hoje", "Aujourd'hui", "Heute", "Hoy", "Oggi");
+    /// and the "Week" view ("Semana", "Semaine", "Woche", "Settimana"). Matched on the label
+    /// lowercased and without accents. A meeting's label has its times, so one titled "Next
+    /// week planning" isn't taken for the button.
+    static let labelMatchers = #"""
+    const fold = l => (l || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const hasTime = l => /\d{1,2}:\d{2}/.test(l);
+    const NEXT = /\b(next|proxim|seguinte|suivant|prochain|nachst|siguiente|successiv|prossim)/;
+    const WEEK = /(week|\bsemana|\bsemaine|woche|\bsettimana)/;
+    const TODAY = /\b(today|hoje|aujourd|heute|hoy|oggi)\b/;
+    const isNextWeek = l => { l = fold(l); return NEXT.test(l) && WEEK.test(l) && !hasTime(l); };
+    const isToday = l => { l = fold(l); return TODAY.test(l) && !hasTime(l); };
+    const isWeekView = l => ['week', 'semana', 'semaine', 'woche', 'settimana'].includes(fold(l));
+    """#
+
     private enum WeekViewResult { case alreadyWeek, switched, failed }
 
     /// Makes sure Outlook shows a week (Week or Work week view), clicking its "Week" view
@@ -520,12 +539,13 @@ final class OutlookWebSource: NSObject, ObservableObject {
     private func ensureWeekView() async -> WeekViewResult {
         let script = """
         (() => {
+          \(Self.labelMatchers)
           const labels = [...document.querySelectorAll('button[aria-label]')]
-            .map(b => [b, b.getAttribute('aria-label').trim()]);
-          if (labels.some(([, l]) => /^(go to )?next (work ?)?week\\b/i.test(l))) return 'week';
+            .map(b => [b, b.getAttribute('aria-label')]);
+          if (labels.some(([, l]) => isNextWeek(l))) return 'week';
           // "Go to today" is there once the calendar has loaded, in every view.
-          if (!labels.some(([, l]) => /^go to today\\b/i.test(l))) return 'loading';
-          const week = labels.find(([, l]) => l.toLowerCase() === 'week');
+          if (!labels.some(([, l]) => isToday(l))) return 'loading';
+          const week = labels.find(([, l]) => isWeekView(l));
           if (!week) return 'no-week-button';
           week[0].click();
           return 'clicked';

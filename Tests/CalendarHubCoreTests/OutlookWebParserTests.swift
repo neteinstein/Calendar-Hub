@@ -304,6 +304,75 @@ final class OutlookWebParserTests: XCTestCase {
         XCTAssertFalse(SyncPlanner.shouldCopy(events[0], from: source, options: SyncOptions()))
     }
 
+    func testScreenLabelsInOtherLanguages() {
+        let labels = [
+            "Reunião de equipa, 10:15 a 10:30, segunda-feira, 26 de outubro de 2026, Microsoft Teams Meeting, Por Ana Silva, Busy",
+            "Point d'équipe, 11:00 à 11:30, mardi 27 octobre 2026, Réunion Microsoft Teams, Par Claire Martin, Tentative",
+            "Teambesprechung, 12:00 bis 13:00 Uhr, Mittwoch, 28. Oktober 2026, Microsoft Teams-Besprechung, Von Jonas Weber, Busy",
+            "Reunión semanal, 2:00 p. m. a 3:00 p. m., jueves, 29 de octubre de 2026, De Lucía Gómez, Busy",
+            "Riunione, 16:00 - 17:00, venerdì 30 ottobre 2026, https://meet.google.com/abc-defg-hij, Da Marco Rossi, Busy",
+            "Annulé : Revue, 09:00 à 09:30, lundi 2 novembre 2026, Free",
+            "Ícone de aula, Buscar as crianças, 17:00 a 17:30, terça-feira, 3 de novembro de 2026, OOF",
+            "Réunion, 09:00 à 10:00, dimanche 1er novembre 2026, Busy",
+            "Sem data, 10:00 a 11:00, segunda-feira, 26/10/2026, Busy",
+        ]
+        let london = TimeZone(identifier: "Europe/London")!
+        let events = OutlookWebParser.events(fromScreenLabels: labels, timeZone: london)
+        let iso = ISO8601DateFormatter()
+        XCTAssertEqual(events.map(\.title), [
+            "Reunião de equipa", "Point d'équipe", "Teambesprechung", "Reunión semanal", "Riunione",
+            "Réunion", "Annulé : Revue", "Buscar as crianças",
+        ])
+        XCTAssertEqual(events.map { iso.string(from: $0.start) }, [
+            "2026-10-26T10:15:00Z", "2026-10-27T11:00:00Z", "2026-10-28T12:00:00Z", "2026-10-29T14:00:00Z",
+            "2026-10-30T16:00:00Z", "2026-11-01T09:00:00Z", "2026-11-02T09:00:00Z", "2026-11-03T17:00:00Z",
+        ])
+        XCTAssertEqual(iso.string(from: events[3].end), "2026-10-29T15:00:00Z")
+        XCTAssertEqual(iso.string(from: events[2].end), "2026-10-28T13:00:00Z")
+        XCTAssertEqual(events[1].isUnconfirmed, true)
+        XCTAssertEqual(events[4].meetingURL?.host, "meet.google.com")
+        XCTAssertTrue(events[6].isCancelled)
+        XCTAssertTrue(events[7].isOutOfOffice)
+    }
+
+    func testClockTimes() {
+        XCTAssertTrue(OutlookWebParser.clockTime("09:30")! == (9, 30))
+        XCTAssertTrue(OutlookWebParser.clockTime("9.30")! == (9, 30))
+        XCTAssertTrue(OutlookWebParser.clockTime("12:15 AM")! == (0, 15))
+        XCTAssertTrue(OutlookWebParser.clockTime("12:15 PM")! == (12, 15))
+        XCTAssertTrue(OutlookWebParser.clockTime("2:00 p. m.")! == (14, 0))
+        XCTAssertNil(OutlookWebParser.clockTime("25:00"))
+        XCTAssertNil(OutlookWebParser.clockTime("13:00 PM"))
+    }
+
+    func testSignedOutNoticesInOtherLanguages() {
+        for notice in [
+            "A sua sessão expirou. Inicie sessão novamente.",
+            "Sua sessão expirou",
+            "Entre novamente para continuar",
+            "Votre session a expiré. Reconnectez-vous.",
+            "Connectez-vous à nouveau pour continuer",
+            "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an.",
+            "Sie wurden abgemeldet",
+            "Su sesión ha expirado. Vuelva a iniciar sesión.",
+            "Inicie sesión de nuevo",
+            "La sessione è scaduta. Accedi di nuovo.",
+            "Esegui di nuovo l\u{2019}accesso",
+        ] {
+            XCTAssertTrue(OutlookWebParser.isSignedOutNotice(notice), notice)
+        }
+        for notice in [
+            "Evento guardado",
+            "Vous êtes hors connexion.",
+            "Votre session expire dans 5 minutes",
+            "Sie sind offline. Wir versuchen es erneut.",
+            "Sei offline",
+            "Sessão de planeamento, 10:00",
+        ] {
+            XCTAssertFalse(OutlookWebParser.isSignedOutNotice(notice), notice)
+        }
+    }
+
     func testSignedOutNotices() {
         for notice in [
             "Your session has expired. Please sign in again.",

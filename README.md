@@ -8,7 +8,7 @@
 
 A small Mac menu bar app that copies the meetings from your other calendars into the one your colleagues book you through, so nobody books you over a meeting they can't see. It also keeps your day in view: the next meeting a click away, a nudge when it starts, and the tasks to prepare it.
 
-[![Version 2.1.11](https://img.shields.io/badge/version-2.1.11-2563EB)](Support/Info.plist)
+[![Version 2.1.12](https://img.shields.io/badge/version-2.1.12-2563EB)](Support/Info.plist)
 [![Build](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml/badge.svg)](https://github.com/neteinstein/Calendar-Hub/actions/workflows/build.yml)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)
 [![Homebrew tap](https://img.shields.io/badge/homebrew-neteinstein%2Ftap-FBB040?logo=homebrew&logoColor=white)](https://github.com/neteinstein/homebrew-tap)
@@ -226,7 +226,7 @@ Today's date, or, if you like, the next meeting and the minutes left when it's 1
 - **Copies your meetings across**, titled by the calendar they came from, with the Teams, Zoom, Google Meet or Webex link, so **Join** works from your main calendar.
 - **Keeps the copies right:** moved meetings move, cancelled ones disappear, and recurring meetings just work.
 - **Warns about overlaps:** when a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so ("Thu 14:00: [Calendar A] Sprint planning overlaps Design review"). Meetings that already overlapped aren't reported again.
-- **Reads calendars your Mac can't add:** sign in to **Outlook on the web** or **Google Calendar on the web** once in the app, or subscribe to a published **.ics** link.
+- **Reads calendars your Mac can't add:** sign in to **Outlook on the web** or **Google Calendar on the web** once in the app, or subscribe to a published **.ics** link. Outlook and Google work in English, Portuguese, French, German, Spanish and Italian.
 - **Hides meeting names** for a calendar if you'd rather: its copies read `[Calendar A] Busy`. On from the start for Outlook on the web calendars. The join link can be left out too, so nothing but the time crosses over.
 - **Colors each calendar** in the menu and the alerts as Calendar.app does, or in a color you pick for it in Settings.
 - **Syncs both ways**, if you like: your main calendar shows as **Busy** in your secondary calendars, with nothing else in it, not even alerts, so a meeting doesn't notify you twice.
