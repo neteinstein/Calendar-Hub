@@ -170,11 +170,19 @@ public struct SyncOptions: Codable, Hashable, Sendable {
     /// main calendar.
     public var skipOutOfOffice: Bool
     /// A sync that adds or moves a copy onto another meeting in the main calendar says so, in
-    /// the menu and in a notification. Meetings that already overlapped aren't reported.
+    /// the menu and in a notification. Meetings that already overlapped aren't reported. Off
+    /// until turned on.
     public var warnsAboutOverlaps: Bool
 
+    // The warning was on by default up to 2.1.12, and every version saved it, so it's kept
+    // under a new key: a saved "on" from then isn't a choice the user made.
+    enum CodingKeys: String, CodingKey {
+        case daysAhead, skipDeclined, skipAllDay, skipOutOfOffice
+        case warnsAboutOverlaps = "warnsAboutSyncOverlaps"
+    }
+
     public init(daysAhead: Int = 5, skipDeclined: Bool = true, skipAllDay: Bool = false, skipOutOfOffice: Bool = true,
-                warnsAboutOverlaps: Bool = true) {
+                warnsAboutOverlaps: Bool = false) {
         self.daysAhead = daysAhead
         self.skipDeclined = skipDeclined
         self.skipAllDay = skipAllDay

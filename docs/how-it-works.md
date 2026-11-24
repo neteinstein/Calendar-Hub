@@ -56,6 +56,10 @@ On two Macs that both show the main calendar in the same secondary calendar, eac
 
 The **full-screen alert** (on unless you turn it off) blurs the screen when a main-calendar meeting begins, or up to 15 minutes before, and counts down to the start. The meeting's open tasks are listed **to prepare**. Its buttons: **Join call** (⏎), **Go to** the room, **Ignore** (esc), or **Remind me in 1 minute**. Any other key, or a click anywhere but the buttons, ignores it too. Meetings copied from secondary calendars alert too, join link and calendar name included. Each meeting alerts once; a meeting already under way (say, after the Mac wakes) alerts until it ends.
 
+Rather not have the screen covered? In Settings › Meeting alerts, **Show it as** **Notification** instead: a macOS notification with the meeting's time, room and calendar, which joins the call when clicked. It's one or the other, never both.
+
+With **Warn when a synced meeting overlaps another** on (off until you turn it on, in the same pane), a sync that adds or moves a copy onto another meeting in your main calendar says so in the menu and in a notification.
+
 ## Tasks
 
 The **Tasks** view sits between List and Stats (turn it off in Settings › Tasks). Type a task and press Return for one with no date, or open it for more: notes, a **due date**, the **meeting it's for**, and **nudges**.

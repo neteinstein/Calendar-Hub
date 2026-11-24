@@ -183,8 +183,6 @@ private struct GeneralTab: View {
                 Toggle("Skip meetings I declined", isOn: $settings.options.skipDeclined)
                 Toggle("Skip all-day events", isOn: $settings.options.skipAllDay)
                 Toggle("Skip out-of-office events", isOn: $settings.options.skipOutOfOffice)
-                Toggle("Warn when a synced meeting overlaps another", isOn: $settings.options.warnsAboutOverlaps)
-                    .help("When a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so. Meetings that already overlapped aren't reported again.")
             }
 
             Section("Startup") {
@@ -556,22 +554,40 @@ private struct AlertsTab: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Show a full-screen alert when an event starts", isOn: $settings.alerts.enabled)
+                Toggle("Alert me when an event starts", isOn: $settings.alerts.enabled)
                 if settings.alerts.enabled {
+                    // One or the other: a picker can't have both on.
+                    Picker("Show it as", selection: $settings.alerts.style) {
+                        Text("Full-screen alert").tag(EventAlertStyle.fullScreen)
+                        Text("Notification").tag(EventAlertStyle.notification)
+                    }
+                    .pickerStyle(.radioGroup)
                     Stepper(settings.alerts.leadMinutes == 0
                             ? "Show it when the event starts"
                             : "Show it \(settings.alerts.leadMinutes) \(settings.alerts.leadMinutes == 1 ? "minute" : "minutes") before the start",
                             value: $settings.alerts.leadMinutes, in: 0...15)
                 }
             } footer: {
-                Text("Covers the screen when a meeting in your main calendar begins, with buttons to join the call, go to the room, ignore it, or be reminded a minute later. Each meeting alerts once; a meeting already under way alerts until it ends.")
+                Text(settings.alerts.style == .notification
+                     ? "A macOS notification when a meeting in your main calendar begins, with its time, room and calendar. Click it to join the call. Each meeting alerts once; a meeting already under way alerts until it ends."
+                     : "Covers the screen when a meeting in your main calendar begins, with buttons to join the call, go to the room, ignore it, or be reminded a minute later. Each meeting alerts once; a meeting already under way alerts until it ends.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
             if settings.alerts.enabled {
                 Section("What it looks like") {
-                    AlertSketch(leadMinutes: settings.alerts.leadMinutes)
+                    switch settings.alerts.style {
+                    case .fullScreen: AlertSketch(leadMinutes: settings.alerts.leadMinutes)
+                    case .notification: NotificationSketch(leadMinutes: settings.alerts.leadMinutes)
+                    }
                 }
+            }
+
+            Section {
+                Toggle("Warn when a synced meeting overlaps another", isOn: $settings.options.warnsAboutOverlaps)
+            } footer: {
+                Text("When a sync adds or moves a copy onto another meeting in your main calendar, the menu and a notification say so, like \"Thu 14:00: [Calendar A] Sprint planning overlaps Design review\". Meetings that already overlapped aren't reported again.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
@@ -656,6 +672,39 @@ private struct AlertSketch: View {
             .frame(width: 250)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
             .shadow(color: .black.opacity(0.25), radius: 10, y: 5)
+        }
+        .frame(height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityHidden(true)
+    }
+}
+
+/// A small drawing of the alert as a notification: a banner in the screen's top-right corner.
+private struct NotificationSketch: View {
+    let leadMinutes: Int
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            LinearGradient(colors: [.indigo.opacity(0.5), .teal.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 22, height: 22)
+                    .background(.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Meeting name").font(.system(size: 10, weight: .bold))
+                    Text("\(leadMinutes == 0 ? "Now" : "In \(leadMinutes) min") · 10:00 – 10:30 · Room")
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
+                    Text("Click to join.").font(.system(size: 9)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(9)
+            .frame(width: 220)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .shadow(color: .black.opacity(0.2), radius: 8, y: 4)
+            .padding(10)
         }
         .frame(height: 150)
         .clipShape(RoundedRectangle(cornerRadius: 8))

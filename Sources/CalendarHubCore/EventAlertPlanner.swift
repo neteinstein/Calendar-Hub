@@ -1,8 +1,18 @@
 import Foundation
 
-/// Settings for the full-screen alert shown when a main-calendar event starts.
+/// How a meeting alert shows: one or the other, never both.
+public enum EventAlertStyle: String, Codable, Hashable, Sendable, CaseIterable {
+    /// Covers the screen, with buttons to join, go to the room, ignore or snooze.
+    case fullScreen
+    /// A macOS notification; clicking it joins the call.
+    case notification
+}
+
+/// Settings for the alert shown when a main-calendar event starts.
 public struct EventAlertOptions: Codable, Hashable, Sendable {
     public var enabled: Bool
+    /// Full screen, or a notification.
+    public var style: EventAlertStyle
     /// How many minutes before the start the alert appears.
     public var leadMinutes: Int
     /// A notification at the start of the working day with the day's meetings, tasks due and
@@ -19,10 +29,11 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
     public static let defaultFocusOnShortcut = "Calendar Hub Focus On"
     public static let defaultFocusOffShortcut = "Calendar Hub Focus Off"
 
-    public init(enabled: Bool = true, leadMinutes: Int = 1, morningSummary: Bool = false,
+    public init(enabled: Bool = true, style: EventAlertStyle = .fullScreen, leadMinutes: Int = 1, morningSummary: Bool = false,
                 focusDuringMeetings: Bool = false, focusOnShortcut: String = Self.defaultFocusOnShortcut,
                 focusOffShortcut: String = Self.defaultFocusOffShortcut) {
         self.enabled = enabled
+        self.style = style
         self.leadMinutes = leadMinutes
         self.morningSummary = morningSummary
         self.focusDuringMeetings = focusDuringMeetings
@@ -35,6 +46,8 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = EventAlertOptions()
         enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled
+        // A style a later version added reads as the default rather than losing every setting.
+        style = (try? c.decodeIfPresent(EventAlertStyle.self, forKey: .style)) ?? defaults.style
         leadMinutes = try c.decodeIfPresent(Int.self, forKey: .leadMinutes) ?? defaults.leadMinutes
         morningSummary = try c.decodeIfPresent(Bool.self, forKey: .morningSummary) ?? defaults.morningSummary
         focusDuringMeetings = try c.decodeIfPresent(Bool.self, forKey: .focusDuringMeetings) ?? defaults.focusDuringMeetings
@@ -43,7 +56,7 @@ public struct EventAlertOptions: Codable, Hashable, Sendable {
     }
 }
 
-/// Decides which events deserve a full-screen alert right now. Pure logic, no calendar or
+/// Decides which events deserve an alert right now. Pure logic, no calendar or
 /// window access, so it can be unit tested.
 public enum EventAlertPlanner {
     /// Events whose alert should be showing at `now`: from `leadMinutes` before the start
