@@ -459,13 +459,14 @@ public enum SyncPlanner {
     }
 
     /// Notes and location are compared after tidying whitespace, since calendar servers
-    /// (Exchange, Google) change line endings and spacing when they store them.
+    /// (Exchange, Google) change line endings and spacing when they store them, and without
+    /// the Google Meet block a Google calendar may add to a copy.
     static func needsUpdate(_ copy: ExistingCopy, to spec: CopySpec, calendar: Calendar) -> Bool {
         copy.title != spec.title
             || !sameTimes(copy, spec, calendar: calendar)
             || copy.isAllDay != spec.isAllDay
             || copy.url != spec.url
-            || HTMLText.normalize(copy.notes) != HTMLText.normalize(spec.notes)
+            || HTMLText.normalize(CopyFormatter.withoutGoogleConferenceBlock(copy.notes)) != HTMLText.normalize(spec.notes)
             || HTMLText.normalize(copy.location ?? "") != HTMLText.normalize(spec.location ?? "")
     }
 

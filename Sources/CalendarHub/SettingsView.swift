@@ -1247,6 +1247,9 @@ private struct SourceRow: View {
             colorRow
             Toggle("Hide meeting names (copy as “\(copyTitle("Busy"))”)", isOn: $source.hideMeetingName)
             Toggle("Copy the meeting link (Join from the main calendar)", isOn: $source.copyMeetingLink)
+            if source.copyMeetingLink && isGoogle {
+                googleMeetWarning
+            }
             Toggle("Copy location and description", isOn: $source.copyDetails)
                 .disabled(source.hideMeetingName)
             Toggle("Copy meetings I haven't accepted", isOn: $source.copyUnaccepted)
@@ -1317,6 +1320,28 @@ private struct SourceRow: View {
             }
         } footer: {
             Text(footer).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// A Google Calendar: one read on the web, or one Calendar.app syncs from a Google account.
+    private var isGoogle: Bool {
+        switch source.kind {
+        case .googleWeb: true
+        case .outlookWeb: false
+        case .eventKit(let calendarID): controller.eventKit.calendar(id: calendarID).map(EventKitBridge.isGoogle) ?? false
+        }
+    }
+
+    /// Google may give each copy a Google Meet of its own, with a link that isn't the meeting's.
+    /// Calendar Hub's menu and alerts use the copied link, but Google's own button can't be
+    /// taken off the copy.
+    private var googleMeetWarning: some View {
+        Label {
+            Text("Careful with meeting links: if your main calendar is Google, Google may add a Google Meet of its own to each copy. The app can't remove the Meet that Google attaches, because Apple's calendar framework can't reach it. Google Calendar's own “Join with Google Meet” button on the copy will still open Google's link. To stop that, turn off “Automatically add Google Meet video conferences to events I create” in Google Calendar's settings for the main account.")
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
         }
     }
 
