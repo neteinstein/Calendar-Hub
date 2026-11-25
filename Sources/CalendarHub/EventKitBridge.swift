@@ -34,6 +34,15 @@ final class EventKitBridge {
         }
     }
 
+    /// Whether `calendar` is a Google Calendar, as Calendar.app syncs it: a CalDAV account
+    /// named after Google or a Gmail address. EventKit declares the account as never nil but
+    /// doesn't promise it (a calendar outside a store has none).
+    static func isGoogle(_ calendar: EKCalendar) -> Bool {
+        guard let source = calendar.source as EKSource?, source.sourceType == .calDAV else { return false }
+        let account = source.title.lowercased()
+        return account.contains("google") || account.contains("gmail")
+    }
+
     func calendar(id: String?) -> EKCalendar? {
         if let demo { return demo.calendars.first { $0.calendarIdentifier == id } }
         return id.flatMap { store.calendar(withIdentifier: $0) }
