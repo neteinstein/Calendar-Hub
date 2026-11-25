@@ -37,11 +37,38 @@ public enum CopyFormatter {
     /// meeting's description when the source copies details; the hidden marker goes last.
     public static func notes(meetingURL: URL?, details: String? = nil, marker: CopyMarker) -> String {
         var lines: [String] = []
-        if let meetingURL { lines.append("Join: \(meetingURL.absoluteString)") }
+        if let meetingURL { lines.append(joinPrefix + meetingURL.absoluteString) }
         if let details, !details.isEmpty { lines.append(details) }
         lines.append("Copied by Calendar Hub. Changes here are overwritten.")
         lines.append(marker.encoded)
         return lines.joined(separator: "\n\n")
+    }
+
+    /// The meeting link on a copy's "Join:" line, the first line `notes(meetingURL:details:marker:)`
+    /// writes. A copy's own URL, location and the end of its notes can't be trusted for it: a
+    /// Google main calendar may give the copy a Google Meet of its own, with a different link
+    /// than the meeting's. Nil when the copy was made without a link.
+    public static func joinLink(in notes: String?) -> URL? {
+        guard let notes else { return nil }
+        let text = HTMLText.plainText(from: withoutGoogleConferenceBlock(notes))
+        guard text.hasPrefix(joinPrefix) else { return nil }
+        let line = text.prefix { $0 != "\n" }
+        return MeetingLink.firstMeetingLink(in: String(line))
+    }
+
+    static let joinPrefix = "Join: "
+
+    /// Google Calendar's own block about an event's Google Meet, as Google adds it to the
+    /// description: between two `-::~:~::~…::-` lines, ending with "Please do not edit this
+    /// section." It carries the Meet of the event it came from, so it isn't copied (the copy
+    /// has its "Join:" line), and a block Google adds to a copy isn't taken for a change.
+    private static let googleConferenceBlock = try! NSRegularExpression(
+        pattern: #"-::~[:~]*::-[\s\S]*?(-::~[:~]*::-|$)"#)
+
+    public static func withoutGoogleConferenceBlock(_ text: String) -> String {
+        guard text.contains("-::~") else { return text }
+        let range = NSRange(text.startIndex..., in: text)
+        return googleConferenceBlock.stringByReplacingMatches(in: text, range: range, withTemplate: "")
     }
 
     /// Longest description copied into a copy's notes.
@@ -51,7 +78,7 @@ public enum CopyFormatter {
     /// details (or hides meeting names, which would make the details give it away).
     static func details(for event: SourceEvent, source: SourceConfig) -> (notes: String?, location: String?) {
         guard source.copyDetails, !source.hideMeetingName else { return (nil, nil) }
-        var notes = event.notes.map(HTMLText.normalize)
+        var notes = event.notes.map { HTMLText.normalize(withoutGoogleConferenceBlock($0)) }
         if let text = notes, text.count > maxDetailsLength {
             notes = HTMLText.normalize(String(text.prefix(maxDetailsLength))) + "…"
         }

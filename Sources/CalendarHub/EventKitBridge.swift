@@ -77,12 +77,19 @@ final class EventKitBridge {
             isCancelled: event.status == .canceled || SourceEvent.isCancelledTitle(event.title ?? ""),
             // Exchange's "Out of office" comes through as unavailable.
             isOutOfOffice: event.availability == .unavailable,
-            meetingURL: MeetingLink.find(url: event.url, location: event.location, notes: event.notes),
+            meetingURL: Self.meetingURL(event),
             notes: event.notes,
             location: event.location,
             // The invitation's UID, shared with the same invitation in other calendars.
             inviteID: event.calendarItemExternalIdentifier
         )
+    }
+
+    /// The meeting's link. A copy's is the one the app wrote on its "Join:" line, not one a
+    /// Google calendar gave the copy with a Google Meet of its own.
+    static func meetingURL(_ event: EKEvent) -> URL? {
+        if CopyMarker.isCopy(event.notes) { return CopyFormatter.joinLink(in: event.notes) }
+        return MeetingLink.find(url: event.url, location: event.location, notes: event.notes)
     }
 
     /// Copies this app made in the target calendar: recognised by the marker in their notes,
@@ -96,7 +103,8 @@ final class EventKitBridge {
             guard Self.isOwn(event), let marker = CopyMarker.find(in: event.notes), let eventID = event.eventIdentifier,
                   let start = event.startDate as Date?, let end = event.endDate as Date?
             else { return nil }
-            // Exchange and Google may drop the event URL. Read it the way we wrote it, so
+            // Exchange and Google may drop the event URL, and a Google calendar may put a Meet
+            // of its own there. Read the link the way we wrote it, on the "Join:" line, so
             // unchanged copies aren't rewritten on every sync.
             let notes = Self.storedNotes(event)
             return ExistingCopy(
@@ -106,7 +114,7 @@ final class EventKitBridge {
                 start: start,
                 end: end,
                 isAllDay: event.isAllDay,
-                url: event.url ?? MeetingLink.firstMeetingLink(in: notes),
+                url: CopyFormatter.joinLink(in: notes),
                 notes: notes,
                 location: event.location
             )
