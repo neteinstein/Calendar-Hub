@@ -56,6 +56,10 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// out though the page is still Outlook's. Set by the page scripts, see `captureScript`.
     private var sawLoginTimeout = false
     private var signedOutReason: String?
+    /// When this read first found the page on Microsoft's sign-in, for `staysOnSignIn`.
+    private var signInSince: ContinuousClock.Instant?
+    /// How long a read lets Microsoft's sign-in take to send the page back to Outlook by itself.
+    private static let signInGrace: Duration = .seconds(20)
     /// Which of `OutlookWebCalendarView.requests` Outlook last answered, tried first next time.
     private var calendarViewRequest: Int?
     private let securityKey = SecurityKeySignIn()
@@ -220,6 +224,7 @@ final class OutlookWebSource: NSObject, ObservableObject {
         captured = []
         sawLoginTimeout = false
         signedOutReason = nil
+        signInSince = nil
         var onScreen: [SourceEvent] = []
         var calendarViewFailed = false
         var calendar = Calendar.current
@@ -323,12 +328,12 @@ final class OutlookWebSource: NSObject, ObservableObject {
         return .failure("Signed out of Outlook. Open the Outlook window to sign in again.")
     }
 
-    /// Whether Outlook's sign-in has run out: the page went to Microsoft's sign-in, or it
-    /// stayed on Outlook, which then answers 440 or puts up a notice asking to sign in again
-    /// (a bar across the top of the page) while still showing what it had loaded. The reason
-    /// goes to `signedOutReason`, for the log.
+    /// Whether Outlook's sign-in has run out: the page went to Microsoft's sign-in and stayed
+    /// there, or it stayed on Outlook, which then answers 440 or puts up a notice asking to sign
+    /// in again (a bar across the top of the page) while still showing what it had loaded. The
+    /// reason goes to `signedOutReason`, for the log.
     private func isSignedOut() async -> Bool {
-        if isSignInPage(webView.url) {
+        if await staysOnSignIn() {
             signedOutReason = "sign-in page"
             return true
         }
@@ -340,6 +345,28 @@ final class OutlookWebSource: NSObject, ObservableObject {
         guard notices.contains(where: OutlookWebParser.isSignedOutNotice) else { return false }
         signedOutReason = "Outlook asks to sign in again"
         return true
+    }
+
+    /// Whether the page went to Microsoft's sign-in and stays off Outlook. Outlook's own sign-in
+    /// runs out after about an hour; Outlook then sends the page to Microsoft's sign-in, which
+    /// sends it straight back, signed in again, when it can do that without the user (a browser
+    /// shows a flash of it). So the page has until `signInGrace` after it first went there in
+    /// this read to come back. Off Outlook until then (on Microsoft's sign-in, or on the
+    /// organization's own sign-in it moved on to), the user has to sign in.
+    private func staysOnSignIn() async -> Bool {
+        let onOutlook = { [webView] in webView.url.map(Self.isOutlookHost) ?? false }
+        guard isSignInPage(webView.url) || (signInSince != nil && !onOutlook()) else { return false }
+        let since = signInSince ?? .now
+        signInSince = since
+        while !onOutlook() {
+            // The user opened the window to sign in: the read mustn't load pages under them.
+            if window?.isVisible == true || ContinuousClock.now - since >= Self.signInGrace { return true }
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+        // A 440 from before was the sign-in that just got renewed.
+        sawLoginTimeout = false
+        AppLog.write("Calendar Hub: Outlook went through Microsoft's sign-in and back")
+        return false
     }
 
     /// The text of what Outlook shows as notices: bars, alerts, dialogs. Short ones only, so a
@@ -475,12 +502,15 @@ final class OutlookWebSource: NSObject, ObservableObject {
     /// for 3 s, up to 15 s. Returns whether that data arrived.
     private func waitForCalendarData(after before: Int, from: Date, to: Date) async -> Bool {
         // Not wall-clock time: the clock set back during a read would keep it waiting for hours.
-        let deadline = ContinuousClock.now + .seconds(15)
+        var deadline = ContinuousClock.now + .seconds(15)
         var checked = before
         var loaded = false
         while ContinuousClock.now < deadline {
             try? await Task.sleep(nanoseconds: 500_000_000)
+            let checking = ContinuousClock.now, onSignIn = isSignInPage(webView.url)
             if await isSignedOut() { return false }
+            // The time the page took going through Microsoft's sign-in and back doesn't count.
+            if onSignIn { deadline += ContinuousClock.now - checking }
             if !loaded, captured.count > checked {
                 loaded = OutlookWebParser.events(fromPayloads: Array(captured[checked...]))
                     .contains { $0.start >= from && $0.start < to }
