@@ -43,7 +43,12 @@ cp Support/Info.plist "$APP/Contents/Info.plist"
 cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 if [[ -n "$PROCESSOR" ]]; then
-  CONST_VALUES="$(find .build -name 'CalendarHub.swiftconstvalues' -newer Package.swift -print 2>/dev/null | head -n 1)"
+  # SwiftPM's own build system names the file after the module; Swift Build (SwiftPM's build
+  # system in newer toolchains) adds "-primary". Only the CalendarHub module's, not
+  # CalendarHubCore-primary's or CalendarHubWidget-primary's. The newest, in case .build still
+  # has one from the other build system.
+  CONST_VALUES="$(find .build \( -name 'CalendarHub.swiftconstvalues' -o -name 'CalendarHub-primary.swiftconstvalues' \) \
+                    -newer Package.swift -exec ls -t {} + 2>/dev/null | head -n 1)"
   if [[ -n "$CONST_VALUES" ]]; then
     WORK="$(mktemp -d -t calendarhub-intents)"
     find "$PWD/Sources/CalendarHub" -name '*.swift' > "$WORK/sources.txt"
